@@ -1,0 +1,87 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-brand-bg: #0D0D14;
+  --color-brand-surface: #13131F;
+  --color-brand-card: #1C1C2E;
+  --color-brand-border: rgba(127, 119, 221, 0.2);
+  --color-brand-primary: #534AB7;
+  --color-brand-primary-light: #7F77DD;
+  --color-brand-primary-dark: #26215C;
+  --color-brand-accent-red: #E24B4A;
+  --color-brand-accent-amber: #EF9F27;
+  
+  --color-panel-bg: #F9FAFB;
+  --color-panel-surface: #FFFFFF;
+  --color-panel-border: #F3F4F6;
+  
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+}
+
+html, body, #root {
+  background-color: #0D0D14;
+  color: #FFFFFF;
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+}
+
+/* Custom Gradients */
+.gradient-primary {
+  background: linear-gradient(135deg, #534AB7, #7F77DD);
+}
+
+.gradient-deep-purple {
+  background: linear-gradient(135deg, #26215C, #534AB7, #7F77DD);
+}
+
+.gradient-dark-hero {
+  background: linear-gradient(135deg, #0D0D14, #1C1C2E, #26215C);
+}
+
+.gradient-contrast {
+  background: linear-gradient(135deg, #A32D2D, #534AB7);
+}
+
+.gradient-danger {
+  background: linear-gradient(135deg, #A32D2D, #E24B4A);
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0D0D14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1C1C2E;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #7F77DD;
+}
+
+/* Glow styles */
+.purple-glow {
+  box-shadow: 0 0 20px rgba(127, 119, 221, 0.25);
+}
+
+.purple-glow-active {
+  border-color: #534AB7;
+  box-shadow: 0 0 25px rgba(83, 74, 183, 0.4);
+}
+
+/* Custom shimmer keyframe */
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
