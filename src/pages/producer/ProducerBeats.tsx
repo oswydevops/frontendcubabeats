@@ -7,11 +7,13 @@ import { Modal } from '../../components/ui/Modal';
 import { 
   Plus, Edit2, Trash2, Search, SlidersHorizontal, Music, 
   Disc, Tag, CheckCircle2, DollarSign, CloudUpload, Play, Pause,
-  Lock, ShieldAlert
+  Lock, ShieldAlert, Share2
 } from 'lucide-react';
 
 export const ProducerBeats: React.FC = () => {
-  const { beats, addBeat, deleteBeat, updateBeat, navigateTo, playBeat, activeBeat, isPlaying, addToast, user } = useApp();
+  const { beats, addBeat, deleteBeat, updateBeat, navigateTo, playBeat, activeBeat, isPlaying, addToast, user, convertPrice } = useApp();
+
+  const isPremium = user?.plan === 'Pro' || user?.plan === 'Elite';
 
   const [searchQuery, setSearchQuery] = useState('');
   const [editingBeatId, setEditingBeatId] = useState<string | null>(null);
@@ -30,6 +32,12 @@ export const ProducerBeats: React.FC = () => {
   const [audioFileName, setAudioFileName] = useState('');
   const [isLocalAudioPlaying, setIsLocalAudioPlaying] = useState(false);
   const localAudioRef = React.useRef<HTMLAudioElement | null>(null);
+
+  // Stems & License States
+  const [stemsUrl, setStemsUrl] = useState('');
+  const [stemsFileName, setStemsFileName] = useState('');
+
+  const DEFAULT_LICENSE_TEMPLATE = "Por la presente, el productor otorga al comprador una licencia no exclusiva para grabar voces sobre este beat, distribuir hasta 5000 copias digitales y reproducir en plataformas de streaming de forma independiente. Queda prohibida la reventa o redistribución del beat por separado. El artista debe dar crédito oficial: \"Prod. por Flow Habano\".";
 
   // Step Setup Form States
   const [isSetupMode, setIsSetupMode] = useState(false);
@@ -75,6 +83,56 @@ export const ProducerBeats: React.FC = () => {
     setIsLocalAudioPlaying(false);
   };
 
+  const handleShareBeat = (beatId: string) => {
+    const url = `${window.location.origin}?beatId=${beatId}`;
+    let copiedWithClipboard = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(url).then(() => {
+          addToast('¡Enlace de beat copiado al portapapeles! Compártelo en tus redes.', 'success');
+        }).catch(() => {
+          // fallback if promise rejected
+          try {
+            const textArea = document.createElement("textarea");
+            textArea.value = url;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            addToast('¡Enlace de beat copiado al portapapeles! Compártelo en tus redes.', 'success');
+          } catch (err) {}
+        });
+        copiedWithClipboard = true;
+      }
+    } catch (e) {
+      // blocked by permissions policy
+    }
+
+    if (!copiedWithClipboard) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = url;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          addToast('¡Enlace de beat copiado al portapapeles! Compártelo en tus redes.', 'success');
+        } else {
+          addToast('No se pudo copiar de forma automática. Por favor selecciónalo manualmente.', 'error');
+        }
+      } catch (err) {
+        addToast('No se pudo copiar de forma automática.', 'error');
+      }
+    }
+  };
+
   const handleOpenUpload = () => {
     if (!user?.verified) {
       addToast('Verificación KYC obligatoria: Debes acreditar tu identidad en Mi Perfil para subir u ofrecer instrumentales.', 'error');
@@ -92,11 +150,13 @@ export const ProducerBeats: React.FC = () => {
     setDescription('Mezcla estéreo, gorda con sintetizadores retros grabada en La Habana.');
     setAudioUrl('');
     setAudioFileName('');
+    setStemsUrl('');
+    setStemsFileName('');
     stopLocalAudio();
     setPaymentTransfermovil(true);
     setPaymentEnzona(true);
     setPaymentQvapay(false);
-    setCustomLicenseClause('');
+    setCustomLicenseClause(DEFAULT_LICENSE_TEMPLATE);
     setErrors({});
     setIsSetupMode(true);
     setSetupStep(1);
@@ -119,11 +179,13 @@ export const ProducerBeats: React.FC = () => {
     setDescription(beat.description || '');
     setAudioUrl(beat.audioUrl || '');
     setAudioFileName(beat.audioFileName || (beat.audioUrl ? 'beat_track_audio.mp3' : ''));
+    setStemsUrl(beat.stemsUrl || '');
+    setStemsFileName(beat.stemsFileName || '');
     stopLocalAudio();
     setPaymentTransfermovil(beat.paymentTransfermovil ?? true);
     setPaymentEnzona(beat.paymentEnzona ?? true);
     setPaymentQvapay(beat.paymentQvapay ?? false);
-    setCustomLicenseClause(beat.customLicenseClause ?? '');
+    setCustomLicenseClause(beat.customLicenseClause || DEFAULT_LICENSE_TEMPLATE);
     setErrors({});
     setIsSetupMode(true);
     setSetupStep(1);
@@ -136,7 +198,7 @@ export const ProducerBeats: React.FC = () => {
     if (!title.trim()) tempErrors.title = 'El título de la instrumental es requerido';
     if (!bpm || Number(bpm) <= 0) tempErrors.bpm = 'Ingresa un valor de BPM válido';
     if (!scaleKey.trim()) tempErrors.scaleKey = 'La escala armónica (tono) es requerida';
-    if (!audioUrl && !audioFileName) tempErrors.audio = 'Debes subir un archivo local de audio o indicar un enlace URL público';
+    if (!audioUrl && !audioFileName) tempErrors.audio = 'Debes subir un archivo local de audio (.MP3 o .WAV)';
     if (!priceBasic || Number(priceBasic) <= 0) tempErrors.priceBasic = 'Debes ingresar un precio básico válido mayor que cero';
     if (!priceExclusive || Number(priceExclusive) <= 0) tempErrors.priceExclusive = 'Debes ingresar un precio exclusivo válido mayor que cero';
     if (priceBasic && priceExclusive && Number(priceExclusive) <= Number(priceBasic)) {
@@ -177,6 +239,8 @@ export const ProducerBeats: React.FC = () => {
       coverUrl: coverUrl || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600&auto=format&fit=crop',
       audioUrl: audioUrl || 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
       audioFileName: audioFileName || 'SoundHelix-Song-1.mp3',
+      stemsUrl: stemsUrl || '',
+      stemsFileName: stemsFileName || '',
       status: 'available' as const,
       plays: editingBeatId ? 1802 : 0,
       downloads: editingBeatId ? 312 : 0,
@@ -213,6 +277,14 @@ export const ProducerBeats: React.FC = () => {
   const handleDeviceAudioChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const fileNameLower = file.name.toLowerCase();
+      const isMp3 = fileNameLower.endsWith('.mp3');
+      
+      if (!isPremium && !isMp3) {
+        addToast('Su plan actual (Gratis) solo admite subir instrumentales en formato MP3. Actualice a un Plan de pago para poder subir en formato WAV de alta calidad.', 'error');
+        return;
+      }
+
       if (localAudioRef.current) {
         localAudioRef.current.pause();
       }
@@ -231,6 +303,26 @@ export const ProducerBeats: React.FC = () => {
       }
 
       addToast('Archivo de audio cargado correctamente', 'success');
+    }
+  };
+
+  const handleDeviceStemsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!isPremium) {
+      addToast('La subida de STEMS (pistas separadas) es una característica exclusiva para productores con planes de pago activos.', 'error');
+      return;
+    }
+    const file = e.target.files?.[0];
+    if (file) {
+      const fileNameLower = file.name.toLowerCase();
+      const isArchive = fileNameLower.endsWith('.zip') || fileNameLower.endsWith('.rar');
+      if (!isArchive) {
+        addToast('Por favor, suba un archivo comprimido en formato .ZIP o .RAR para los stems.', 'error');
+        return;
+      }
+      const tempUrl = URL.createObjectURL(file);
+      setStemsUrl(tempUrl);
+      setStemsFileName(file.name);
+      addToast('Archivo de STEMS cargado correctamente', 'success');
     }
   };
 
@@ -365,7 +457,7 @@ export const ProducerBeats: React.FC = () => {
                   : 'border-brand-border/20 hover:text-gray-200'
               }`}
             >
-              4. Cláusulas {stepsValidity.step4 ? '✓' : ''}
+              4. Licencia {stepsValidity.step4 ? '✓' : ''}
             </div>
           </div>
 
@@ -377,7 +469,7 @@ export const ProducerBeats: React.FC = () => {
               <div className="space-y-4 animate-in fade-in duration-200">
                 <div className="p-3 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-xl text-xs text-indigo-200 flex items-center gap-2">
                   <div className="p-1 px-2.5 bg-[#534AB7] text-white rounded font-mono font-bold">1</div>
-                  <span>Propiedades e información descriptiva del beat instrumental en CubaBeats.</span>
+                  <span>Propiedades e información descriptiva del beat instrumental en D'Cuban Beats.</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -488,23 +580,14 @@ export const ProducerBeats: React.FC = () => {
               <div className="space-y-5 animate-in fade-in duration-200">
                 <div className="p-3 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-xl text-xs text-indigo-200 flex items-center gap-2">
                   <div className="p-1 px-2.5 bg-[#534AB7] text-white rounded font-mono font-bold">2</div>
-                  <span>Portada Visual. Tener una portada hermosa aumenta tus ventas un 40%.</span>
+                  <span>Arte y Audio. Selecciona la portada de tu instrumental y carga la pista.</span>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
                   
                   {/* Photo upload / select column */}
                   <div className="md:col-span-7 space-y-4">
-                    <Input
-                      label="Enlace URL de Imagen Pública (Opcional)"
-                      placeholder="https://images.unsplash.com/..."
-                      value={coverUrl}
-                      onChange={(e) => setCoverUrl(e.target.value)}
-                      themeMode="dark"
-                    />
-
-                    <div className="text-center font-bold text-xs uppercase text-gray-500 select-none py-1">— O, usar tu dispositivo local —</div>
-
+                    <span className="text-xs font-bold uppercase text-gray-400 tracking-wider block">Foto de Portada (Cover) *</span>
                     <div className="border border-dashed border-brand-border/40 rounded-2xl p-5 text-center bg-brand-card/45 space-y-2">
                       <input 
                         type="file" 
@@ -529,8 +612,8 @@ export const ProducerBeats: React.FC = () => {
 
                   {/* Art preview column */}
                   <div className="md:col-span-5 text-center space-y-2">
-                    <span className="text-[10px] font-bold text-gray-450 block uppercase">Fotografía Cover Preview</span>
-                    <div className="w-40 h-40 rounded-2xl overflow-hidden mx-auto shadow-md border-2 border-brand-border/50 bg-brand-card relative group">
+                    <span className="text-[10px] font-bold text-gray-450 block uppercase">Vista Previa</span>
+                    <div className="w-36 h-36 rounded-2xl overflow-hidden mx-auto shadow-md border-2 border-brand-border/50 bg-brand-card relative group">
                       {coverUrl ? (
                         <img 
                           src={coverUrl} 
@@ -540,7 +623,7 @@ export const ProducerBeats: React.FC = () => {
                         />
                       ) : (
                         <div className="w-full h-full flex flex-col justify-center items-center text-gray-400 text-xs p-4">
-                          <Music size={24} className="mb-1" />
+                          <Music size={24} className="mb-1 text-gray-550" />
                           Sin portada
                         </div>
                       )}
@@ -549,112 +632,158 @@ export const ProducerBeats: React.FC = () => {
 
                 </div>
 
-                {/* Real interactive high-bitrate audio track uploader */}
-                <div className={`border ${errors.audio ? 'border-brand-accent-red/80 bg-brand-accent-red/5' : 'border-[#534AB7]/30 bg-[#534AB7]/5'} p-5 rounded-2xl space-y-4 text-left transition-all duration-200`}>
-                  <div className="flex justify-between items-center flex-wrap gap-2 pb-1 border-b border-brand-border/20">
-                    <div>
-                      <span className="text-xs font-bold uppercase tracking-wider text-[#7F77DD] block">Pista de Audio de la Instrumental (.MP3 o .WAV) *</span>
-                      <span className="text-[11px] text-gray-450">Sube la maqueta que escucharán los cantantes en el catálogo general.</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Real interactive high-bitrate audio track uploader */}
+                  <div className={`border ${errors.audio ? 'border-brand-accent-red/80 bg-brand-accent-red/5' : 'border-[#534AB7]/30 bg-[#534AB7]/5'} p-5 rounded-2xl space-y-4 text-left transition-all duration-200`}>
+                    <div className="flex justify-between items-center flex-wrap gap-2 pb-1 border-b border-brand-border/20">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#7F77DD] block">Pista de Audio *</span>
+                        <span className="text-[10px] text-gray-400">Subida exclusiva desde archivo local.</span>
+                      </div>
+
+                      {audioUrl && (
+                        <span className="px-2 py-0.5 bg-emerald-950/20 text-emerald-400 border border-emerald-900/30 text-[9px] rounded-lg font-bold uppercase">
+                          ✓ Cargado
+                        </span>
+                      )}
                     </div>
 
-                    {audioUrl && (
-                      <span className="px-2 py-0.5 bg-emerald-950/20 text-emerald-400 border border-emerald-900/30 text-[10px] rounded-lg font-bold">
-                        ✓ Archivo Cargado
+                    {errors.audio && (
+                      <span className="text-xs text-brand-accent-red font-semibold block animate-pulse">
+                        ⚠️ {errors.audio}
                       </span>
+                    )}
+
+                    <div className="space-y-3">
+                      <div className="text-[11px] text-gray-400">
+                        {isPremium ? (
+                          <span className="text-emerald-400 font-semibold">✓ Tu plan premium admite archivos MP3 y WAV.</span>
+                        ) : (
+                          <span className="text-amber-400 font-semibold">⚠️ Plan Gratis activo: Solo se admite formato MP3 (WAV deshabilitado).</span>
+                        )}
+                      </div>
+
+                      <div>
+                        <input 
+                          type="file" 
+                          accept={isPremium ? "audio/*" : "audio/mp3,audio/mpeg"} 
+                          id="device-audio-setup-input" 
+                          className="hidden" 
+                          onChange={handleDeviceAudioChange} 
+                        />
+                        <label 
+                          htmlFor="device-audio-setup-input"
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/30 text-[#7F77DD] border border-[#534AB7]/35 text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all text-center h-[42px] whitespace-nowrap"
+                        >
+                          <CloudUpload size={14} />
+                          Seleccionar Beat Local
+                        </label>
+                      </div>
+                    </div>
+
+                    {/* Audio file playing test control block */}
+                    {audioUrl && (
+                      <div className="flex items-center gap-3 bg-brand-surface p-3 rounded-xl border border-brand-border/30 animate-in fade-in duration-200">
+                        <button
+                          type="button"
+                          onClick={handleToggleLocalAudio}
+                          className="w-8 h-8 rounded-full bg-[#534AB7] hover:bg-[#433A9B] text-white flex items-center justify-center cursor-pointer shadow transition-all flex-shrink-0"
+                          title={isLocalAudioPlaying ? 'Pausar audición' : 'Escuchar audición'}
+                        >
+                          {isLocalAudioPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} className="ml-0.5" fill="currentColor" />}
+                        </button>
+
+                        <div className="flex-grow min-w-0 text-left">
+                          <span className="text-[11px] font-bold text-white block truncate" title={audioFileName}>
+                            {audioFileName || 'pista_instrumental.mp3'}
+                          </span>
+                          <span className="text-[9px] text-gray-400 block font-mono leading-tight">
+                            {isLocalAudioPlaying ? 'Reproduciendo...' : 'Comprobar audio'}
+                          </span>
+                        </div>
+
+                        {isLocalAudioPlaying && (
+                          <div className="flex gap-0.5 items-center h-4 px-1">
+                            <span className="w-0.5 h-2 bg-[#534AB7] rounded-full animate-pulse"></span>
+                            <span className="w-0.5 h-3 bg-[#534AB7] rounded-full animate-pulse delay-75"></span>
+                            <span className="w-0.5 h-2 bg-[#534AB7] rounded-full animate-pulse delay-150"></span>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  {errors.audio && (
-                    <span className="text-xs text-brand-accent-red font-semibold block animate-pulse">
-                      ⚠️ {errors.audio}
-                    </span>
-                  )}
-
-                  <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-                    {/* Paste URL */}
-                    <div className="md:col-span-7">
-                      <Input
-                        label="Enlace de Audio URL (Opcional)"
-                        placeholder="https://ejemplo.com/pistas/sunset.mp3"
-                        value={audioUrl}
-                        onChange={(e) => {
-                          setAudioUrl(e.target.value);
-                          if (e.target.value) {
-                            setAudioFileName(e.target.value.split('/').pop() || 'archivo_url.mp3');
-                            if (errors.audio) {
-                              setErrors(prev => {
-                                const next = { ...prev };
-                                delete next.audio;
-                                return next;
-                              });
-                            }
-                          } else {
-                            setAudioFileName('');
-                          }
-                        }}
-                        themeMode="dark"
-                      />
-                    </div>
-
-                    {/* Local File selection box */}
-                    <div className="md:col-span-1 text-center font-bold text-xs text-gray-550 select-none hidden md:block pt-4">
-                      O
-                    </div>
-
-                    <div className="md:col-span-4 pt-1 md:pt-0">
-                      <input 
-                        type="file" 
-                        accept="audio/*" 
-                        id="device-audio-setup-input" 
-                        className="hidden" 
-                        onChange={handleDeviceAudioChange} 
-                      />
-                      <label 
-                        htmlFor="device-audio-setup-input"
-                        className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/30 text-[#7F77DD] border border-[#534AB7]/35 text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all text-center h-[42px] mt-2.5 whitespace-nowrap"
-                      >
-                        <CloudUpload size={14} />
-                        Subir Archivo Local
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Audio file playing test control block */}
-                  {audioUrl && (
-                    <div className="flex items-center gap-3 bg-brand-surface p-3 rounded-xl border border-brand-border/30 animate-in fade-in duration-200">
-                      <button
-                        type="button"
-                        onClick={handleToggleLocalAudio}
-                        className="w-8 h-8 rounded-full bg-[#534AB7] hover:bg-[#433A9B] text-white flex items-center justify-center cursor-pointer shadow transition-all flex-shrink-0"
-                        title={isLocalAudioPlaying ? 'Pausar audición' : 'Escuchar audición'}
-                      >
-                        {isLocalAudioPlaying ? <Pause size={14} fill="currentColor" /> : <Play size={14} className="ml-0.5" fill="currentColor" />}
-                      </button>
-
-                      <div className="flex-grow min-w-0 text-left">
-                        <span className="text-xs font-bold text-white block truncate" title={audioFileName}>
-                          {audioFileName || 'pista_instrumental.mp3'}
+                  {/* STEMS OF THE BEAT SECTION */}
+                  <div className={`border ${isPremium ? 'border-[#7F77DD]/30 bg-[#7F77DD]/5' : 'border-brand-border/25 bg-brand-surface/20 opacity-60'} p-5 rounded-2xl space-y-4 text-left transition-all duration-200`}>
+                    <div className="flex justify-between items-center flex-wrap gap-2 pb-1 border-b border-brand-border/20">
+                      <div>
+                        <span className="text-xs font-bold uppercase tracking-wider text-[#7F77DD] block flex items-center gap-1">
+                          {!isPremium && <Lock size={12} className="text-amber-400" />} Pistas Separadas (STEMS)
                         </span>
-                        <span className="text-[10px] text-gray-400 block font-mono">
-                          {isLocalAudioPlaying ? 'Reproduciendo vista previa en vivo...' : 'Presiona Play para verificar el audio subido'}
-                        </span>
+                        <span className="text-[10px] text-gray-400">Sube un archivo comprimido .ZIP o .RAR.</span>
                       </div>
 
-                      {/* Small visual audio wave */}
-                      {isLocalAudioPlaying && (
-                        <div className="flex gap-0.5 items-center h-5 px-1">
-                          <span className="w-1 h-3 bg-[#534AB7] rounded-full animate-pulse"></span>
-                          <span className="w-1 h-5 bg-[#534AB7] rounded-full animate-pulse delay-75"></span>
-                          <span className="w-1 h-4 bg-[#534AB7] rounded-full animate-pulse delay-150"></span>
-                        </div>
+                      {isPremium && stemsUrl && (
+                        <span className="px-2 py-0.5 bg-indigo-950/20 text-indigo-400 border border-indigo-900/30 text-[9px] rounded-lg font-bold uppercase">
+                          ✓ ZIP/RAR Listo
+                        </span>
                       )}
                     </div>
-                  )}
 
-                  <p className="text-[10px] text-gray-400 block leading-normal">
-                    Formatos recomendados: MP3 de alta fidelidad (320kbps) o WAV estéreo de 44.1kHz. CubaBeats encriptará de forma segura el enlace de descarga para proteger tu propiedad intelectual.
-                  </p>
+                    {!isPremium ? (
+                      <div className="space-y-2 py-2">
+                        <p className="text-[11px] text-slate-300 leading-normal">
+                          La subida de STEMS (pistas por separado) es una función <strong>Premium</strong>. No está disponible para su plan actual (<strong>Plan Gratis</strong>).
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => navigateTo('/producer/plans')}
+                          className="text-[11px] text-[#7F77DD] hover:text-[#9B94EC] font-bold underline flex items-center gap-1 cursor-pointer bg-transparent border-none"
+                        >
+                          Adquirir Plan de Pago para Activar
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <p className="text-[11px] text-gray-400 leading-normal">
+                          Los stems facilitan la mezcla oficial del cantante y aumentan considerablemente las ventas de licencias exclusivas.
+                        </p>
+                        
+                        <div>
+                          <input 
+                            type="file" 
+                            accept=".zip,.rar" 
+                            id="device-stems-setup-input" 
+                            className="hidden" 
+                            onChange={handleDeviceStemsChange} 
+                          />
+                          <label 
+                            htmlFor="device-stems-setup-input"
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#7F77DD]/10 hover:bg-[#7F77DD]/20 text-indigo-300 border border-[#7F77DD]/25 text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all text-center h-[42px] whitespace-nowrap"
+                          >
+                            <CloudUpload size={14} />
+                            {stemsFileName ? 'Reemplazar Stems ZIP/RAR' : 'Subir Stems (.ZIP/.RAR)'}
+                          </label>
+                        </div>
+
+                        {stemsUrl && (
+                          <div className="p-3 bg-brand-surface rounded-xl border border-brand-border/30 text-left">
+                            <span className="text-[11px] font-bold text-slate-200 block truncate" title={stemsFileName}>
+                              📁 {stemsFileName || 'stems_comprimidos.zip'}
+                            </span>
+                            <span className="text-[9px] text-indigo-300 block font-mono">
+                              Archivo verificado y vinculado para entrega automática
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                <p className="text-[10px] text-gray-400 block leading-normal text-left">
+                  D'Cuban Beats encriptará de forma segura todos tus archivos para garantizar la protección absoluta de tus obras y propiedad intelectual.
+                </p>
               </div>
             )}
 
@@ -776,7 +905,7 @@ export const ProducerBeats: React.FC = () => {
                         className="rounded border-brand-border text-[#7F77DD] focus:ring-[#534AB7]/30 h-4 w-4 bg-brand-card"
                       />
                       <div className="text-left">
-                        <span className="text-xs font-bold text-white block leading-tight">QvaPay Checkout</span>
+                        <span className="text-xs font-bold text-white block leading-tight">QvaPay</span>
                         <span className="text-[9px] text-gray-400">Pasarela multi-moneda</span>
                       </div>
                     </label>
@@ -785,28 +914,44 @@ export const ProducerBeats: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 4: CLÁUSULAS ADICIONALES (OPCIONAL) */}
+            {/* STEP 4: LICENCIA (OPCIONAL/PREESTABLECIDA) */}
             {setupStep === 4 && (
               <div className="space-y-4 animate-in fade-in duration-200">
                 <div className="p-3 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-xl text-xs text-indigo-200 flex items-center gap-2">
                   <div className="p-1 px-2.5 bg-[#534AB7] text-white rounded font-mono font-bold">4</div>
-                  <span>Cláusulas u observaciones que se adjuntarán al contrato que firma el intérprete (Opcional).</span>
+                  <span>Licencia Contractual. Configura los términos legales del beat para los artistas.</span>
                 </div>
 
-                <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-semibold uppercase text-gray-400 tracking-wider leading-relaxed">Observación o Cláusula de Licencia Personalizada</label>
-                  <textarea
-                    rows={5}
-                    placeholder="Ej. Queda rotundamente prohibido el uso de la pista para fines comerciales sin la debida mención (Prod. Flow Habano) en los créditos oficiales de Spotify o YouTube..."
-                    value={customLicenseClause}
-                    onChange={(e) => setCustomLicenseClause(e.target.value)}
-                    className="w-full bg-brand-card border border-brand-border focus:border-[#534AB7] focus:ring-1 focus:ring-[#534AB7]/10 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none font-sans leading-relaxed"
-                  />
-                  <span className="text-[10px] text-gray-400 block leading-none">Deja en blanco si deseas emplear las normas estándares del catálogo de CubaBeats.</span>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Left: Producer customizable part */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="text-xs font-bold uppercase text-indigo-300 tracking-wider">Parte 1: Licencia del Productor (Editable)</label>
+                    <p className="text-[10px] text-gray-400">Describe tus términos de uso personales. El intérprete deberá aceptarlos.</p>
+                    <textarea
+                      rows={8}
+                      placeholder="Ej. El productor otorga al comprador una licencia para grabar voces..."
+                      value={customLicenseClause}
+                      onChange={(e) => setCustomLicenseClause(e.target.value)}
+                      className="w-full bg-brand-card border border-brand-border focus:border-[#534AB7] focus:ring-1 focus:ring-[#534AB7]/10 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none font-sans leading-relaxed"
+                    />
+                    <span className="text-[10px] text-gray-500 block">Este texto se adjuntará al contrato de forma directa y puede ser modificado.</span>
+                  </div>
+
+                  {/* Right: Platform fixed part */}
+                  <div className="space-y-1.5 text-left opacity-90">
+                    <label className="text-xs font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1">
+                      <Lock size={12} /> Parte 2: Términos de la Plataforma (No Modificable)
+                    </label>
+                    <p className="text-[10px] text-gray-400">Normativa legal del portal D'Cuban Beats que protege la transacción de ambas partes.</p>
+                    <div className="w-full h-[180px] bg-brand-surface border border-brand-border/60 rounded-xl p-3 text-xs text-gray-400 overflow-y-auto font-sans leading-relaxed select-none">
+                      D'Cuban Beats actúa como intermediario legal y certifica la validez de esta transacción. La plataforma garantiza el derecho de uso legítimo de la maqueta descargada y se reserva el derecho de auditar el origen lícito de la transacción en caso de controversias de propiedad intelectual. Esta licencia incluye la firma digital de la plataforma y se emitirá de forma definitiva con los datos exactos del comprobante de pago verificado por la administración al momento de liberarse la descarga.
+                    </div>
+                    <span className="text-[10px] text-emerald-500 block font-semibold">✓ El sistema de descargas integrará de forma automática el comprobante de pago al PDF.</span>
+                  </div>
                 </div>
 
                 <div className="p-4 bg-emerald-950/20 rounded-xl border border-emerald-900/30 text-emerald-400 text-xs text-left leading-relaxed">
-                  <strong>✓ Todo listo para publicación:</strong> Al hacer clic en publicar, los datos serán almacenados e indexados de forma inmediata en el buscador principal del portal para ser audicionados de inmediato.
+                  <strong>✓ Todo listo para publicación:</strong> Al hacer clic en publicar, los datos de la licencia se guardarán y estarán adjuntos al beat, descargables junto con la pista y los datos del recibo CUP/MLC.
                 </div>
               </div>
             )}
@@ -914,7 +1059,7 @@ export const ProducerBeats: React.FC = () => {
               <div className="space-y-1 text-left">
                 <span className="text-xs font-bold text-white block">Acceso Restringido - Verificación KYC Obligatoria</span>
                 <p className="text-[11px] text-slate-305 leading-relaxed font-sans">
-                  Por motivos de seguridad fiscal y protección de derechos de autor, todos los productores de CubaBeats deben acreditar su identidad antes de operar.
+                  Por motivos de seguridad fiscal y protección de derechos de autor, todos los productores de D'Cuban Beats deben acreditar su identidad antes de operar.
                   Actualmente <strong>no tiene permisos para subir nuevos beats ni editar los existentes</strong> en la plataforma.
                   Vaya a <button onClick={() => navigateTo('/producer/profile')} className="text-[#7F77DD] hover:text-[#9B94EC] underline font-bold bg-transparent border-none cursor-pointer p-0 inline">Mi Perfil Studio</button> para cargar sus documentos oficiales ahora.
                 </p>
@@ -928,7 +1073,7 @@ export const ProducerBeats: React.FC = () => {
               <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
                 <Disc className="text-[#7F77DD] animate-spin-slow" /> Mis Beats Publicados
               </h2>
-              <p className="text-xs text-gray-400">Carga, edita o elimina instrumentales de la tienda CubaBeats.</p>
+              <p className="text-xs text-gray-400">Carga, edita o elimina instrumentales de la tienda D'Cuban Beats.</p>
             </div>
 
             <Button 
@@ -1024,20 +1169,28 @@ export const ProducerBeats: React.FC = () => {
                         </td>
 
                         <td className="py-3 px-4 font-mono font-bold text-[#7F77DD]">
-                          <div>${beat.priceBasic} CUP</div>
-                          <div className="text-gray-400 text-[10px] font-normal font-sans mt-0.5">Excl: ${beat.priceExclusive} CUP</div>
+                          <div>{convertPrice(beat.priceBasic).formatted}</div>
+                          <div className="text-gray-400 text-[10px] font-normal font-sans mt-0.5">Excl: {convertPrice(beat.priceExclusive).formatted}</div>
                         </td>
 
                         <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
                           <button 
-                            onClick={() => handleOpenEdit(beat)}
-                            className="p-1 px-2.5 border border-[#534AB7]/40 text-[#7F77DD] bg-transparent hover:bg-[#534AB7]/10 rounded-lg font-bold transition-colors cursor-pointer text-[11px]"
+                            onClick={() => handleShareBeat(beat.id)}
+                            className="p-1 px-2 border border-[#8D84F7]/30 text-[#8D84F7] hover:bg-[#8D84F7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                            title="Compartir enlace"
                           >
-                            Editar Parámetros
+                            <Share2 size={13} />
+                          </button>
+                          <button 
+                            onClick={() => handleOpenEdit(beat)}
+                            className="p-1 px-2 border border-[#534AB7]/40 text-[#7F77DD] hover:bg-[#534AB7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                            title="Editar parámetros"
+                          >
+                            <Edit2 size={13} />
                           </button>
                           <button 
                             onClick={() => deleteBeat(beat.id)}
-                            className="p-1 px-2 border border-red-900/40 text-red-450 hover:bg-red-955/20 rounded-lg hover:text-red-400 transition-colors cursor-pointer"
+                            className="p-1 px-2 border border-red-900/40 text-red-450 hover:bg-red-955/20 rounded-lg hover:text-red-400 transition-colors cursor-pointer inline-flex items-center"
                             title="Eliminar instrumental"
                           >
                             <Trash2 size={13} />

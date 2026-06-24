@@ -5,13 +5,27 @@ import { Badge } from '../../components/ui/Badge';
 import { Trash2, ShoppingCart, ArrowRight, ShieldCheck, Ticket } from 'lucide-react';
 
 export const CartPage: React.FC = () => {
-  const { cart, removeFromCart, clearCart, navigateTo, addToast } = useApp();
+  const { cart, removeFromCart, clearCart, navigateTo, addToast, user, convertPrice } = useApp();
 
   const totalAmountCUP = cart.reduce((acc, item) => acc + item.price, 0);
 
   const handleProceedCheckout = () => {
     if (cart.length === 0) {
       addToast('Tu carrito está vacío', 'info');
+      return;
+    }
+    if (!user) {
+      addToast('Para proceder al pago, debes iniciar sesión como artista o comprador', 'error');
+      navigateTo('/login');
+      return;
+    }
+    if (user.role !== 'client') {
+      addToast('Solo las cuentas de Comprador/Artista pueden realizar compras o proceder al pago', 'error');
+      return;
+    }
+    if (!user.verified) {
+      addToast('Para proceder al pago debes estar verificado. Por favor realiza tu verificación KYC en Ajustes de Perfil.', 'error');
+      navigateTo('/artist/dashboard');
       return;
     }
     navigateTo('/checkout');
@@ -85,7 +99,7 @@ export const CartPage: React.FC = () => {
 
                   {/* Right actions */}
                   <div className="text-right flex-shrink-0 space-y-2">
-                    <span className="font-mono text-sm font-bold text-brand-primary-light block">${item.price.toLocaleString()} CUP</span>
+                    <span className="font-mono text-sm font-bold text-brand-primary-light block">{convertPrice(item.price).formatted}</span>
                     <button
                       onClick={() => removeFromCart(item.id)}
                       className="text-white/40 hover:text-red-400 p-1.5 hover:bg-red-500/10 rounded-lg transition-all cursor-pointer inline-block"
@@ -106,31 +120,12 @@ export const CartPage: React.FC = () => {
             <div className="space-y-4 text-xs">
               <div className="flex justify-between">
                 <span className="text-white/60">Subtotal Beats:</span>
-                <span className="font-mono text-white/80 font-semibold">${totalAmountCUP.toLocaleString()} CUP</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-white/60">Comisión de plataforma:</span>
-                <span className="text-emerald-400 font-bold uppercase">Gratis (0%)</span>
-              </div>
-
-              {/* Promo input field */}
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="Cupón de descuento"
-                  className="flex-grow bg-[#1C1C2E] border border-white/5 text-[11px] rounded-lg px-3 py-1.5 text-white/90 outline-none focus:border-brand-primary-light"
-                />
-                <button 
-                  onClick={() => addToast('Cupón no encontrado', 'error')}
-                  className="px-2.5 bg-white/5 hover:bg-white/10 rounded-lg text-[10px] font-bold text-white transition-all cursor-pointer"
-                >
-                  Aplicar
-                </button>
+                <span className="font-mono text-white/80 font-semibold">{convertPrice(totalAmountCUP).formatted}</span>
               </div>
 
               <div className="border-t border-white/5 pt-4 flex justify-between text-sm">
                 <span className="font-bold text-white">Importe Total:</span>
-                <span className="font-mono font-bold text-[#7F77DD] text-base">${totalAmountCUP.toLocaleString()} CUP</span>
+                <span className="font-mono font-bold text-[#7F77DD] text-base">{convertPrice(totalAmountCUP).formatted}</span>
               </div>
             </div>
 
@@ -138,7 +133,7 @@ export const CartPage: React.FC = () => {
             <div className="bg-[#0C0C14] border border-white/5 rounded-xl p-3 flex items-start gap-2.5">
               <ShieldCheck size={18} className="text-emerald-400 flex-shrink-0 mt-0.5" />
               <p className="text-[10px] text-white/50 leading-relaxed font-normal">
-                Al comprar recibes archivos originales listos para cargar en tu DAW. Soporte garantizado por CubaBeats contra estafas.
+                Al comprar recibes archivos originales listos para cargar en tu DAW. Soporte garantizado por D'Cuban Beats contra estafas.
               </p>
             </div>
 

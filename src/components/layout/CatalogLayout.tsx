@@ -2,27 +2,32 @@ import React from 'react';
 import { Navbar } from './Navbar';
 import { Player } from '../player/Player';
 import { Footer } from './Footer';
+import { useApp } from '../../store/AppContext';
 
 interface CatalogLayoutProps {
   children: React.ReactNode;
 }
 
 export const CatalogLayout: React.FC<CatalogLayoutProps> = ({ children }) => {
+  const { currentPath } = useApp();
+  const isAuthPage = currentPath === '/login' || currentPath === '/register';
+
   return (
     <div className="min-h-screen bg-[#0D0D14] text-white flex flex-col transition-colors">
       {/* Top Navbar */}
-      <Navbar />
+      {!isAuthPage && <Navbar />}
 
       {/* Main Content Area */}
-      <main className="flex-grow pt-16 pb-12 overflow-x-hidden animate-in fade-in duration-300">
+      <main className={`flex-grow ${isAuthPage ? '' : 'pt-16 pb-12'} overflow-x-hidden animate-in fade-in duration-300`}>
         {children}
       </main>
 
       {/* Modern Catalog/Public Footer */}
-      <Footer />
+      {!isAuthPage && <Footer />}
 
       {/* Global Bottom Audio play bar */}
-      <Player />
+      {!isAuthPage && <Player />}
     </div>
   );
 };
+

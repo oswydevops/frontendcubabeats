@@ -1,14 +1,15 @@
 import React, { useState, useMemo } from 'react';
+import { motion } from 'motion/react';
 import { useApp } from '../../store/AppContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { User, Music, Check, Sparkles, AlertCircle } from 'lucide-react';
+import { User, Music, Check, Sparkles, AlertCircle, ArrowLeft } from 'lucide-react';
 
 export const RegisterPage: React.FC = () => {
   const { setUser, navigateTo, plans, addToast, addAdminNotification } = useApp();
   const [role, setRole] = useState<'client' | 'producer'>('client');
-  const [selectedPlan, setSelectedPlan] = useState('p_pro'); // Default preset Pro card
+  const [selectedPlan, setSelectedPlan] = useState('p_free'); // Default is Free plan
   
   // Registration data
   const [name, setName] = useState('');
@@ -82,7 +83,7 @@ export const RegisterPage: React.FC = () => {
     addAdminNotification(
       'user_registered',
       `Nuevo ${targetRoleLabel} Registrado`,
-      `El ${targetRoleLabel.toLowerCase()} "${targetNameLabel}" (${email}) ha creado su cuenta en CubaBeats.`
+      `El ${targetRoleLabel.toLowerCase()} "${targetNameLabel}" (${email}) ha creado su cuenta en D'Cuban Beats.`
     );
 
     if (role === 'producer' && planName !== 'Gratis') {
@@ -104,243 +105,282 @@ export const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-2xl mx-auto my-6 bg-[#13131F] border border-[rgba(127,119,221,0.2)] rounded-3xl p-8 shadow-2xl text-left relative">
-      <div className="space-y-6">
+    <div className="relative min-h-[calc(100vh-2px)] w-full flex flex-col items-center justify-center bg-[#07070C] p-4 sm:p-8 overflow-hidden">
+      
+      {/* Dynamic Animated Colored Shadows/Blobs Floating Behind */}
+      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
+        {/* Blob 1: Indigo theme */}
+        <motion.div
+          animate={{
+            x: [0, 90, -50, 0],
+            y: [0, -100, 60, 0],
+            scale: [1, 1.15, 0.92, 1],
+          }}
+          transition={{
+            duration: 20,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="absolute top-1/4 left-1/4 w-[380px] h-[380px] rounded-full bg-[#534AB7]/18 blur-[110px]"
+        />
         
-        {/* Header Title */}
-        <div className="text-center space-y-2">
-          <Badge variant="purple">Registro de Cuentas</Badge>
-          <h2 className="text-2xl font-bold tracking-tight text-white">Únete a la Familia CubaBeats</h2>
-          <p className="text-white/40 text-xs">Busca ritmos únicos o empieza a monetizar tus pistas hoy mismo</p>
-        </div>
+        {/* Blob 2: Violet theme */}
+        <motion.div
+          animate={{
+            x: [0, -80, 75, 0],
+            y: [0, 100, -75, 0],
+            scale: [1, 0.9, 1.25, 1],
+          }}
+          transition={{
+            duration: 24,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full bg-[#7F77DD]/15 blur-[120px]"
+        />
+        
+        {/* Blob 3: Pink theme */}
+        <motion.div
+          animate={{
+            x: [0, 80, -95, 0],
+            y: [0, 75, -90, 0],
+            scale: [1, 1.18, 0.88, 1],
+          }}
+          transition={{
+            duration: 18,
+            repeat: Infinity,
+            ease: "easeInOut",
+          }}
+          className="absolute top-1/3 right-1/3 w-[320px] h-[320px] rounded-full bg-pink-500/8 blur-[100px]"
+        />
+      </div>
 
-        {/* Dynamic Role Tab Buttons Selector */}
-        <div className="grid grid-cols-2 gap-3 p-1.5 bg-[#0D0D14] rounded-2xl border border-white/5">
-          <button
-            type="button"
-            onClick={() => {
-              setRole('client');
-              setErrors({});
-            }}
-            className={`py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
-              role === 'client' 
-                ? 'bg-[#1C1C2E] text-[#7F77DD] shadow-md border border-[rgba(127,119,221,0.2)]' 
-                : 'text-white/40 hover:text-white'
-            }`}
-          >
-            <User size={14} />
-            Soy Comprador (Artista)
-          </button>
+      {/* Floating Logo - Go Home/Catalog */}
+      <div 
+        onClick={() => navigateTo('/')}
+        className="z-10 mb-6 flex items-center justify-center gap-2 cursor-pointer group active:scale-95 transition-all"
+        title="Volver al inicio"
+      >
+        <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#534AB7] to-[#7F77DD] flex items-center justify-center text-white shadow-lg shadow-indigo-500/10 transition-transform group-hover:scale-105">
+          <Music size={18} fill="currentColor" />
+        </span>
+        <span className="text-white font-bold text-xl tracking-tight">
+          D'Cuban<span className="text-[#7F77DD] font-semibold font-mono">[Beats]</span>
+        </span>
+      </div>
+
+      {/* Actual Form Modal Card Container */}
+      <div className="max-w-2xl w-full bg-[#13131F]/90 backdrop-blur-md border border-[rgba(127,119,221,0.22)] rounded-3xl p-8 shadow-2xl relative z-10 text-left">
+        <div className="space-y-6">
           
-          <button
-            type="button"
-            onClick={() => {
-              setRole('producer');
-              setErrors({});
-            }}
-            className={`py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
-              role === 'producer' 
-                ? 'bg-[#1C1C2E] text-[#7F77DD] shadow-md border border-[rgba(127,119,221,0.2)]' 
-                : 'text-white/40 hover:text-white'
-            }`}
-          >
-            <Music size={14} />
-            Soy Productor (Vendedor)
-          </button>
-        </div>
-
-        {/* Visual Validation Progress Module */}
-        <div className="p-4 bg-[#0D0D14] border border-white/5 rounded-2xl space-y-2.5">
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Compleción de Campos Obligatorios</span>
-            <span className={`text-[11px] font-mono font-extrabold ${progressPercent === 100 ? 'text-emerald-400' : 'text-[#7F77DD]'}`}>
-              {progressPercent}% ({filledCount} de {totalRequired})
-            </span>
+          {/* Header Title */}
+          <div className="text-center space-y-2">
+            <Badge variant="purple">Registro de Cuentas</Badge>
+            <h2 className="text-2xl font-bold tracking-tight text-white">Únete a la Familia D'Cuban Beats</h2>
+            <p className="text-white/40 text-xs">Busca ritmos únicos o empieza a monetizar tus pistas hoy mismo</p>
           </div>
-          
-          <div className="w-full bg-[#1C1C2E] h-2 rounded-full overflow-hidden border border-white/5">
-            <div 
-              className={`h-full transition-all duration-300 rounded-full ${
-                progressPercent === 100 
-                  ? 'bg-gradient-to-r from-emerald-500 to-[#10B981]' 
-                  : 'bg-gradient-to-r from-[#534AB7] to-[#7F77DD]'
+
+          {/* Dynamic Role Tab Buttons Selector */}
+          <div className="grid grid-cols-2 gap-3 p-1.5 bg-[#0D0D14]/90 rounded-2xl border border-white/5">
+            <button
+              type="button"
+              onClick={() => {
+                setRole('client');
+                setErrors({});
+              }}
+              className={`py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                role === 'client' 
+                  ? 'bg-[#1C1C2E] text-[#7F77DD] shadow-md border border-[rgba(127,119,221,0.2)]' 
+                  : 'text-white/40 hover:text-white'
               }`}
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-
-          {progressPercent < 100 ? (
-            <div className="flex items-center gap-1.5 text-[10px] text-amber-400/90 font-medium">
-              <AlertCircle size={13} className="text-amber-500" />
-              <span>Por favor complete todos los datos obligatorios marcados con asterisco (*)</span>
-            </div>
-          ) : (
-            <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
-              <Check size={13} className="text-emerald-500 animate-bounce" />
-              <span>¡Listo! Todos los campos de registro requeridos han sido completados.</span>
-            </div>
-          )}
-        </div>
-
-        {/* Form elements */}
-        <form onSubmit={handleRegisterSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label={`Nombre Completo * ${name.trim() ? '(✓ Listo)' : '(Requerido)'}`}
-              placeholder="Ej. Carlos Santana"
-              value={name}
-              onChange={(e) => {
-                setName(e.target.value);
-                if (errors.name) {
-                  setErrors(prev => {
-                    const next = { ...prev };
-                    delete next.name;
-                    return next;
-                  });
-                }
-              }}
-              error={errors.name}
-              className={`${name.trim() ? 'border-emerald-500/40 focus:border-emerald-400' : errors.name ? 'border-brand-accent-red/80' : ''}`}
-            />
-
-            <Input
-              label={`Correo Electrónico * ${email.trim() && email.includes('@') ? '(✓ Listo)' : '(Requerido)'}`}
-              type="email"
-              placeholder="correo@ejemplo.cu"
-              value={email}
-              onChange={(e) => {
-                setEmail(e.target.value);
-                if (errors.email) {
-                  setErrors(prev => {
-                    const next = { ...prev };
-                    delete next.email;
-                    return next;
-                  });
-                }
-              }}
-              error={errors.email}
-              className={`${email.trim() && email.includes('@') ? 'border-emerald-500/40 focus:border-emerald-400' : errors.email ? 'border-brand-accent-red/80' : ''}`}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              label={`Contraseña * ${password.trim() && password.length >= 6 ? '(✓ Listo)' : '(Requerido)'}`}
-              type="password"
-              placeholder="Mínimo 6 caracteres"
-              value={password}
-              onChange={(e) => {
-                setPassword(e.target.value);
-                if (errors.password) {
-                  setErrors(prev => {
-                    const next = { ...prev };
-                    delete next.password;
-                    return next;
-                  });
-                }
-              }}
-              error={errors.password}
-              className={`${password.trim() && password.length >= 6 ? 'border-emerald-500/40 focus:border-emerald-400' : errors.password ? 'border-brand-accent-red/80' : ''}`}
-            />
+            >
+              <User size={14} />
+              Soy Comprador (Artista)
+            </button>
             
-            {role === 'client' ? (
-              <Input
-                label="Usuario de Artista (Opcional)"
-                placeholder="@artista_flow"
+            <button
+              type="button"
+              onClick={() => {
+                setRole('producer');
+                setErrors({});
+              }}
+              className={`py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                role === 'producer' 
+                  ? 'bg-[#1C1C2E] text-[#7F77DD] shadow-md border border-[rgba(127,119,221,0.2)]' 
+                  : 'text-white/40 hover:text-white'
+              }`}
+            >
+              <Music size={14} />
+              Soy Productor (Vendedor)
+            </button>
+          </div>
+
+          {/* Visual Validation Progress Module */}
+          <div className="p-4 bg-[#0D0D14]/90 border border-white/5 rounded-2xl space-y-2.5">
+            <div className="flex justify-between items-center">
+              <span className="text-[10px] text-white/50 font-bold uppercase tracking-wider">Compleción de Campos Obligatorios</span>
+              <span className={`text-[11px] font-mono font-extrabold ${progressPercent === 100 ? 'text-emerald-400' : 'text-[#7F77DD]'}`}>
+                {progressPercent}% ({filledCount} de {totalRequired})
+              </span>
+            </div>
+            
+            <div className="w-full bg-[#1C1C2E] h-2 rounded-full overflow-hidden border border-white/5">
+              <div 
+                className={`h-full transition-all duration-300 rounded-full ${
+                  progressPercent === 100 
+                    ? 'bg-gradient-to-r from-emerald-500 to-[#10B981]' 
+                    : 'bg-gradient-to-r from-[#534AB7] to-[#7F77DD]'
+                }`}
+                style={{ width: `${progressPercent}%` }}
               />
+            </div>
+
+            {progressPercent < 100 ? (
+              <div className="flex items-center gap-1.5 text-[10px] text-amber-400/90 font-medium">
+                <AlertCircle size={13} className="text-amber-500" />
+                <span>Por favor complete todos los datos obligatorios marcados con asterisco (*)</span>
+              </div>
             ) : (
+              <div className="flex items-center gap-1.5 text-[10px] text-emerald-400 font-bold">
+                <Check size={13} className="text-emerald-500 animate-bounce" />
+                <span>¡Listo! Todos los campos de registro requeridos han sido completados.</span>
+              </div>
+            )}
+          </div>
+
+          {/* Form elements */}
+          <form onSubmit={handleRegisterSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label={`Nombre de Productor Musical * ${artistName.trim() ? '(✓ Listo)' : '(Requerido)'}`}
-                placeholder="Ej. Flow Habano"
-                value={artistName}
+                label={`Nombre Completo * ${name.trim() ? '(✓ Listo)' : '(Requerido)'}`}
+                placeholder="Ej. Carlos Santana"
+                value={name}
                 onChange={(e) => {
-                  setArtistName(e.target.value);
-                  if (errors.artistName) {
+                  setName(e.target.value);
+                  if (errors.name) {
                     setErrors(prev => {
                       const next = { ...prev };
-                      delete next.artistName;
+                      delete next.name;
                       return next;
                     });
                   }
                 }}
-                error={errors.artistName}
-                className={`${artistName.trim() ? 'border-emerald-500/40 focus:border-emerald-400' : errors.artistName ? 'border-brand-accent-red/80' : ''}`}
+                error={errors.name}
+                className={`${name.trim() ? 'border-emerald-500/40 focus:border-emerald-400' : errors.name ? 'border-brand-accent-red/80' : ''}`}
               />
+
+              <Input
+                label={`Correo Electrónico * ${email.trim() && email.includes('@') ? '(✓ Listo)' : '(Requerido)'}`}
+                type="email"
+                placeholder="correo@ejemplo.cu"
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (errors.email) {
+                    setErrors(prev => {
+                      const next = { ...prev };
+                      delete next.email;
+                      return next;
+                    });
+                  }
+                }}
+                error={errors.email}
+                className={`${email.trim() && email.includes('@') ? 'border-emerald-500/40 focus:border-emerald-400' : errors.email ? 'border-brand-accent-red/80' : ''}`}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Input
+                label={`Contraseña * ${password.trim() && password.length >= 6 ? '(✓ Listo)' : '(Requerido)'}`}
+                type="password"
+                placeholder="Mínimo 6 caracteres"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (errors.password) {
+                    setErrors(prev => {
+                      const next = { ...prev };
+                      delete next.password;
+                      return next;
+                    });
+                  }
+                }}
+                error={errors.password}
+                className={`${password.trim() && password.length >= 6 ? 'border-emerald-500/40 focus:border-emerald-400' : errors.password ? 'border-brand-accent-red/80' : ''}`}
+              />
+              
+              {role === 'client' ? (
+                <Input
+                  label="Usuario de Artista (Opcional)"
+                  placeholder="@artista_flow"
+                />
+              ) : (
+                <Input
+                  label={`Nombre de Productor Musical * ${artistName.trim() ? '(✓ Listo)' : '(Requerido)'}`}
+                  placeholder="Ej. Flow Habano"
+                  value={artistName}
+                  onChange={(e) => {
+                    setArtistName(e.target.value);
+                    if (errors.artistName) {
+                      setErrors(prev => {
+                        const next = { ...prev };
+                        delete next.artistName;
+                        return next;
+                      });
+                    }
+                  }}
+                  error={errors.artistName}
+                  className={`${artistName.trim() ? 'border-emerald-500/40 focus:border-emerald-400' : errors.artistName ? 'border-brand-accent-red/80' : ''}`}
+                />
+              )}
+            </div>
+
+            {role === 'producer' && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                <Input
+                  label="Usuario Instagram (Opcional)"
+                  placeholder="@mi_instagram"
+                  value={instagram}
+                  onChange={(e) => setInstagram(e.target.value)}
+                />
+                <div className="bg-[#1C1C2E] rounded-xl p-3 border border-dashed border-white/5 flex items-center gap-1.5 text-[11px] text-white/50">
+                  <Sparkles size={14} className="text-brand-accent-amber" />
+                  <span>Recibe transferencias de Transfermóvil certificadas por SMS.</span>
+                </div>
+              </div>
             )}
+
+            <Button 
+              variant={progressPercent === 100 ? "primary" : "secondary"} 
+              fullWidth 
+              type="submit" 
+              className={`mt-4 shadow-lg ${progressPercent === 100 ? 'shadow-[#534AB7]/10' : 'opacity-80 border-dashed border-amber-500/50 text-amber-500 hover:bg-amber-500/5'}`}
+            >
+              {progressPercent === 100 ? 'Registrar mi Cuenta ✓' : `Completa los Datos Obligatorios (${filledCount}/${totalRequired})`}
+            </Button>
+          </form>
+
+          <div className="text-center flex flex-col items-center gap-3">
+            <p className="text-xs text-white/40">
+              ¿Ya tienes una cuenta?{' '}
+              <button 
+                onClick={() => navigateTo('/login')}
+                className="text-[#7F77DD] hover:underline font-semibold bg-transparent border-none cursor-pointer"
+              >
+                Inicia sesión
+              </button>
+            </p>
+
+            <button
+              onClick={() => navigateTo('/')}
+              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+            >
+              <ArrowLeft size={13} />
+              Volver al Catálogo
+            </button>
           </div>
 
-          {role === 'producer' && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
-              <Input
-                label="Usuario Instagram (Opcional)"
-                placeholder="@mi_instagram"
-                value={instagram}
-                onChange={(e) => setInstagram(e.target.value)}
-              />
-              <div className="bg-[#1C1C2E] rounded-xl p-3 border border-dashed border-white/5 flex items-center gap-1.5 text-[11px] text-white/50">
-                <Sparkles size={14} className="text-brand-accent-amber" />
-                <span>Recibe transferencias de Transfermóvil certificadas por SMS.</span>
-              </div>
-            </div>
-          )}
-
-          {/* Producer Plan Picker if role is producer */}
-          {role === 'producer' && (
-            <div className="space-y-3 pt-3 border-t border-white/5">
-              <span className="text-xs font-bold uppercase tracking-widest text-white/60">Selecciona un Plan de Membresía</span>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {plans.map((pl) => (
-                  <div
-                    key={pl.id}
-                    onClick={() => setSelectedPlan(pl.id)}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer flex flex-col justify-between ${
-                      selectedPlan === pl.id 
-                        ? 'bg-brand-primary/10 border-brand-primary-light shadow-md' 
-                        : 'bg-[#1C1C2E] border-white/5 hover:border-white/10'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold block text-white">{pl.name}</span>
-                        {selectedPlan === pl.id && <Check size={14} className="text-brand-primary-light" />}
-                      </div>
-                      <span className="text-xs font-semibold text-white/40 block mt-1">
-                        {pl.price === 0 ? 'Gratis' : `$${pl.price} CUP/mes`}
-                      </span>
-                    </div>
-
-                    <div className="text-[10px] text-white/50 mt-3 space-y-1">
-                      <div>Límite: {pl.limit === 999 ? 'Ilimitados' : `${pl.limit} beats`}</div>
-                      <div>Comisión: {pl.commission}%</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <Button 
-            variant={progressPercent === 100 ? "primary" : "secondary"} 
-            fullWidth 
-            type="submit" 
-            className={`mt-4 ${progressPercent === 100 ? '' : 'opacity-80 border-dashed border-amber-500/50 text-amber-500 hover:bg-amber-500/5'}`}
-          >
-            {progressPercent === 100 ? 'Registrar mi Cuenta ✓' : `Completa los Datos Obligatorios (${filledCount}/${totalRequired})`}
-          </Button>
-        </form>
-
-        <div className="text-center">
-          <p className="text-xs text-white/40">
-            ¿Ya tienes una cuenta?{' '}
-            <button 
-              onClick={() => navigateTo('/login')}
-              className="text-[#7F77DD] hover:underline font-semibold bg-transparent border-none cursor-pointer"
-            >
-              Inicia sesión
-            </button>
-          </p>
         </div>
-
       </div>
     </div>
   );

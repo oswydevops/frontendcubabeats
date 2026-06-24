@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Music, Receipt, DollarSign, UserCheck, 
   CreditCard, Landmark, Users, Radio, ArrowLeft, Menu, X, CheckCircle,
-  BarChart3, Bell, Sparkles
+  BarChart3, Bell, Sparkles, LogOut, HelpCircle
 } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
+import { Modal } from '../ui/Modal';
 
 interface PanelLayoutProps {
   children: React.ReactNode;
@@ -12,11 +14,13 @@ interface PanelLayoutProps {
 
 export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
   const { 
-    user, currentPath, navigateTo, addToast,
-    adminNotifications = [], markAdminNotificationRead, markAllAdminNotificationsRead, clearAdminNotifications, addAdminNotification
+    user, setUser, currentPath, navigateTo, addToast,
+    adminNotifications = [], markAdminNotificationRead, markAllAdminNotificationsRead, clearAdminNotifications, addAdminNotification,
+    displayCurrency, setDisplayCurrency
   } = useApp();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   const isProducer = user?.role === 'producer';
   const isAdmin = user?.role === 'admin';
@@ -24,19 +28,23 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
   // Producer Side Menu Items
   const PRODUCER_MENU = [
     { name: 'Escritorio', icon: LayoutDashboard, path: '/producer/dashboard' },
+    { name: 'Analítica y Métricas', icon: BarChart3, path: '/producer/analytics' },
     { name: 'Mis Beats', icon: Music, path: '/producer/beats' },
     { name: 'Pedidos de Venta', icon: Receipt, path: '/producer/orders' },
+    { name: 'Transacciones', icon: DollarSign, path: '/producer/transactions' },
     { name: 'Mi Perfil Studio', icon: UserCheck, path: '/producer/profile' },
     { name: 'Métodos de Pago', icon: CreditCard, path: '/producer/payment-methods' },
+    { name: 'Mis Planes', icon: Radio, path: '/producer/plans' },
   ];
 
   // Admin Side Menu Items
   const ADMIN_MENU = [
     { name: 'Dashboard Global', icon: LayoutDashboard, path: '/admin/dashboard' },
     { name: 'Estadísticas Globales', icon: BarChart3, path: '/admin/stats' },
-    { name: 'Gestionar Beats', icon: Music, path: '/admin/beats' },
     { name: 'Gestionar Usuarios', icon: Users, path: '/admin/users' },
+    { name: 'Transacciones', icon: Receipt, path: '/admin/transactions' },
     { name: 'Configurar Planes', icon: Radio, path: '/admin/plans' },
+    { name: 'Mi Perfil Admin', icon: UserCheck, path: '/admin/profile' },
   ];
 
   const menuItems = isProducer ? PRODUCER_MENU : ADMIN_MENU;
@@ -56,7 +64,7 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
             <Music size={15} />
           </span>
           <span className="font-bold tracking-tight text-sm text-white">
-            Cuba<span className="text-[#7F77DD] font-mono">[Beats]</span>
+            D'Cuban<span className="text-[#7F77DD] font-mono">[Beats]</span>
           </span>
         </div>
         
@@ -86,23 +94,15 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
       `}>
         <div>
           {/* Logo Brand Header */}
-          <div className="px-6 pb-6 border-b items-center justify-between hidden md:flex border-brand-border/20">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigateTo('/')}>
+          <div className="px-6 pb-6 border-b items-center justify-center hidden md:flex border-brand-border/20">
+            <div className="flex items-center gap-2 cursor-pointer animate-in fade-in duration-300" onClick={() => navigateTo('/')}>
               <span className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white shadow-md shadow-brand-primary/10">
                 <Music size={16} fill="currentColor" />
               </span>
               <span className="font-bold text-base tracking-tight text-white">
-                Cuba<span className="text-[#7F77DD] font-semibold font-mono">[Beats]</span>
+                D'Cuban<span className="text-[#7F77DD] font-semibold font-mono">[Beats]</span>
               </span>
             </div>
-            
-            <button 
-              onClick={() => navigateTo('/')}
-              className="p-1.5 rounded-lg cursor-pointer transition-colors text-gray-400 hover:text-[#7F77DD] hover:bg-brand-card/50"
-              title="Volver al catálogo"
-            >
-              <ArrowLeft size={16} />
-            </button>
           </div>
 
           {/* User Badge Status Inside panel */}
@@ -122,7 +122,9 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
             <div className="text-left overflow-hidden">
               <div className="flex items-center gap-1">
                 <span className="text-xs font-bold truncate block text-white font-sans">
-                  {user?.artistName || user?.name || 'Productor'}
+                  {user?.role === 'admin' 
+                    ? `${user?.name} ${user?.lastName || ''}`.trim()
+                    : (user?.artistName || user?.name || 'Productor')}
                 </span>
                 {user?.verified && (
                   <CheckCircle size={12} className="text-green-500 flex-shrink-0 animate-pulse" fill="currentColor text-white" />
@@ -131,10 +133,11 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
               <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full inline-block mt-0.5 text-[#7F77DD] bg-[#534AB7]/20">
                 {user?.role === 'producer' 
                   ? `Productor (${user?.plan || 'Gratis'})` 
-                  : (user?.role === 'client' ? 'Cliente' : 'Administrador')}
+                  : (user?.role === 'client' ? 'Cliente' : (user?.position || 'Administrador'))}
               </span>
             </div>
           </div>
+
 
           {/* Nav list options */}
           <nav className="px-3 mt-4 space-y-1">
@@ -161,7 +164,18 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
         </div>
 
         {/* Footer actions panel */}
-        <div className="px-4">
+        <div className="px-4 space-y-2">
+          <button
+            onClick={() => {
+              setUser(null);
+              navigateTo('/');
+            }}
+            className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer border border-[#FF5C5C]/20 bg-red-500/10 hover:bg-red-500/15 text-red-400"
+          >
+            <LogOut size={13} />
+            Cerrar Sesión
+          </button>
+
           <button
             onClick={() => navigateTo('/')}
             className="w-full flex items-center justify-center gap-2 py-2.5 text-xs font-semibold rounded-xl transition-all cursor-pointer shadow-md bg-gradient-to-r from-[#26215C] to-[#534AB7] hover:opacity-90 text-white"
@@ -170,8 +184,8 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
             Volver al Catálogo
           </button>
           
-          <p className="text-[9px] text-gray-400 text-center mt-3 font-mono">
-            CubaBeats Panel v1.2 • Cuba
+          <p className="text-[10px] text-gray-400 text-center mt-3 font-mono tracking-wider">
+            D'Cuban Beats v1.0
           </p>
         </div>
       </aside>
@@ -369,33 +383,136 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
             </div>
           )}
 
-          {children}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={currentPath}
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+              className="w-full flex-grow flex flex-col"
+            >
+              {children}
+            </motion.div>
+          </AnimatePresence>
         </div>
         
         {/* Minimalist Panel Footer */}
-        <footer className="mt-16 pt-5 border-t w-full max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between text-[11px] font-medium border-brand-border/20 text-gray-500">
-          <div className="flex items-center gap-1.5 mb-2 sm:mb-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Panel de Control CubaBeats &copy; {new Date().getFullYear()}</span>
-          </div>
-          <div className="flex items-center gap-4">
+        {isAdmin && (
+          <footer className="mt-16 pt-5 border-t w-full max-w-6xl mx-auto flex items-center justify-center text-[11px] font-medium border-brand-border/20 text-gray-500">
+            <span>D'Cuban Beats &copy; {new Date().getFullYear()}</span>
+          </footer>
+        )}
+
+        {isProducer && (
+          <footer className="mt-16 pt-5 border-t w-full max-w-6xl mx-auto flex items-center justify-between text-[11px] font-medium border-brand-border/20 text-gray-500">
+            <span>D'Cuban Beats &copy; {new Date().getFullYear()}</span>
             <button 
-              onClick={() => addToast('Panel Privado: Todos los datos mostrados son de carácter simulado y seguro.', 'info')} 
-              className="transition-colors bg-transparent border-none cursor-pointer hover:text-[#7F77DD]"
+              onClick={() => setIsHelpOpen(true)}
+              className="inline-flex items-center gap-1.5 text-xs text-gray-400 hover:text-[#7F77DD] font-medium bg-transparent border-none cursor-pointer transition-colors"
             >
-              Términos de Uso
-            </button>
-            <span>•</span>
-            <button 
-              onClick={() => addToast('Soporte técnico directo disponible enviando correo a: soporte@cubabeats.cu', 'success')} 
-              className="transition-colors bg-transparent border-none cursor-pointer hover:text-[#7F77DD]"
-            >
+              <HelpCircle size={14} className="text-[#7F77DD]" />
               Ayuda Interna
             </button>
-            <span className="text-gray-700">|</span>
-            <span className="font-mono text-[10px]">v1.2.0-secure</span>
+          </footer>
+        )}
+
+        {/* Producers Internal Help Modal */}
+        <Modal
+          isOpen={isHelpOpen}
+          onClose={() => setIsHelpOpen(false)}
+          title="Guía de Herramientas del Dashboard"
+          maxWidth="max-w-2xl"
+        >
+          <div className="space-y-6 text-left py-2 font-sans">
+            <p className="text-xs text-white/60 leading-relaxed mb-4">
+              Bienvenido a tu panel de control de D'Cuban Beats. A continuación te explicamos detalladamente cómo funciona cada una de las herramientas diseñadas para potenciar tu carrera musical:
+            </p>
+            
+            <div className="space-y-4">
+              <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-10 h-10 rounded-lg bg-[#534AB7]/10 border border-[#534AB7]/25 text-[#7F77DD] flex items-center justify-center flex-shrink-0">
+                  <LayoutDashboard size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">Escritorio (Dashboard)</h4>
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Es el centro operativo principal. Te brinda un resumen gráfico sobre el rendimiento de tu cuenta, mostrando ingresos mensuales estimativos, el total de reproducciones, acumulados de visitas y conversiones de ventas en tiempo real.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-10 h-10 rounded-lg bg-[#534AB7]/10 border border-[#534AB7]/25 text-[#7F77DD] flex items-center justify-center flex-shrink-0">
+                  <Music size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">Mis Beats</h4>
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Aquí gestionas tu catálogo de ritmos. Permite subir pistas nuevas especificando género, velocidad (BPM) y configurar individualmente los precios en CUP de tus licencias (Básica, Premium, y Exclusiva/Pro).
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-10 h-10 rounded-lg bg-[#534AB7]/10 border border-[#534AB7]/25 text-[#7F77DD] flex items-center justify-center flex-shrink-0">
+                  <Receipt size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">Pedidos de Venta</h4>
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Lleva un registro histórico y de control sobre cada transacción realizada por artistas compradores. Puedes verificar números de factura, estados de transacción y detalles técnicos de entrega de las licencias adquiridas.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-10 h-10 rounded-lg bg-[#534AB7]/10 border border-[#534AB7]/25 text-[#7F77DD] flex items-center justify-center flex-shrink-0">
+                  <UserCheck size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">Mi Perfil Studio</h4>
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Tu carta de presentación pública. Diseña tu portal de productor cargando tu avatar, biografía, imagen de portada y enlaces de redes sociales para infundir la máxima confianza y profesionalidad en los visitantes de tu estudio.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-10 h-10 rounded-lg bg-[#534AB7]/10 border border-[#534AB7]/25 text-[#7F77DD] flex items-center justify-center flex-shrink-0">
+                  <CreditCard size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">Métodos de Pago</h4>
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Configura de manera segura los datos de cobro oficiales para transferencias cubanas. Registra tu tarjeta de banco (CUP) vinculable para permitir y certificar transferencias directas inmediatas mediante SMS de Transfermóvil.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
+                <div className="w-10 h-10 rounded-lg bg-[#534AB7]/10 border border-[#534AB7]/25 text-[#7F77DD] flex items-center justify-center flex-shrink-0">
+                  <Radio size={18} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="text-sm font-bold text-white">Mis Planes</h4>
+                  <p className="text-xs text-white/50 leading-relaxed">
+                    Permite observar tu nivel de membresía activo. Desde allí puedes ascender de escala para remover comisiones por ventas, expandir límites de subidas de pistas ilimitadas y ganar mayor destaque en nuestro catálogo principal.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="pt-4 border-t border-white/5 flex justify-end">
+              <button
+                onClick={() => setIsHelpOpen(false)}
+                className="px-5 py-2.5 bg-[#534AB7] hover:bg-[#534AB7]/80 text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Comprendido
+              </button>
+            </div>
           </div>
-        </footer>
+        </Modal>
       </section>
 
     </div>

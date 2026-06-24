@@ -6,7 +6,7 @@ import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { 
   Radio, Settings, Sparkles, Check, RefreshCw, Plus, Trash2, 
-  Edit, CreditCard, Landmark, Wallet, QrCode, Camera, Info, X, ShieldCheck
+  Edit, CreditCard, Landmark, Wallet, QrCode, Camera, Info, X, ShieldCheck, AlertCircle
 } from 'lucide-react';
 import { Plan } from '../../types';
 
@@ -24,7 +24,7 @@ interface AdminPaymentMethod {
 }
 
 export const AdminPlans: React.FC = () => {
-  const { plans, updatePlans, addToast } = useApp();
+  const { plans, updatePlans, addToast, convertPrice } = useApp();
 
   // Load local state variables for plans
   const [plansList, setPlansList] = useState<Plan[]>(plans);
@@ -58,8 +58,8 @@ export const AdminPlans: React.FC = () => {
       {
         id: 'adm_meth_2',
         type: 'qvapay',
-        qvapayEmail: 'cobros.admin@cubabeats.com',
-        qvapayUser: 'admin_cubabeats',
+        qvapayEmail: 'cobros.admin@dcubanbeats.com',
+        qvapayUser: 'admin_dcubanbeats',
         qrQvapayScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
         active: true
       }
@@ -81,7 +81,8 @@ export const AdminPlans: React.FC = () => {
   const [pPriceYearly, setPPriceYearly] = useState(0);
   const [pBillingCycle, setPBillingCycle] = useState<'monthly' | 'yearly' | 'both'>('monthly');
   const [pLimit, setPLimit] = useState(10);
-  const [pCommission, setPCommission] = useState(5);
+  const [pCommission, setPCommission] = useState(0);
+  const [pMaxSoundLibrarySize, setPMaxSoundLibrarySize] = useState<number>(5);
   const [pSupport, setPSupport] = useState<'Soporte Estándar' | 'Soporte Prioritario' | 'Soporte Prioritario 24/7' | 'Sin Soporte'>('Soporte Estándar');
   const [pFeatured, setPFeatured] = useState(false);
   
@@ -117,7 +118,8 @@ export const AdminPlans: React.FC = () => {
     setPPriceYearly(0);
     setPBillingCycle('monthly');
     setPLimit(10);
-    setPCommission(5);
+    setPCommission(0);
+    setPMaxSoundLibrarySize(5);
     setPSupport('Soporte Estándar');
     setPFeatured(false);
     setBenefitsList(['Acceso completo', 'Soporte técnico']);
@@ -135,7 +137,8 @@ export const AdminPlans: React.FC = () => {
     setPPriceYearly(plan.priceYearly || plan.price * 10); // fallback default
     setPBillingCycle(plan.billingCycleType || 'monthly');
     setPLimit(plan.limit);
-    setPCommission(plan.commission);
+    setPCommission(0);
+    setPMaxSoundLibrarySize(plan.maxSoundLibrarySize || 1000);
     setPSupport(plan.support);
     setPFeatured(plan.featured || false);
     setBenefitsList(plan.benefits || []);
@@ -171,6 +174,8 @@ export const AdminPlans: React.FC = () => {
     if (allowTransfermovil) payloadMethods.push('transfermovil');
     if (allowQvapay) payloadMethods.push('qvapay');
 
+    const isFreePlan = pName.toLowerCase() === 'gratis' || pPrice === 0;
+
     const updatedPlan: Plan = {
       id: editingPlan ? editingPlan.id : `plan_${Date.now()}`,
       name: pName,
@@ -178,11 +183,12 @@ export const AdminPlans: React.FC = () => {
       priceYearly: pPriceYearly,
       billingCycleType: pBillingCycle,
       limit: pLimit,
-      commission: pCommission,
+      commission: 0,
       support: pSupport,
       featured: pFeatured,
       benefits: benefitsList,
-      allowedPaymentMethods: payloadMethods
+      allowedPaymentMethods: payloadMethods,
+      maxSoundLibrarySize: isFreePlan ? undefined : pMaxSoundLibrarySize
     };
 
     let nextPlans: Plan[];
@@ -206,6 +212,16 @@ export const AdminPlans: React.FC = () => {
       updatePlans(nextPlans);
       addToast(`Plan "${name}" eliminado`, 'info');
     }
+  };
+
+  const handleToggleFeatured = (planId: string, currentFeatured: boolean) => {
+    const nextPlans = plansList.map(p => p.id === planId ? { ...p, featured: !currentFeatured } : p);
+    setPlansList(nextPlans);
+    updatePlans(nextPlans);
+    addToast(
+      `Plan "${plansList.find(p => p.id === planId)?.name}" ${!currentFeatured ? 'marcado como Destacado (ahora con borde resaltado)' : 'desmarcado de Destacado'}`,
+      'success'
+    );
   };
 
 
@@ -283,280 +299,403 @@ export const AdminPlans: React.FC = () => {
   };
 
   return (
-    <div className="space-y-12 text-left animate-in fade-in">
+    <div className="space-y-12 text-left animate-in fade-in duration-300">
       
       {/* SECTION I: MEMBERSHIP PLAN CONFIGURATION */}
       <div className="space-y-6">
-        {/* Header toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/25 pb-4">
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-              <Radio className="text-[#7F77DD]" /> Configurar Planes de Productores (Membresías)
+        
+        {/* Decorative dashboard hero message */}
+        <div className="bg-gradient-[#13131F] bg-opacity-65 border border-white/5 p-6 rounded-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-[#7F77DD] opacity-5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+          <div className="space-y-1 z-10 max-w-2xl text-left">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded-md bg-[#534AB7]/20 border border-[#534AB7]/30 text-[#8D84F7] text-[10px] font-bold uppercase tracking-wider">
+                Consola General de Membresías
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-[10px] font-medium text-gray-500">Sincronizado con Base de Datos</span>
+            </div>
+            <h2 className="text-xl md:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <Radio className="text-[#8D84F7]" size={22} /> Configurar Planes & Membresías
             </h2>
-            <p className="text-xs text-gray-400">Ajusta los precios de suscripción en CUP, los límites de cargas, comisiones y pasarelas de pago admitidas.</p>
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Define los costos mensuales y anuales que abonan los productores en Cuba. Configura de forma ávida los límites máximos de beats activos en catálogo, limites de tamaño para librerías de sonido, y beneficios exclusivos.
+            </p>
           </div>
 
-          <Button 
-            variant="primary" 
-            onClick={handleOpenAddPlan} 
-            className="flex items-center gap-1.5 shadow-md hover:scale-102 transition-transform self-start sm:self-center"
-          >
-            <Plus size={16} />
-            Agregar Nuevo Plan
-          </Button>
+          <div className="z-10 flex-shrink-0 self-start md:self-center">
+            <Button 
+              variant="primary" 
+              onClick={handleOpenAddPlan} 
+              className="flex items-center gap-2 px-5 py-2.5 bg-brand-primary hover:bg-[#8D84F7] text-white font-bold text-xs rounded-xl shadow-lg shadow-brand-primary/15 hover:scale-[1.02] transition-all cursor-pointer"
+            >
+              <Plus size={16} />
+              Agregar Nuevo Plan
+            </Button>
+          </div>
         </div>
 
         {/* Plan Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {plansList.map((plan) => (
-            <div 
-              key={plan.id}
-              className={`bg-brand-surface p-6 rounded-2xl border shadow-sm flex flex-col justify-between transition-all relative ${
-                plan.featured ? 'border-[#7F77DD] ring-2 ring-[#7F77DD]/10' : 'border-brand-border/40'
-              }`}
-            >
-              {plan.featured && (
-                <div className="absolute top-0 right-6 -translate-y-1/2 bg-[#534AB7] text-white text-[9px] font-extrabold uppercase px-2.5 py-1 rounded-full tracking-wider shadow-sm flex items-center gap-1">
-                  <Sparkles size={10} /> Destacado
-                </div>
-              )}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-2">
+          {plansList.map((plan) => {
+            const isFeatured = plan.featured;
+            return (
+              <div 
+                key={plan.id}
+                className={`flex flex-col justify-between rounded-2xl transition-all duration-300 relative group overflow-hidden border ${
+                  isFeatured 
+                    ? 'bg-gradient-to-b from-[#18182E] to-[#121220] border-2 border-[#7F77DD] shadow-xl shadow-[#7F77DD]/25' 
+                    : 'bg-[#121220] border border-white/5 hover:border-white/10 shadow-md'
+                }`}
+              >
+                {/* Glowing top neon line decoration for featured plans */}
+                {isFeatured && (
+                  <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-indigo-500 via-[#7F77DD] to-purple-500" />
+                )}
 
-              <div className="space-y-4">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="text-base font-bold text-white">{plan.name}</h3>
-                    
-                    {/* Billing info */}
-                    <div className="mt-1 flex flex-wrap items-baseline gap-1.5">
-                      {(!plan.billingCycleType || plan.billingCycleType === 'monthly' || plan.billingCycleType === 'both') && (
-                        <div className="text-xs text-[#8D84F7] bg-[#534AB7]/10 px-2 py-0.5 rounded border border-[#534AB7]/20">
-                          <span className="font-mono font-bold">${plan.price}</span> CUP /mes
+                <div className="p-6 space-y-5">
+                  {/* Interactive Destacado toggle checkbox */}
+                  <div className="flex items-center gap-2.5 bg-[#0C0C14]/65 p-2.5 rounded-xl border border-white/5 hover:border-[#7F77DD]/35 transition-all select-none">
+                    <input 
+                      type="checkbox" 
+                      id={`chk-feat-${plan.id}`}
+                      checked={isFeatured || false}
+                      onChange={() => handleToggleFeatured(plan.id, isFeatured || false)}
+                      className="w-4 h-4 rounded text-[#7F77DD] bg-[#16162a] border-white/15 focus:ring-[#7F77DD] focus:ring-offset-0 cursor-pointer accent-[#7F77DD]"
+                    />
+                    <label 
+                      htmlFor={`chk-feat-${plan.id}`}
+                      className="text-xs font-bold text-gray-300 hover:text-white cursor-pointer flex items-center gap-1.5 w-full"
+                    >
+                      {isFeatured ? (
+                        <>
+                          <Sparkles size={11} className="text-yellow-300 animate-pulse" />
+                          <span className="text-white font-extrabold text-[11px] tracking-wide">Fijado como Plan Destacado</span>
+                        </>
+                      ) : (
+                        <span className="text-gray-400 text-[11px]">Fijar como Plan Destacado</span>
+                      )}
+                    </label>
+                  </div>
+
+                  {/* Top Header Card Info */}
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <span className="text-[10px] text-gray-500 uppercase font-black tracking-widest block">Productor Plan</span>
+                      <h3 className="text-lg font-black text-white group-hover:text-brand-primary-light transition-colors">{plan.name}</h3>
+                    </div>
+
+                    <div className="flex gap-1.5 pt-1">
+                      <button 
+                        onClick={() => handleOpenEditPlan(plan)}
+                        className="p-2 text-gray-400 hover:text-[#8D84F7] hover:bg-white/5 rounded-xl border border-white/5 hover:border-[#7F77DD]/35 transition-all cursor-pointer"
+                        title="Modificar propiedades del Plan"
+                      >
+                        <Edit size={13} />
+                      </button>
+
+                      <button 
+                        onClick={() => handleDeletePlan(plan.id, plan.name)}
+                        className="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl border border-white/5 hover:border-red-500/20 transition-all cursor-pointer"
+                        title="Eliminar este plan"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Pricing Values Display Block */}
+                  <div className="bg-[#0A0A12]/80 rounded-xl p-3 border border-white/5 flex flex-col justify-center gap-2">
+                    <span className="text-[9px] text-gray-500 uppercase tracking-wider font-extrabold block">Costos de Membresía</span>
+                    <div className="grid grid-cols-2 gap-2 divide-x divide-white/5">
+                      {/* Monthly billing rate info */}
+                      {(!plan.billingCycleType || plan.billingCycleType === 'monthly' || plan.billingCycleType === 'both') ? (
+                        <div className="text-left pl-1">
+                          <span className="text-[9px] text-gray-400 block font-medium">Bajo Fact. Mensual</span>
+                          <span className="font-mono text-base font-black text-white block">
+                            {convertPrice(plan.price).formatted}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-left pl-1 opacity-25">
+                          <span className="text-[9px] text-gray-500 block font-medium">Fact. Mensual</span>
+                          <span className="text-xs font-mono text-gray-400 block italic">N/D</span>
                         </div>
                       )}
-                      {(plan.billingCycleType === 'yearly' || plan.billingCycleType === 'both') && (
-                        <div className="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                          <span className="font-mono font-bold">${plan.priceYearly || plan.price * 10}</span> CUP /año
+
+                      {/* Yearly billing rate info */}
+                      {(plan.billingCycleType === 'yearly' || plan.billingCycleType === 'both') ? (
+                        <div className="text-left pl-3">
+                          <span className="text-[9px] text-emerald-400 block font-semibold">Bajo Fact. Anual</span>
+                          <span className="font-mono text-base font-black text-emerald-400 block">
+                            {convertPrice(plan.priceYearly || plan.price * 10).formatted}
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="text-left pl-3 opacity-25">
+                          <span className="text-[9px] text-gray-500 block font-medium font-sans">Fact. Anual</span>
+                          <span className="text-xs font-mono text-gray-400 block italic">N/D</span>
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex gap-1">
-                    <button 
-                      onClick={() => handleOpenEditPlan(plan)}
-                      className="p-1 px-2 text-[#7F77DD] hover:bg-brand-card border border-brand-border/30 rounded-lg transition-colors cursor-pointer"
-                      title="Editar propiedades del Plan"
-                    >
-                      <Edit size={12} />
-                    </button>
-
-                    <button 
-                      onClick={() => handleDeletePlan(plan.id, plan.name)}
-                      className="p-1 px-2 text-brand-accent-red hover:bg-brand-accent-red/10 border border-[#FF5C5C]/25 rounded-lg transition-colors cursor-pointer"
-                      title="Eliminar este plan"
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2 text-xs text-gray-300 bg-[#1C1C2E]/60 p-3 rounded-xl border border-brand-border/20">
-                  <div className="flex justify-between">
-                    <span>Comisión sobre ventas:</span>
-                    <strong className="text-white">{plan.commission}%</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Límite de audiciones/beats:</span>
-                    <strong className="text-white">{plan.limit === 999 ? 'Ilimitados' : `${plan.limit} Beats`}</strong>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Soporte Técnico:</span>
-                    <strong className="text-[#8D84F7] font-medium">{plan.support}</strong>
-                  </div>
-                </div>
-
-                {/* Sub-section for payment channels permitted */}
-                <div className="space-y-1.5">
-                  <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Cobranza Permitida por:</span>
-                  <div className="flex flex-wrap gap-1">
-                    {(!plan.allowedPaymentMethods || plan.allowedPaymentMethods.includes('transfermovil')) && (
-                      <Badge variant="blue" className="text-[9px] px-1.5 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20">Transfermóvil</Badge>
+                  {/* Properties table parameters bento layout */}
+                  <div className="space-y-2 text-xs text-gray-300 bg-[#1C1C2E]/30 p-4 rounded-xl border border-white/5">
+                    {plan.name !== 'Gratis' && plan.price > 0 && (
+                      <div className="flex justify-between pb-1.5 border-b border-white/5">
+                        <span className="text-white/50 text-[11px]">Librería de Sonidos:</span>
+                        <strong className="text-emerald-400 font-mono font-bold">{plan.maxSoundLibrarySize || 1000} MB máx.</strong>
+                      </div>
                     )}
-                    {(!plan.allowedPaymentMethods || plan.allowedPaymentMethods.includes('qvapay')) && (
-                      <Badge variant="purple" className="text-[9px] px-1.5 py-0.5 bg-purple-500/10 text-purple-400 border border-purple-500/20">QvaPay</Badge>
-                    )}
-                    {plan.allowedPaymentMethods && plan.allowedPaymentMethods.length === 0 && (
-                      <span className="text-[10px] text-brand-accent-red italic font-medium">Ningún método de pago admitido</span>
-                    )}
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Límite de audio activo:</span>
+                      <strong className="text-white text-[11px]">
+                        {plan.limit === 999 ? (
+                          <span className="text-[#8D84F7] font-bold uppercase tracking-wider text-[10px]">Ilimitado</span>
+                        ) : (
+                          `${plan.limit} Beats Máx`
+                        )}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between pt-0.5">
+                      <span className="text-white/50 text-[11px]">Soporte Técnico:</span>
+                      <strong className="text-[#8D84F7] text-[11px] truncate max-w-[124px] font-semibold">{plan.support}</strong>
+                    </div>
                   </div>
+
+                  {/* Sub-section for payment channels permitted */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-black block">Cobranza Autorizada Por:</span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(!plan.allowedPaymentMethods || plan.allowedPaymentMethods.includes('transfermovil')) && (
+                        <span className="text-[10px] select-none font-bold px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/15 rounded-md flex items-center gap-1">
+                          <Landmark size={11} /> Transfermóvil
+                        </span>
+                      )}
+                      {(!plan.allowedPaymentMethods || plan.allowedPaymentMethods.includes('qvapay')) && (
+                        <span className="text-[10px] select-none font-bold px-2 py-0.5 bg-cyan-400/10 text-cyan-400 border border-cyan-400/15 rounded-md flex items-center gap-1">
+                          <Wallet size={11} /> QvaPay
+                        </span>
+                      )}
+                      {plan.allowedPaymentMethods && plan.allowedPaymentMethods.length === 0 && (
+                        <span className="text-[10px] text-red-400 italic font-semibold py-0.5 flex items-center gap-1.5">
+                          <AlertCircle size={11} /> Requiere fijar canal adm.
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Benefits Item list block */}
+                  <div className="space-y-2 border-t border-white/5 pt-4">
+                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-black block">Beneficios Integrados:</span>
+                    <ul className="space-y-1.5 text-[11px] text-gray-400">
+                      {plan.benefits.map((benefit, bIdx) => (
+                        <li key={bIdx} className="flex items-start gap-2 leading-tight">
+                          <Check size={11} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                          <span className="text-gray-300 truncate" title={benefit}>{benefit}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
                 </div>
 
-                {/* Benefits Items List */}
-                <div className="space-y-1 pt-1">
-                  <span className="text-[10px] text-gray-500 uppercase tracking-wider font-bold">Beneficios del Plan:</span>
-                  <ul className="space-y-1 text-xs text-gray-400">
-                    {plan.benefits.map((benefit, bIdx) => (
-                      <li key={bIdx} className="flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#7F77DD] flex-shrink-0" />
-                        <span className="truncate">{benefit}</span>
-                      </li>
-                    ))}
-                  </ul>
+                {/* Footer system details info bar */}
+                <div className="bg-[#0B0B13] px-6 py-3 border-t border-white/5 text-[9px] text-gray-500 flex justify-between items-center">
+                  <span>Código UUID Plan</span>
+                  <span className="font-mono text-gray-400 select-all">{plan.id}</span>
                 </div>
+
               </div>
-
-              <div className="pt-4 border-t border-brand-border/10 mt-4 text-[10px] text-gray-500 leading-tight">
-                Plan ID: <span className="font-mono text-gray-400">{plan.id}</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
       {/* SECTION II: PLATFORM PAYMENT METHODS FOR SUBSCRIPTION PAYMENTS */}
-      <div className="border-t border-brand-border/20 pt-10 space-y-6">
-        {/* Header and Add buttons toolbar */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-              <CreditCard className="text-[#534AB7] animate-pulse" /> Métodos de Pago de la Plataforma
+      <div className="border-t border-brand-border/10 pt-10 space-y-6">
+        
+        {/* Header toolbar */}
+        <div className="bg-gradient-[#13131F] bg-opacity-65 border border-white/5 p-6 rounded-2xl relative overflow-hidden flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500 opacity-5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+          <div className="space-y-1 z-10 max-w-2xl text-left">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-bold uppercase tracking-wider">
+                Cuentas de Cobro Admin
+              </span>
+              <span className="text-[10px] font-medium text-gray-500">• Pasarelas de Recaudación Activas</span>
+            </div>
+            <h2 className="text-xl md:text-2xl font-extrabold text-white tracking-tight flex items-center gap-2">
+              <CreditCard className="text-cyan-400" size={22} /> Canales de Pago de la Plataforma
             </h2>
-            <p className="text-xs text-gray-400">
-              Registra las cuentas bancarias o billeteras de la administración donde los productores enviarán sus pagos para adquirir las membresías Pro/Elite.
+            <p className="text-xs text-gray-400 leading-relaxed">
+              Registra y gestiona las cuentas de banco cubanas y wallets digitales de la administración. A ellas los productores transferirán el valor de sus suscripciones Pro o Elite enviando posteriormente el ID comprobante de Transfermóvil o QvaPay.
             </p>
           </div>
 
-          <Button 
-            variant="outline" 
-            onClick={handleOpenAddPay}
-            className="flex items-center gap-1.5 border-brand-border/40 text-white hover:bg-brand-card bg-[#1C1C2E] self-start sm:self-center"
-          >
-            <Plus size={15} />
-            Agregar Canal de Cobro Adm.
-          </Button>
+          <div className="z-10 flex-shrink-0 self-start md:self-center">
+            <Button 
+              variant="outline" 
+              onClick={handleOpenAddPay}
+              className="flex items-center gap-2 px-4 py-2 bg-[#1C1C2E] text-white hover:bg-[#25253D] font-bold text-xs rounded-xl border border-white/5 hover:border-white/15 cursor-pointer shadow-md"
+            >
+              <Plus size={15} />
+              Agregar Canal de Cobro
+            </Button>
+          </div>
         </div>
 
         {/* Platform Payment Cards List */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {adminMethods.length === 0 ? (
-            <div className="md:col-span-2 py-12 text-center bg-[#1C1C2E]/40 rounded-2xl border border-dashed border-brand-border/45">
-              <CreditCard size={32} className="mx-auto text-gray-500 mb-2" />
-              <h4 className="font-semibold text-white text-xs">No has configurado cuentas de cobro de membresías</h4>
-              <p className="text-[11px] text-gray-400 max-w-xs mx-auto mb-3">
-                Debes asociar al menos una cuenta para que los productores puedan ver a dónde transferir al ascender de plan.
-              </p>
-              <Button variant="ghost" size="sm" onClick={handleOpenAddPay} className="text-xs text-[#8D84F7] hover:text-white">
-                Asociar Primera Cuenta
+            <div className="md:col-span-2 py-14 text-center bg-[#131124]/40 rounded-2xl border border-dashed border-white/5 space-y-4">
+              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mx-auto text-gray-500">
+                <CreditCard size={22} />
+              </div>
+              <div className="space-y-1.5">
+                <h4 className="font-bold text-white text-xs">No has configurado cuentas de cobro de membresías</h4>
+                <p className="text-[11px] text-gray-400 max-w-sm mx-auto leading-relaxed">
+                  Para poder cobrar las suscripciones mensuales de productores Premium, debes asociar al menos una cuenta de Transfermóvil o billetera de QvaPay. Los productores verán esta información de transferencia.
+                </p>
+              </div>
+              <Button variant="ghost" size="sm" onClick={handleOpenAddPay} className="text-xs text-[#8D84F7] hover:text-white font-bold cursor-pointer">
+                Asociar Primera Cuenta de Recaudo
               </Button>
             </div>
           ) : (
-            adminMethods.map((meth) => (
-              <div 
-                key={meth.id}
-                className={`bg-brand-surface rounded-2xl border p-5 shadow-sm space-y-4 flex flex-col justify-between transition-all ${
-                  meth.active ? 'border-brand-border/40' : 'border-brand-border/20 opacity-50'
-                }`}
-              >
-                <div className="space-y-3">
-                  {/* Account Type and active badge layout */}
-                  <div className="flex justify-between items-center pb-2 border-b border-brand-border/15">
-                    <div className="flex items-center gap-2">
-                      {meth.type === 'transfermovil' ? (
-                        <>
-                          <div className="p-2 bg-[#534AB7]/20 text-[#8D84F7] rounded-xl border border-[#534AB7]/30">
-                            <Landmark size={18} />
+            adminMethods.map((meth) => {
+              const isTM = meth.type === 'transfermovil';
+              return (
+                <div 
+                  key={meth.id}
+                  className={`flex flex-col justify-between rounded-2xl border transition-all duration-300 relative overflow-hidden ${
+                    meth.active 
+                      ? isTM 
+                        ? 'bg-gradient-to-br from-[#1b1935] to-[#121221] border-[#534AB7]/40 shadow-lg shadow-indigo-500/5'
+                        : 'bg-gradient-to-br from-[#121e2c] to-[#0d1420] border-cyan-500/30'
+                      : 'bg-[#121220] border-white/5 opacity-55'
+                  }`}
+                >
+                  {/* Decorative background logo icon */}
+                  <div className="absolute -right-6 -bottom-6 text-white/5 opacity-[0.03] select-none pointer-events-none transform -rotate-12">
+                    {isTM ? <Landmark size={140} /> : <Wallet size={140} />}
+                  </div>
+
+                  <div className="p-6 space-y-5 text-left z-10">
+                    {/* Card Header row wrapper */}
+                    <div className="flex justify-between items-center pb-3 border-b border-white/5">
+                      <div className="flex items-center gap-3">
+                        {isTM ? (
+                          <div className="p-2.5 bg-[#534AB7]/10 text-[#8D84F7] rounded-xl border border-[#534AB7]/25 w-10 h-10 flex items-center justify-center flex-shrink-0">
+                            <Landmark size={20} />
                           </div>
-                          <div>
-                            <span className="text-xs font-bold text-white block leading-none">Administración: Transfermóvil ({meth.currencyType})</span>
-                            <span className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Transferencia Directa Bancaria</span>
+                        ) : (
+                          <div className="p-2.5 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-400/25 w-10 h-10 flex items-center justify-center flex-shrink-0">
+                            <Wallet size={20} />
                           </div>
-                        </>
-                      ) : (
-                        <>
-                          <div className="p-2 bg-cyan-500/10 text-cyan-400 rounded-xl border border-cyan-500/20">
-                            <Wallet size={18} />
+                        )}
+                        <div>
+                          <h4 className="text-xs font-bold text-white block leading-tight">
+                            {isTM ? `Transfermóvil (${meth.currencyType})` : 'QvaPay'}
+                          </h4>
+                          <span className="text-[9px] text-gray-500 uppercase tracking-widest font-black block mt-0.5">
+                            {isTM ? 'Transferencia Directa Cuba' : 'Pasarela Digital / Cripto'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span className={`px-2.5 py-0.5 rounded text-[9px] font-black uppercase border select-none ${
+                        meth.active 
+                          ? isTM 
+                            ? 'bg-[#534AB7]/20 text-[#8D84F7] border-[#534AB7]/30'
+                            : 'bg-cyan-500/15 text-cyan-400 border-cyan-500/20'
+                          : 'bg-white/5 text-gray-500 border-white/5'
+                      }`}>
+                        {meth.active ? 'Canal Activo' : 'Pausado'}
+                      </span>
+                    </div>
+
+                    {/* Monetary details values formatted */}
+                    {isTM ? (
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between items-center bg-[#07070F]/50 p-2 rounded-lg border border-white/5">
+                          <span className="text-gray-450 block text-[10px]">Tarjeta CUP BANDEC/BCC:</span>
+                          <strong className="font-mono text-white text-xs select-all bg-[#121221] px-2 py-1 rounded border border-white/5 shadow-inner leading-none tracking-wider">
+                            {meth.cardNumber}
+                          </strong>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div className="flex flex-col justify-center bg-[#07070F]/50 p-2 rounded-lg border border-white/5">
+                            <span className="text-gray-450 text-[9px]">Moneda Admitida</span>
+                            <strong className="text-indigo-400 font-bold uppercase mt-0.5 text-xs">{meth.currencyType}</strong>
                           </div>
-                          <div>
-                            <span className="text-xs font-bold text-white block leading-none">Administración: QvaPay Wallet</span>
-                            <span className="text-[9px] text-gray-500 uppercase tracking-widest font-bold">Cobros Cripto / Internac.</span>
+                          <div className="flex flex-col justify-center bg-[#07070F]/50 p-2 rounded-lg border border-white/5">
+                            <span className="text-gray-450 text-[9px]">Móvil Confirmación SMS</span>
+                            <strong className="font-mono text-white mt-0.5 text-[11px] truncate">{meth.phoneConfirm}</strong>
                           </div>
-                        </>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between items-center bg-[#07070F]/50 p-2 rounded-lg border border-white/5">
+                          <span className="text-gray-450 text-[10px]">Cuenta Email QvaPay:</span>
+                          <strong className="font-sans text-white text-xs select-all bg-[#121221] px-2 py-1 rounded border border-white/5 font-semibold">
+                            {meth.qvapayEmail}
+                          </strong>
+                        </div>
+                        <div className="flex justify-between items-center bg-[#07070F]/50 p-2 rounded-lg border border-white/5">
+                          <span className="text-gray-450 text-[10px]">Username QvaPay:</span>
+                          <span className="font-mono font-bold text-cyan-400 text-xs">@{meth.qvapayUser}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* QR Code thumbnail visualization block */}
+                    <div className="flex items-center gap-3 p-2.5 bg-[#07070F]/65 border border-white/5 rounded-xl">
+                      <QrCode size={18} className="text-gray-500 flex-shrink-0" />
+                      <div className="flex-grow text-left">
+                        <span className="text-[10px] font-bold text-white block leading-tight">Código QR de Cobro</span>
+                        <span className="text-[9px] text-gray-500 block">Adjunto en el comprobante visual del productor</span>
+                      </div>
+                      {(meth.qrScreenshot || meth.qrQvapayScreenshot) && (
+                        <div className="relative group/qr cursor-alias">
+                          <img 
+                            src={meth.qrScreenshot || meth.qrQvapayScreenshot} 
+                            alt="Mini QR preview" 
+                            referrerPolicy="no-referrer"
+                            className="w-10 h-10 object-cover rounded-md border border-white/10 shadow-sm" 
+                          />
+                        </div>
                       )}
                     </div>
-
-                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase select-none ${
-                      meth.active ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-[#1C1C2E] text-gray-500'
-                    }`}>
-                      {meth.active ? 'Activo' : 'Pausado'}
-                    </span>
                   </div>
 
-                  {/* Detail text values based on payment gateway */}
-                  {meth.type === 'transfermovil' ? (
-                    <div className="space-y-1.5 text-xs text-gray-300">
-                      <div className="flex justify-between">
-                        <span>Tarjeta Administrador (CUP):</span>
-                        <strong className="font-mono text-white font-bold">{meth.cardNumber}</strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Moneda admitida:</span>
-                        <strong className="text-[#8D84F7] font-bold uppercase">{meth.currencyType}</strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Móvil SMS Recibo:</span>
-                        <strong className="font-mono text-white">{meth.phoneConfirm}</strong>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-1.5 text-xs text-gray-300">
-                      <div className="flex justify-between">
-                        <span>Correo Cuenta QvaPay:</span>
-                        <strong className="text-white font-medium">{meth.qvapayEmail}</strong>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Username QvaPay:</span>
-                        <strong className="font-mono text-[#8D84F7]">@{meth.qvapayUser}</strong>
-                      </div>
-                    </div>
-                  )}
+                  {/* Operational Controls Footer Block */}
+                  <div className="bg-[#0B0B13] px-6 py-3.5 border-t border-white/5 mt-auto flex justify-between items-center">
+                    <button
+                      onClick={() => handleTogglePayActive(meth.id, meth.active)}
+                      className={`text-xs font-bold transition-colors cursor-pointer bg-none border-none p-0 ${
+                        meth.active 
+                          ? 'text-gray-400 hover:text-white' 
+                          : 'text-indigo-400 hover:text-indigo-300'
+                      }`}
+                    >
+                      {meth.active ? 'Pausar este canal' : 'Reactivar este canal'}
+                    </button>
 
-                  {/* QR miniature block */}
-                  <div className="flex items-center gap-2.5 p-2 bg-[#1C1C2E]/60 border border-brand-border/20 rounded-xl">
-                    <QrCode size={16} className="text-gray-500" />
-                    <div className="flex-grow">
-                      <span className="text-[10px] font-bold text-white block">Fotografía QR Adjunta para transferencias</span>
-                      <span className="text-[9px] text-gray-500 block">Facilita el escaneo ávido por la app bancaria.</span>
-                    </div>
-                    {(meth.qrScreenshot || meth.qrQvapayScreenshot) && (
-                      <img 
-                        src={meth.qrScreenshot || meth.qrQvapayScreenshot} 
-                        alt="Mini QR preview" 
-                        referrerPolicy="no-referrer"
-                        className="w-9 h-9 object-cover rounded-md border border-brand-border/25" 
-                      />
-                    )}
+                    <button
+                      onClick={() => handleDeletePay(meth.id)}
+                      className="text-xs text-red-400/80 hover:text-red-400 font-bold transition-colors cursor-pointer flex items-center gap-1.5"
+                    >
+                      <Trash2 size={12} />
+                      Desvincular
+                    </button>
                   </div>
-                </div>
 
-                {/* Footer buttons direct billing actions */}
-                <div className="flex justify-between items-center pt-3 border-t border-brand-border/10 mt-2">
-                  <button
-                    onClick={() => handleTogglePayActive(meth.id, meth.active)}
-                    className="text-xs font-semibold text-[#8D84F7] hover:text-white transition-colors bg-transparent border-none cursor-pointer"
-                  >
-                    {meth.active ? 'Desactivar esta cuenta' : 'Activar cobros en esta cuenta'}
-                  </button>
-
-                  <button
-                    onClick={() => handleDeletePay(meth.id)}
-                    className="p-1 px-2 text-brand-accent-red hover:bg-brand-accent-red/10 border border-brand-accent-red/15 hover:text-brand-accent-red rounded-lg transition-all cursor-pointer flex items-center gap-1 text-[10.5px]"
-                  >
-                    <Trash2 size={11} />
-                    Remover
-                  </button>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </div>
@@ -648,19 +787,25 @@ export const AdminPlans: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-3.5">
-            <Input 
-              label="Comisión plataforma (%)"
-              type="number"
-              min="0"
-              max="100"
-              value={pCommission}
-              onChange={(e) => setPCommission(Number(e.target.value))}
-              themeMode="dark"
-              required
-            />
+            {pName.toLowerCase() !== 'gratis' && pPrice > 0 ? (
+              <Input 
+                label="Límite Librería de Sonidos (MB)"
+                type="number"
+                min="1"
+                value={pMaxSoundLibrarySize}
+                onChange={(e) => setPMaxSoundLibrarySize(Number(e.target.value))}
+                themeMode="dark"
+                required
+              />
+            ) : (
+              <div className="flex flex-col justify-end pb-1 text-left">
+                <span className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Librerías de Sonido</span>
+                <span className="text-xs text-gray-405 italic leading-[24px]">No disponible en Plan Gratis</span>
+              </div>
+            )}
 
             <Input 
-              label="Límite descargas/beats (O 999 para ilimitados)"
+              label="Límite beats (999 = Ilimitados)"
               type="number"
               min="1"
               value={pLimit}
@@ -705,7 +850,7 @@ export const AdminPlans: React.FC = () => {
                   onChange={(e) => setAllowQvapay(e.target.checked)}
                   className="rounded text-[#534AB7] focus:ring-[#7F77DD] w-4 h-4"
                 />
-                QvaPay Checkout
+                QvaPay
               </label>
             </div>
           </div>
@@ -765,7 +910,7 @@ export const AdminPlans: React.FC = () => {
               onChange={(e) => setPFeatured(e.target.checked)}
               className="rounded text-[#534AB7] focus:ring-[#7F77DD] w-4 h-4"
             />
-            Destacar este plan en la portada (Badge de recomendación)
+            Destacar este plan en la portada (Borde de color y fijado como destacado)
           </label>
 
           <div className="flex justify-end gap-2 pt-3 border-t border-brand-border/20">
@@ -817,7 +962,7 @@ export const AdminPlans: React.FC = () => {
                 }`}
               >
                 <Wallet size={15} />
-                QvaPay Checkout
+                QvaPay
               </button>
             </div>
           </div>
@@ -899,7 +1044,7 @@ export const AdminPlans: React.FC = () => {
             <div className="space-y-3.5 animate-in fade-in duration-150 text-left">
               <Input
                 label="Dirección de correo electrónico QvaPay"
-                placeholder="ej. admin.pagos@cubabeats.com"
+                placeholder="ej. admin.pagos@dcubanbeats.com"
                 type="email"
                 value={qpEmail}
                 onChange={(e) => setQpEmail(e.target.value)}
@@ -909,7 +1054,7 @@ export const AdminPlans: React.FC = () => {
 
               <Input
                 label="Usuario de la Cuenta QvaPay (Sin @)"
-                placeholder="ej. admin_cubabeats"
+                placeholder="ej. admin_dcubanbeats"
                 value={qpUser}
                 onChange={(e) => setQpUser(e.target.value)}
                 themeMode="dark"

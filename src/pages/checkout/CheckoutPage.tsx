@@ -1,29 +1,173 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { 
   CreditCard, Landmark, Check, Phone, ArrowLeft, 
-  Send, ShieldAlert, Upload, ArrowRight, Wallet, CheckCircle2
+  Send, ShieldAlert, Upload, ArrowRight, Wallet, CheckCircle2,
+  Copy, X
 } from 'lucide-react';
 
 export const CheckoutPage: React.FC = () => {
-  const { cart, createOrder, clearCart, navigateTo, addToast, user } = useApp();
-  const [paymentMethod, setPaymentMethod] = useState<'transfermovil' | 'enzona' | 'qvapay'>('transfermovil');
+  const { cart, createOrder, clearCart, navigateTo, addToast, user, convertPrice, exchangeRates, getProducerPaymentMethods, addProducerNotification } = useApp();
+  const [selectedMethodId, setSelectedMethodId] = useState<string>('');
+
+  // Find all producer payment configurations for the producers of the beats in the cart
+  const producerIds = useMemo(() => {
+    return Array.from(new Set(cart.map(item => item.beat.producerId)));
+  }, [cart]);
+
+  const availableProducerMethods = useMemo(() => {
+    const list: any[] = [];
+    producerIds.forEach(pId => {
+      const pMethods = getProducerPaymentMethods(pId);
+      pMethods.forEach(m => {
+        if (m.active !== false) {
+          list.push(m);
+        }
+      });
+    });
+    // Deduplicate by a unique combination of type, currencyType (for transfermovil), and id
+    const seen = new Set();
+    return list.filter(m => {
+      const key = m.type === 'transfermovil' 
+        ? `${m.type}_${m.currencyType || 'CUP'}_${m.id}` 
+        : `${m.type}_${m.id}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [producerIds, getProducerPaymentMethods]);
+
+  const selectedMethodDetail = useMemo(() => {
+    if (availableProducerMethods.length === 0) return null;
+    return availableProducerMethods.find(m => m.id === selectedMethodId) || availableProducerMethods[0];
+  }, [availableProducerMethods, selectedMethodId]);
+
+  const selectMethod = useMemo(() => {
+    return selectedMethodDetail ? selectedMethodDetail.type : 'transfermovil';
+  }, [selectedMethodDetail]);
+
+  const activePaymentTypes = useMemo(() => {
+    if (availableProducerMethods.length === 0) {
+      return ['transfermovil', 'enzona', 'qvapay'] as const;
+    }
+    const types = new Set(availableProducerMethods.map(m => m.type));
+    return Array.from(types);
+  }, [availableProducerMethods]);
 
   // Input States
   const [smsConfirmation, setSmsConfirmation] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [receiptImage, setReceiptImage] = useState<string | null>(null);
-  const [qvapayEmail, setQvapayEmail] = useState('');
+  const [qvapayEmail, setQvapayEmail] = useState(user?.email || '');
   const [isSimulatingWallet, setIsSimulatingWallet] = useState(false);
   const [walletStep, setWalletStep] = useState(1);
 
-  const totalAmountCUP = useMemo(() => cart.reduce((acc, item) => acc + item.price, 0), [cart]);
+  useEffect(() => {
+    if (user?.email && !qvapayEmail) {
+      setQvapayEmail(user.email);
+    }
+  }, [user?.email, qvapayEmail]);
+
+  // Copy & Expand States
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [expandedQrImage, setExpandedQrImage] = useState<string | null>(null);
+
+  const handleCopyText = (text: string, fieldKey: string) => {
+    let copiedWithClipboard = false;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text);
+        copiedWithClipboard = true;
+        setCopiedField(fieldKey);
+        addToast('¡Copiado al portapapeles con éxito!', 'success');
+        setTimeout(() => {
+          setCopiedField(null);
+        }, 2000);
+      }
+    } catch (e) {
+      // Access to navigator.clipboard is blocked by a permissions policy in iframe
+    }
+
+    if (!copiedWithClipboard) {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-9999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          setCopiedField(fieldKey);
+          addToast('¡Copiado al portapapeles con éxito!', 'success');
+          setTimeout(() => {
+            setCopiedField(null);
+          }, 2000);
+        } else {
+          addToast('No se pudo copiar de forma automática. Por favor selecciónalo manualmente.', 'error');
+        }
+      } catch (err) {
+        addToast('No se pudo copiar de forma automática. Por favor selecciónalo manualmente.', 'error');
+      }
+    }
+  };
+
+  const totalAmountUSD = useMemo(() => cart.reduce((acc, item) => acc + item.price, 0), [cart]);
+  const totalAmountCUP = useMemo(() => totalAmountUSD * (exchangeRates?.USD || 360), [totalAmountUSD, exchangeRates]);
+
+  // Check if authenticated
+  if (!user) {
+    return (
+      <div className="max-w-xl mx-auto my-12 bg-[#13131F] border border-red-500/25 rounded-3xl p-8 text-center space-y-6 animate-in fade-in duration-250">
+        <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto">
+          <ShieldAlert size={32} />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-bold text-white uppercase tracking-tight">Inicio de Sesión Requerido</h3>
+          <p className="text-xs text-gray-300 leading-relaxed md:px-6">
+            Debes estar autenticado para poder proceder con el pago y la compra de beats. Inicia sesión como Comprador o Artista para continuar.
+          </p>
+        </div>
+        <div className="flex gap-4 justify-center">
+          <Button variant="secondary" size="sm" onClick={() => navigateTo('/')}>
+            Volver al Catálogo
+          </Button>
+          <Button variant="primary" size="sm" onClick={() => navigateTo('/login')}>
+            Iniciar Sesión
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (user.role !== 'client') {
+    return (
+      <div className="max-w-xl mx-auto my-12 bg-[#13131F] border border-red-500/25 rounded-3xl p-8 text-center space-y-6 animate-in fade-in duration-250">
+        <div className="w-16 h-16 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto">
+          <ShieldAlert size={32} />
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-xl font-bold text-white uppercase tracking-tight">Acceso No Autorizado</h3>
+          <p className="text-xs text-gray-300 leading-relaxed">
+            Solo las cuentas de Comprador/Artista pueden proceder al pago de beats y adquirir licencias en la plataforma.
+          </p>
+        </div>
+        <div className="flex gap-4 justify-center">
+          <Button variant="secondary" size="sm" onClick={() => navigateTo('/')}>
+            Volver al Catálogo
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   // Check if unverified client
-  const isUnverifiedClient = user?.role === 'client' && !user?.verified;
+  const isUnverifiedClient = user.role === 'client' && !user.verified;
 
   if (isUnverifiedClient) {
     return (
@@ -34,7 +178,7 @@ export const CheckoutPage: React.FC = () => {
         <div className="space-y-2">
           <h3 className="text-xl font-bold text-white uppercase tracking-tight">Verificación de Identidad Requerida</h3>
           <p className="text-xs text-gray-300 leading-relaxed">
-            Como artista, debes verificar tu identidad (KYC) antes de poder realizar compras de beats en CubaBeats. Esto garantiza la total conformidad legal de las licencias.
+            Como artista, debes verificar tu identidad (KYC) antes de poder realizar compras de beats en D'Cuban Beats. Esto garantiza la total conformidad legal de las licencias.
           </p>
         </div>
         <div className="p-4 bg-red-500/5 rounded-xl border border-red-500/10 text-left text-[11px] text-red-400 font-mono">
@@ -54,8 +198,7 @@ export const CheckoutPage: React.FC = () => {
     );
   }
   
-  // QvaPay rate simulation: 1 USD = 350 CUP
-  const totalAmountUSD = useMemo(() => Number((totalAmountCUP / 350).toFixed(2)), [totalAmountCUP]);
+  // QvaPay rate simulation: 1 USD is already computed at top-level as totalAmountUSD
 
   const handleUploadReceipt = () => {
     // Mock upload set
@@ -67,9 +210,21 @@ export const CheckoutPage: React.FC = () => {
     e.preventDefault();
     if (cart.length === 0) return;
 
-    if (paymentMethod !== 'qvapay' && !smsConfirmation && !transactionId) {
-      addToast('Por favor, ingresa el SMS de confirmación o el ID de transacción', 'error');
-      return;
+    if (selectMethod === 'transfermovil') {
+      if (!transactionId.trim()) {
+        addToast('El Número de ID de Transacción es obligatorio para pagos por Transfermóvil.', 'error');
+        return;
+      }
+      if (!receiptImage) {
+        addToast('Debe subir la captura del comprobante de SMS para validar su pago por Transfermóvil.', 'error');
+        return;
+      }
+    } else {
+      // EnZona and general offline payments
+      if (!smsConfirmation && !transactionId) {
+        addToast('Por favor, ingresa el SMS de confirmación o el ID de transacción', 'error');
+        return;
+      }
     }
 
     // Create an order for species inside CART
@@ -78,26 +233,35 @@ export const CheckoutPage: React.FC = () => {
         id: `CB-${Math.floor(1000 + Math.random() * 9000)}`,
         beatId: item.beat.id,
         beatTitle: item.beat.title,
-        buyerName: 'Comprador Invitado',
+        buyerName: user?.artistName || user?.name || user?.username || 'Comprador',
         producerId: item.beat.producerId,
         producerName: item.beat.producerName,
         amount: item.price,
-        currency: paymentMethod === 'qvapay' ? 'USDT' : 'CUP',
-        method: paymentMethod === 'transfermovil' ? 'Transfermovil' : paymentMethod === 'enzona' ? 'EnZona' : 'QvaPay',
-        status: paymentMethod === 'qvapay' ? 'approved' : 'pending', // QvaPay is instant!
+        currency: selectMethod === 'qvapay' ? 'USDT' : (selectedMethodDetail?.currencyType || 'CUP'),
+        method: selectMethod === 'transfermovil' 
+          ? `Transfermóvil ${selectedMethodDetail?.currencyType || 'CUP'}` 
+          : selectMethod === 'enzona' 
+            ? 'EnZona' 
+            : 'QvaPay',
+        status: 'pending', // All offline orders are pending producer verification
         date: 'Hace un momento',
         transactionId: transactionId || `TX-${Math.floor(100000 + Math.random() * 900000)}`,
-        verificationSMS: smsConfirmation || undefined
+        verificationSMS: smsConfirmation || undefined,
+        receiptUrl: receiptImage || undefined
       });
+
+      // Trigger a notification for the producer in their panel!
+      const methodLabel = selectMethod === 'transfermovil' ? 'Transfermóvil' : 'EnZona';
+      addProducerNotification(
+        'beat_sold',
+        `Nuevo Pago ${methodLabel} por Validar`,
+        `El artista ${user?.artistName || user?.name || 'Comprador'} ha registrado un pago con ${methodLabel} de ${convertPrice(item.price, selectedMethodDetail?.currencyType as any || 'CUP').formatted} por el beat "${item.beat.title}". ID de Operación: ${transactionId}. Por favor verifica el comprobante en tu sección de ventas y aprueba el pago para liberar el beat.`,
+        item.beat.id
+      );
     });
 
     clearCart();
-    
-    if (paymentMethod === 'qvapay') {
-      addToast('Su pago por QvaPay ha sido procesado e instalado con éxito', 'success');
-    } else {
-      addToast('Tu comprobante ha sido enviado al productor. Se verificará en pocos minutos.', 'success');
-    }
+    addToast('Tu comprobante ha sido enviado al productor. Se verificará en pocos minutos.', 'success');
     
     // Switch to root or producer portfolio
     navigateTo('/');
@@ -109,33 +273,47 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const executeQvaPayWalletPayment = () => {
-    setWalletStep(2); // Loading spinner
+    if (!qvapayEmail) {
+      addToast('Por favor ingrese su correo electrónico de QvaPay', 'error');
+      return;
+    }
+    setWalletStep(2); // Loading spinner (API is doing its job)
     setTimeout(() => {
       setWalletStep(3); // Success banner
       setTimeout(() => {
         setIsSimulatingWallet(false);
-        // Automatically place order
+        // Place orders as pending for producer verification
         cart.forEach((item) => {
+          const orderId = `CB-${Math.floor(1000 + Math.random() * 9000)}`;
           createOrder({
-            id: `CB-${Math.floor(1000 + Math.random() * 9000)}`,
+            id: orderId,
             beatId: item.beat.id,
             beatTitle: item.beat.title,
-            buyerName: 'Comprador QvaPay',
+            buyerName: user?.artistName || user?.name || 'Comprador QvaPay',
             producerId: item.beat.producerId,
             producerName: item.beat.producerName,
             amount: item.price,
             currency: 'USDT',
             method: 'QvaPay',
-            status: 'approved', // automatic instant verification!
+            status: 'pending', // Now pending producer approval
             date: 'Hace un momento',
-            transactionId: `QP-${Math.floor(100000 + Math.random() * 900000)}`
+            transactionId: `QP-${Math.floor(100000 + Math.random() * 900000)}`,
+            verificationSMS: `Pago realizado mediante Billetera QvaPay desde la cuenta del cliente (${qvapayEmail}) hacia la cuenta del productor (@${selectedMethodDetail?.qvapayUser || 'carlitos_flow'}). Por favor, valida tu cuenta de QvaPay y aprueba la liberación.`
           });
+
+          // Trigger a notification for the producer in their panel!
+          addProducerNotification(
+            'beat_sold',
+            'Nuevo Pago QvaPay por Validar',
+            `El artista ${user?.artistName || user?.name || 'Comprador'} ha realizado un pago por QvaPay de $${item.price} USDT por el beat "${item.beat.title}". Por favor, verifica tu saldo y aprueba el pedido para generar el enlace.`,
+            item.beat.id
+          );
         });
         clearCart();
-        addToast('Pago certificado por QvaPay API API', 'success');
+        addToast('Pago registrado por QvaPay API. Esperando aprobación final del productor.', 'success');
         navigateTo('/');
-      }, 1500);
-    }, 1200);
+      }, 1800);
+    }, 2200);
   };
 
   return (
@@ -165,55 +343,53 @@ export const CheckoutPage: React.FC = () => {
           <div className="bg-[#13131F] border border-[rgba(127,119,221,0.15)] rounded-2xl p-4 space-y-3">
             <span className="text-xs font-bold text-white/40 uppercase tracking-widest block">Canal de Pago Local</span>
             
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('transfermovil')}
-                className={`py-3.5 px-1 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                  paymentMethod === 'transfermovil'
-                    ? 'bg-brand-primary/15 text-[#7F77DD] border border-[#7F77DD]'
-                    : 'bg-[#1C1C2E] border border-white/5 hover:bg-white/5 text-white/60 hover:text-white'
-                }`}
-              >
-                <Landmark size={16} />
-                Transfermóvil
-              </button>
+            <div className={`grid gap-2 ${
+              availableProducerMethods.length >= 3 ? 'grid-cols-3' :
+              availableProducerMethods.length === 2 ? 'grid-cols-2' :
+              'grid-cols-1'
+            }`}>
+              {availableProducerMethods.map((m) => {
+                const isSelected = selectedMethodDetail?.id === m.id;
+                let title = '';
+                let IconComponent = Landmark;
+                
+                if (m.type === 'transfermovil') {
+                  title = `Transfermóvil ${m.currencyType || 'CUP'}`;
+                  IconComponent = Landmark;
+                } else if (m.type === 'enzona') {
+                  title = 'EnZona';
+                  IconComponent = CreditCard;
+                } else if (m.type === 'qvapay') {
+                  title = 'QvaPay Wallet';
+                  IconComponent = Wallet;
+                }
 
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('enzona')}
-                className={`py-3.5 px-1 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                  paymentMethod === 'enzona'
-                    ? 'bg-brand-primary/15 text-[#7F77DD] border border-[#7F77DD]'
-                    : 'bg-[#1C1C2E] border border-white/5 hover:bg-white/5 text-white/60 hover:text-white'
-                }`}
-              >
-                <CreditCard size={16} />
-                EnZona
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('qvapay')}
-                className={`py-3.5 px-1 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
-                  paymentMethod === 'qvapay'
-                    ? 'bg-brand-primary/15 text-[#7F77DD] border border-[#7F77DD]'
-                    : 'bg-[#1C1C2E] border border-white/5 hover:bg-white/5 text-white/60 hover:text-white'
-                }`}
-              >
-                <Wallet size={16} />
-                QvaPay Wallet
-              </button>
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setSelectedMethodId(m.id)}
+                    className={`py-3.5 px-2 rounded-xl text-[11px] font-bold flex flex-col items-center justify-center gap-2 cursor-pointer transition-all ${
+                      isSelected
+                        ? 'bg-brand-primary/15 text-[#7F77DD] border border-[#7F77DD]'
+                        : 'bg-[#1C1C2E] border border-white/5 hover:bg-white/5 text-white/50 hover:text-white'
+                    }`}
+                  >
+                    <IconComponent size={16} />
+                    {title}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
           {/* Account credentials display */}
           <div className="bg-[#13131F] border border-[rgba(127,119,221,0.15)] rounded-2xl p-6 space-y-5">
-            {paymentMethod === 'transfermovil' && (
+            {selectMethod === 'transfermovil' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
-                    <Badge variant="purple" className="mb-2">Transfermóvil CUP</Badge>
+                    <Badge variant="purple" className="mb-2">Transfermóvil {selectedMethodDetail?.currencyType || 'CUP'}</Badge>
                     <h4 className="text-sm font-bold text-white">Instrucciones de Transferencia</h4>
                   </div>
                   <Phone size={18} className="text-[#7F77DD]" />
@@ -223,19 +399,56 @@ export const CheckoutPage: React.FC = () => {
                   Realiza un Pago Electrónico o Transferencia a través de **Transfermóvil** (servicio de BANDEC, BPA o BANMET) con la tarjeta de destino a continuación:
                 </p>
 
-                <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-xl space-y-3">
-                  <div className="flex justify-between text-xs">
-                    <span className="text-white/40">Tarjeta BANDEC (CUP):</span>
-                    <span className="font-mono text-white font-bold select-all">9224 8129 0019 4021</span>
+                <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-xl space-y-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1.5 flex-grow">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-white/40">Tarjeta ({selectedMethodDetail?.currencyType || 'CUP'}):</span>
+                      <div className="flex items-center gap-1.5 animate-pulse-once">
+                        <span className="font-mono text-white font-bold select-all">{selectedMethodDetail?.cardNumber || '9224 8129 0019 4021'}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(selectedMethodDetail?.cardNumber || '9224 8129 0019 4021', 'cardNumber')}
+                          className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center"
+                          title="Copiar Tarjeta"
+                        >
+                          {copiedField === 'cardNumber' ? <Check size={11} className="text-[#3CD288]" /> : <Copy size={11} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-white/40">Teléfono destinatario:</span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-white font-bold select-all">{selectedMethodDetail?.phoneConfirm || '+53 52839401'}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(selectedMethodDetail?.phoneConfirm || '+53 52839401', 'phoneConfirm')}
+                          className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center"
+                          title="Copiar Teléfono"
+                        >
+                          {copiedField === 'phoneConfirm' ? <Check size={11} className="text-[#3CD288]" /> : <Copy size={11} />}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="text-white/40">Productor / Titular:</span>
+                      <span className="text-white font-bold">{selectedMethodDetail?.titularName || 'Carlos Santana Valdés'}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-white/40">Teléfono destinatario:</span>
-                    <span className="font-mono text-white font-bold select-all">+53 52839401</span>
-                  </div>
-                  <div className="flex justify-between text-xs">
-                    <span className="text-white/40">Nombre del Titular:</span>
-                    <span className="text-white font-bold">Carlos Santana Valdés</span>
-                  </div>
+                  {(selectedMethodDetail?.qrScreenshot || selectedMethodDetail?.qrQvapayScreenshot) && (
+                    <div className="flex-shrink-0 flex justify-center">
+                      <div className="group relative cursor-pointer" onClick={() => setExpandedQrImage(selectedMethodDetail.qrScreenshot || selectedMethodDetail.qrQvapayScreenshot)}>
+                        <img 
+                          src={selectedMethodDetail.qrScreenshot || selectedMethodDetail.qrQvapayScreenshot} 
+                          alt="QR Transfermovil" 
+                          referrerPolicy="no-referrer"
+                          className="w-16 h-16 object-cover rounded-xl border border-white/10 group-hover:border-[#7F77DD] group-hover:scale-105 transition-all duration-200" 
+                        />
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl text-[9px] text-white font-semibold">
+                          Ampliar
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border-t border-white/5 pt-4">
@@ -247,7 +460,7 @@ export const CheckoutPage: React.FC = () => {
               </div>
             )}
 
-            {paymentMethod === 'enzona' && (
+            {selectMethod === 'enzona' && (
               <div className="space-y-4">
                 <div className="flex justify-between items-start">
                   <div>
@@ -261,35 +474,46 @@ export const CheckoutPage: React.FC = () => {
                   Transfiere mediante la aplicación oficial **EnZona** escaneando el código QR del comercio o transfiriendo a la cuenta ID de abajo:
                 </p>
 
-                <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-xl flex items-center justify-between gap-4">
+                <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                   <div className="space-y-2 flex-grow">
-                    <div className="text-xs flex justify-between">
+                    <div className="text-xs flex justify-between items-center">
                       <span className="text-white/40">ID de Usuario EnZona:</span>
-                      <span className="font-mono text-white font-bold select-all">carlitoflow</span>
+                      <div className="flex items-center gap-1.5 animate-pulse-once">
+                        <span className="font-mono text-white font-bold select-all">{selectedMethodDetail?.enzonaUser || 'carlitoflow'}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopyText(selectedMethodDetail?.enzonaUser || 'carlitoflow', 'enzonaUser')}
+                          className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center"
+                          title="Copiar ID EnZona"
+                        >
+                          {copiedField === 'enzonaUser' ? <Check size={11} className="text-[#3CD288]" /> : <Copy size={11} />}
+                        </button>
+                      </div>
                     </div>
                     <div className="text-xs flex justify-between">
-                      <span className="text-white/40">Titular de cuenta:</span>
-                      <span className="text-white font-bold">Carlos J. Santana</span>
+                      <span className="text-white/40">Productor / Titular:</span>
+                      <span className="text-white font-bold">{selectedMethodDetail?.titularName || 'Carlos J. Santana'}</span>
                     </div>
                   </div>
                   
-                  {/* Fake visual QR representations */}
-                  <div className="w-16 h-16 bg-white p-1 rounded-lg flex flex-wrap gap-0.5 relative flex-shrink-0">
-                    <div className="w-5 h-5 bg-black"></div>
-                    <div className="w-5 h-5 bg-black"></div>
-                    <div className="w-5 h-5 bg-white"></div>
-                    <div className="w-5 h-5 bg-black"></div>
-                    <div className="w-5 h-5 bg-white"></div>
-                    <div className="w-5 h-5 bg-black"></div>
-                    <div className="w-5 h-5 bg-black"></div>
-                    <div className="w-5 h-5 bg-black"></div>
-                    <div className="w-5 h-5 bg-white"></div>
+                  <div className="flex-shrink-0 flex justify-center">
+                    <div className="group relative cursor-pointer" onClick={() => setExpandedQrImage(selectedMethodDetail?.qrScreenshot || 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop')}>
+                      <img 
+                        src={selectedMethodDetail?.qrScreenshot || 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop'} 
+                        alt="QR EnZona" 
+                        referrerPolicy="no-referrer"
+                        className="w-16 h-16 object-cover rounded-lg border border-white/10 group-hover:border-[#7F77DD] group-hover:scale-105 transition-all duration-200" 
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg text-[9px] text-white font-semibold">
+                        Ampliar
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             )}
 
-            {paymentMethod === 'qvapay' && (
+            {selectMethod === 'qvapay' && (
               <div className="space-y-4 text-center py-4">
                 <div className="w-12 h-12 bg-indigo-500/15 rounded-full flex items-center justify-center text-brand-primary-light mx-auto">
                   <Wallet size={24} />
@@ -300,16 +524,63 @@ export const CheckoutPage: React.FC = () => {
                   QvaPay te permite pagar de forma automatizada mediante criptomonedas, saldo virtual cubano, o tarjetas magnéticas MLC. El beat se habilitará instantáneamente al pagar.
                 </p>
 
-                <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-2xl max-w-xs mx-auto">
+                <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-2xl max-w-xs mx-auto mb-3">
                   <div className="flex justify-between text-xs mb-1">
                     <span className="text-white/40">Total CUP:</span>
-                    <span className="font-mono font-bold">${totalAmountCUP.toLocaleString()} CUP</span>
+                    <span className="font-mono font-bold">${Math.round(totalAmountCUP).toLocaleString()} CUP</span>
                   </div>
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-white/70">Equivalencia QvaPay:</span>
-                    <span className="font-mono text-brand-primary-light">${totalAmountUSD} USDT</span>
+                    <span className="font-mono text-brand-primary-light">${totalAmountUSD} USD</span>
                   </div>
                 </div>
+
+                <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-xl space-y-2 max-w-xs mx-auto text-left mb-3">
+                  <div className="text-xs flex justify-between items-center">
+                    <span className="text-white/40">Correo QvaPay:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-white font-bold select-all">{selectedMethodDetail?.qvapayEmail || 'carlos.beats@gmail.com'}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(selectedMethodDetail?.qvapayEmail || 'carlos.beats@gmail.com', 'qvapayEmail')}
+                        className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center"
+                        title="Copiar Correo"
+                      >
+                        {copiedField === 'qvapayEmail' ? <Check size={11} className="text-[#3CD288]" /> : <Copy size={11} />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-xs flex justify-between items-center">
+                    <span className="text-white/40">Usuario QvaPay:</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-mono text-[#7F77DD] font-bold select-all">@{selectedMethodDetail?.qvapayUser || 'carlitos_flow'}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleCopyText(selectedMethodDetail?.qvapayUser || 'carlitos_flow', 'qvapayUser')}
+                        className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer flex items-center justify-center animate-pulse-once"
+                        title="Copiar Usuario"
+                      >
+                        {copiedField === 'qvapayUser' ? <Check size={11} className="text-[#3CD288]" /> : <Copy size={11} />}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {selectedMethodDetail?.qrQvapayScreenshot && (
+                  <div className="flex justify-center mt-2 mb-3">
+                    <div className="group relative cursor-pointer" onClick={() => setExpandedQrImage(selectedMethodDetail.qrQvapayScreenshot)}>
+                      <img 
+                        src={selectedMethodDetail.qrQvapayScreenshot} 
+                        alt="QR QvaPay" 
+                        referrerPolicy="no-referrer"
+                        className="w-20 h-20 object-cover rounded-lg border border-white/10 group-hover:border-[#7F77DD] group-hover:scale-105 transition-all duration-200" 
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-lg text-[9px] text-white font-semibold">
+                        Ampliar
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="pt-2">
                   <Button variant="primary" onClick={handleSimulateQvapayCheckout} className="mx-auto text-xs px-6">
@@ -325,26 +596,28 @@ export const CheckoutPage: React.FC = () => {
         {/* Right: Summary details & receipt uploads triggers */}
         <div className="lg:col-span-5 space-y-6">
           
-          {paymentMethod !== 'qvapay' ? (
+          {selectMethod !== 'qvapay' ? (
             <form onSubmit={handleConfirmOfflinePayment} className="bg-[#13131F] border border-[rgba(127,119,221,0.2)] rounded-3xl p-6 space-y-5">
               <h3 className="text-sm font-bold uppercase tracking-wider text-white pb-3 border-b border-white/5">Declaración de Pago</h3>
               
               <div className="space-y-4">
                 {/* ID Transaccion */}
                 <Input
-                  label="Número de Transacción (Ej. 99421290)"
-                  placeholder="Introduce el código de operación"
+                  label={selectMethod === 'transfermovil' ? "Número de ID Transacción (Obligatorio)" : "Número de Transacción / ID de Operación"}
+                  placeholder={selectMethod === 'transfermovil' ? "Ej. 99421290 (Requerido)" : "Introduce el código de operación"}
                   value={transactionId}
                   onChange={(e) => setTransactionId(e.target.value)}
                 />
 
                 {/* Textarea for SMS pasting */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold uppercase tracking-widest text-white/60">Contenido SMS de Confirmación</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-white/60">
+                    Contenido SMS de Confirmación {selectMethod === 'transfermovil' && '(Opcional)'}
+                  </label>
                   <textarea
                     value={smsConfirmation}
                     onChange={(e) => setSmsConfirmation(e.target.value)}
-                    placeholder="Pega el mensaje SMS recibido del banco..."
+                    placeholder={selectMethod === 'transfermovil' ? "Opcional: Pega el mensaje SMS recibido del banco..." : "Pega el mensaje SMS recibido del banco..."}
                     rows={3}
                     className="w-full bg-[#1C1C2E] border border-[rgba(127,119,221,0.25)] rounded-xl p-3 text-xs text-white outline-none focus:border-brand-primary-light"
                   />
@@ -352,7 +625,9 @@ export const CheckoutPage: React.FC = () => {
 
                 {/* Capture/Screenshot uploader */}
                 <div className="space-y-1.5 text-left">
-                  <label className="text-xs font-bold uppercase tracking-widest text-white/60">Subir Captura del Recibo (Opcional)</label>
+                  <label className="text-xs font-bold uppercase tracking-widest text-white/60">
+                    Subir Captura del Comprobante SMS {selectMethod === 'transfermovil' ? '(Obligatorio)' : '(Opcional)'}
+                  </label>
                   
                   {receiptImage ? (
                     <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs">
@@ -366,7 +641,7 @@ export const CheckoutPage: React.FC = () => {
                       className="w-full py-4 border border-dashed border-white/10 hover:border-brand-primary-light rounded-xl flex flex-col items-center justify-center gap-1 cursor-pointer transition-colors"
                     >
                       <Upload size={16} className="text-white/30" />
-                      <span className="text-[10px] uppercase font-bold text-white/50">Cargar comprobante</span>
+                      <span className="text-[10px] uppercase font-bold text-white/50">Cargar captura de comprobante</span>
                     </button>
                   )}
                 </div>
@@ -374,8 +649,19 @@ export const CheckoutPage: React.FC = () => {
 
               {/* Total display */}
               <div className="border-t border-white/5 pt-4 flex justify-between text-sm items-center">
-                <span className="font-bold text-white/70">Monto del pedido:</span>
-                <span className="font-mono text-brand-primary-light font-bold text-base">${totalAmountCUP.toLocaleString()} CUP</span>
+                <span className="font-bold text-white/70">Monto para transferir:</span>
+                <span className="font-mono text-brand-primary-light font-bold text-base">
+                  {(() => {
+                    const currencyToConvert = selectedMethodDetail?.type === 'qvapay' 
+                      ? 'USD' 
+                      : (selectedMethodDetail?.currencyType === 'MLC' 
+                        ? 'MLC' 
+                        : selectedMethodDetail?.currencyType === 'Clasica' 
+                          ? 'CLASICA' 
+                          : 'CUP');
+                    return convertPrice(totalAmountUSD, currencyToConvert as any).formatted;
+                  })()}
+                </span>
               </div>
 
               <Button variant="primary" fullWidth type="submit" className="mt-2">
@@ -385,18 +671,18 @@ export const CheckoutPage: React.FC = () => {
             </form>
           ) : (
             <div className="bg-[#13131F] border border-white/5 rounded-3xl p-6 text-center space-y-4">
-              <span className="text-xs font-bold uppercase tracking-widest text-[#7F77DD]">Pago Instantáneo</span>
+              <span className="text-xs font-bold uppercase tracking-widest text-[#7F77DD]">Pago Seguro con QvaPay</span>
               <p className="text-xs text-white/50">
-                Al usar QvaPay la transacción se valida de forma automática y los beats se descargan de inmediato.
+                Al usar QvaPay la transacción se pre-valida de forma automática y se envía la solicitud al productor para su aprobación final inmediata.
               </p>
               
               <div className="p-4 bg-[#0D0D14] rounded-2xl text-left text-xs font-mono border border-white/5 flex justify-between items-center">
                 <div>
                   <span className="text-white/40 block text-[9px]">Tasa de cambio:</span>
-                  <span>1 USDT = 350 CUP</span>
+                  <span>1 USD = {exchangeRates?.USD || 360} CUP</span>
                 </div>
                 <div>
-                  <span className="text-[#7F77DD] font-bold block">${totalAmountUSD} USDT</span>
+                  <span className="text-[#7F77DD] font-bold block">${totalAmountUSD} USD</span>
                 </div>
               </div>
             </div>
@@ -428,9 +714,11 @@ export const CheckoutPage: React.FC = () => {
                 <span className="text-xs font-bold uppercase tracking-wide block text-gray-500">Autoriza el Pago de tu Billetera</span>
                 
                 <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 space-y-2">
-                  <div className="flex justify-between text-xs">
+                  <div className="flex justify-between text-xs items-center gap-2">
                     <span className="text-gray-500">Destinatario:</span>
-                    <span className="font-bold text-gray-900">CubaBeats Store</span>
+                    <span className="font-bold text-gray-900 truncate" title={selectedMethodDetail?.titularName || 'Flow Habano'}>
+                      {selectedMethodDetail?.titularName || 'Flow Habano'} (@{selectedMethodDetail?.qvapayUser || 'carlitos_flow'})
+                    </span>
                   </div>
                   <div className="flex justify-between text-xs">
                     <span className="text-gray-500 font-medium">Monto a pagar:</span>
@@ -439,7 +727,7 @@ export const CheckoutPage: React.FC = () => {
                 </div>
 
                 <Input
-                  label="Correo Electrónico de QvaPay"
+                  label="Correo Electrónico de QvaPay del Cliente"
                   placeholder="ejemplo@qvapay.com"
                   themeMode="light"
                   value={qvapayEmail}
@@ -462,8 +750,8 @@ export const CheckoutPage: React.FC = () => {
                 {/* Spinner */}
                 <div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin mx-auto" />
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-gray-900">Validando saldo en blockchain...</p>
-                  <p className="text-[10px] text-gray-400">Por favor, no recargues ni cierres la ventana.</p>
+                  <p className="text-xs font-bold text-gray-900">Conectando con la API de QvaPay...</p>
+                  <p className="text-[10px] text-gray-400">Validando credenciales y transfiriendo fondos al productor.</p>
                 </div>
               </div>
             )}
@@ -474,11 +762,51 @@ export const CheckoutPage: React.FC = () => {
                   <CheckCircle2 size={32} fill="currentColor" className="text-white" />
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-bold text-emerald-600">¡Pago Transacción Completado!</p>
-                  <p className="text-[10px] text-gray-400">ID de transacción: QP-81923010</p>
+                  <p className="text-xs font-bold text-emerald-600">¡API de QvaPay Confirmada!</p>
+                  <p className="text-[10px] text-gray-500 mb-1">Transacción procesada correctamente.</p>
+                  <p className="text-[10px] text-gray-400">La orden ha sido enviada al productor para su liberación final.</p>
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 5. EXPANDED QR DISPLAY LIGHTBOX */}
+      {expandedQrImage && (
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200 cursor-zoom-out" 
+          onClick={() => setExpandedQrImage(null)}
+        >
+          <div 
+            className="relative max-w-sm w-full bg-[#13112A] border border-white/10 p-6 rounded-2xl flex flex-col items-center justify-center space-y-4 shadow-2xl animate-in zoom-in-95 cursor-default" 
+            onClick={e => e.stopPropagation()}
+          >
+            <button 
+              type="button" 
+              onClick={() => setExpandedQrImage(null)} 
+              className="absolute top-3 right-3 text-white/50 hover:text-white p-1.5 hover:bg-white/5 rounded-full transition-colors cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+            
+            <div className="text-center">
+              <p className="text-xs font-bold text-[#7F77DD] uppercase tracking-widest">Código QR de Pago</p>
+              <p className="text-[10px] text-white/40 mt-1">Escanea este código QR con la cámara de tu teléfono móvil</p>
+            </div>
+            
+            <div className="overflow-hidden bg-white p-4 rounded-xl shadow-inner flex items-center justify-center w-64 h-64">
+              <img 
+                src={expandedQrImage} 
+                alt="QR Ampliado" 
+                referrerPolicy="no-referrer"
+                className="max-w-full max-h-full object-contain rounded"
+              />
+            </div>
+            
+            <Button variant="secondary" size="xs" onClick={() => setExpandedQrImage(null)} className="w-full text-xs font-semibold">
+              Cerrar Vista
+            </Button>
           </div>
         </div>
       )}

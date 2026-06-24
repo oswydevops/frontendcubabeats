@@ -7,6 +7,7 @@ import { PanelLayout } from './components/layout/PanelLayout';
 
 // Public/Catalog/Auth screens
 import { CatalogPage } from './pages/catalog/CatalogPage';
+import { AboutUsPage } from './pages/about/AboutUsPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { TwoFactorPage } from './pages/auth/TwoFactorPage';
@@ -17,18 +18,21 @@ import { ArtistDashboard } from './pages/artist/ArtistDashboard';
 
 // Producer panel screens
 import { ProducerDashboard } from './pages/producer/ProducerDashboard';
+import { ProducerAnalytics } from './pages/producer/ProducerAnalytics';
 import { ProducerBeats } from './pages/producer/ProducerBeats';
 import { ProducerOrders } from './pages/producer/ProducerOrders';
 import { ProducerEarnings } from './pages/producer/ProducerEarnings';
 import { ProducerProfile } from './pages/producer/ProducerProfile';
 import { ProducerPaymentMethods } from './pages/producer/ProducerPaymentMethods';
+import { ProducerPlans } from './pages/producer/ProducerPlans';
 
 // Admin panel screens
 import { AdminDashboard } from './pages/admin/AdminDashboard';
-import { AdminBeats } from './pages/admin/AdminBeats';
 import { AdminUsers } from './pages/admin/AdminUsers';
+import { AdminTransactions } from './pages/admin/AdminTransactions';
 import { AdminPlans } from './pages/admin/AdminPlans';
 import { AdminStats } from './pages/admin/AdminStats';
+import { AdminProfile } from './pages/admin/AdminProfile';
 
 // Alerts icons
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
@@ -42,6 +46,8 @@ export default function App() {
       // Catalog public paths
       case '/':
         return <CatalogPage />;
+      case '/about':
+        return <AboutUsPage />;
       case '/login':
         return <LoginPage />;
       case '/register':
@@ -60,28 +66,35 @@ export default function App() {
       // Producer workspace paths
       case '/producer/dashboard':
         return <ProducerDashboard />;
+      case '/producer/analytics':
+        return <ProducerAnalytics />;
       case '/producer/beats':
         return <ProducerBeats />;
       case '/producer/orders':
         return <ProducerOrders />;
+      case '/producer/transactions':
       case '/producer/earnings':
         return <ProducerEarnings />;
       case '/producer/profile':
         return <ProducerProfile />;
       case '/producer/payment-methods':
         return <ProducerPaymentMethods />;
+      case '/producer/plans':
+        return <ProducerPlans />;
 
       // Administration setup paths
       case '/admin/dashboard':
         return <AdminDashboard />;
-      case '/admin/beats':
-        return <AdminBeats />;
       case '/admin/users':
         return <AdminUsers />;
+      case '/admin/transactions':
+        return <AdminTransactions />;
       case '/admin/plans':
         return <AdminPlans />;
       case '/admin/stats':
         return <AdminStats />;
+      case '/admin/profile':
+        return <AdminProfile />;
 
       default:
         return <CatalogPage />;

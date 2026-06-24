@@ -11,7 +11,7 @@ interface BeatCardProps {
 export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
   const { 
     activeBeat, isPlaying, playBeat, addToCart, cart, navigateTo, addToast,
-    likedBeats = [], toggleLikeBeat
+    likedBeats = [], toggleLikeBeat, user, convertPrice
   } = useApp();
   const [showShare, setShowShare] = useState(false);
 
@@ -38,7 +38,7 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
     setShowShare(!showShare);
   };
 
-  const shareText = `Escucha "${beat.title}", una excelente pista ${beat.genre} producida por ${beat.producerName} en CubaBeats. ¡Disponible para grabar encima por $${beat.priceBasic} CUP! 🎧🔥`;
+  const shareText = `Escucha "${beat.title}", una excelente pista ${beat.genre} producida por ${beat.producerName} en D'Cuban Beats. ¡Disponible para grabar encima por $${beat.priceBasic} USD! 🎧🔥`;
   const shareUrl = `${window.location.origin}?beatId=${beat.id}`;
 
   return (
@@ -135,9 +135,39 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                navigator.clipboard.writeText(shareUrl);
-                addToast('¡Enlace del beat copiado al portapapeles!', 'success');
-                setShowShare(false);
+                let copiedWithClipboard = false;
+                try {
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(shareUrl);
+                    addToast('¡Enlace del beat copiado al portapapeles!', 'success');
+                    setShowShare(false);
+                    copiedWithClipboard = true;
+                  }
+                } catch (e) {
+                  // blocked by permissions policy
+                }
+
+                if (!copiedWithClipboard) {
+                  try {
+                    const textArea = document.createElement("textarea");
+                    textArea.value = shareUrl;
+                    textArea.style.position = "fixed";
+                    textArea.style.left = "-9999px";
+                    document.body.appendChild(textArea);
+                    textArea.focus();
+                    textArea.select();
+                    const successful = document.execCommand('copy');
+                    document.body.removeChild(textArea);
+                    if (successful) {
+                      addToast('¡Enlace del beat copiado al portapapeles!', 'success');
+                    } else {
+                      addToast('No se pudo copiar de forma automática. Por favor selecciónalo manualmente.', 'error');
+                    }
+                  } catch (err) {
+                    addToast('No se pudo copiar de forma automática.', 'error');
+                  }
+                  setShowShare(false);
+                }
               }}
               className="flex flex-col items-center justify-center p-2 rounded-xl bg-gray-500/10 hover:bg-gray-500/20 text-gray-350 border border-gray-500/20 transition-all text-center space-y-1 group/btn cursor-pointer"
             >
@@ -174,20 +204,22 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
         </div>
 
         {/* Heart Favorite Button */}
-        <button
-          id={`like-btn-${beat.id}`}
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleLikeBeat(beat.id);
-          }}
-          className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all bg-black/50 hover:bg-black/75 hover:scale-105 border border-white/5 cursor-pointer backdrop-blur-xs"
-          title={isLiked ? "Quitar de favoritos" : "Guardar en favoritos"}
-        >
-          <Heart 
-            size={14} 
-            className={isLiked ? "fill-red-500 text-red-500 animate-pulse" : "text-gray-300 hover:text-white"} 
-          />
-        </button>
+        {user?.role !== 'admin' && (
+          <button
+            id={`like-btn-${beat.id}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleLikeBeat(beat.id);
+            }}
+            className="absolute top-3 right-3 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all bg-black/50 hover:bg-black/75 hover:scale-105 border border-white/5 cursor-pointer backdrop-blur-xs"
+            title={isLiked ? "Quitar de favoritos" : "Guardar en favoritos"}
+          >
+            <Heart 
+              size={14} 
+              className={isLiked ? "fill-red-500 text-red-500 animate-pulse" : "text-gray-300 hover:text-white"} 
+            />
+          </button>
+        )}
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 flex flex-col gap-1">
@@ -236,30 +268,37 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
           <div>
             <span className="text-[10px] text-white/40 block">Licencia Básica</span>
             <span className="text-brand-primary-light font-semibold text-sm">
-              ${beat.priceBasic.toLocaleString()} CUP
+              {convertPrice(beat.priceBasic).formatted}
             </span>
           </div>
           
           <div className="flex items-center gap-1.5">
             {/* Share Socials Button */}
             <button
-              onClick={handleShareClick}
-              className="w-8 h-8 rounded-lg bg-white/5 text-white/65 hover:bg-white/12 hover:text-white border border-white/10 active:scale-95 transition-all flex items-center justify-center cursor-pointer"
-              title="Compartir en redes"
+              onClick={user?.role === 'admin' ? undefined : handleShareClick}
+              disabled={user?.role === 'admin'}
+              className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all ${
+                user?.role === 'admin' 
+                  ? 'bg-white/5 border-white/5 text-white/30 cursor-not-allowed opacity-40' 
+                  : 'bg-white/5 text-white/65 hover:bg-white/12 hover:text-white border-white/10 active:scale-95 cursor-pointer'
+              }`}
+              title={user?.role === 'admin' ? "Acción inhabilitada para Administradores" : "Compartir en redes"}
             >
               <Share2 size={13} />
             </button>
 
             {!isSold && (
               <button
-                onClick={handleCartClick}
-                disabled={inCart}
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer ${
-                  inCart 
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' 
-                    : 'bg-brand-primary-light/10 text-brand-primary-light hover:bg-brand-primary/20 border border-[#7F77DD]/25 active:scale-95'
+                onClick={user?.role === 'admin' ? undefined : handleCartClick}
+                disabled={inCart || user?.role === 'admin' || user?.role === 'producer'}
+                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                  user?.role === 'admin' || user?.role === 'producer'
+                    ? 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed opacity-35'
+                    : inCart 
+                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-pointer' 
+                    : 'bg-brand-primary-light/10 text-brand-primary-light hover:bg-brand-primary/20 border border-[#7F77DD]/25 active:scale-95 cursor-pointer'
                 }`}
-                title={inCart ? 'En el carrito' : 'Añadir al carrito'}
+                title={user?.role === 'admin' ? 'No disponible para Administradores' : user?.role === 'producer' ? 'No disponible para Productores' : inCart ? 'En el carrito' : 'Añadir al carrito'}
               >
                 {inCart ? <Check size={14} /> : <ShoppingCart size={14} />}
               </button>

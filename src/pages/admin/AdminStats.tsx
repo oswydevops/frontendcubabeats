@@ -155,18 +155,18 @@ export const AdminStats: React.FC = () => {
   }, [user, verifiedProducersTask, liveProducersCount]);
 
   // Overall calculations
-  const totalRegisteredUsers = simulatedClients + liveProducersCount + 45 + 68 + 41; // clients + live producers + augmented mock producers from plans
+  const totalRegisteredUsers = simulatedClients + liveProducersCount + 45 + 68 + 41; // clients + live producers + augmented mock producers
 
   return (
-    <div className="space-y-6 text-left animate-in fade-in pb-12">
+    <div className="space-y-6 text-left animate-in fade-in pb-12 text-white">
       
       {/* HEADER SECTION */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-gray-100 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/20 pb-5">
         <div>
-          <h2 className="text-xl md:text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2.5">
-            <BarChart2 className="text-indigo-600 w-6 h-6" /> Análisis Estadístico y Métricas Globales
+          <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2.5">
+            <BarChart2 className="text-brand-primary-light w-6 h-6" /> Análisis Estadístico y Métricas Globales
           </h2>
-          <p className="text-xs text-gray-500">Mide el rendimiento del sitio web, audiencias registradas por provincia, reproducciones de audio y planes activos.</p>
+          <p className="text-xs text-white/60">Mide el rendimiento del sitio web, audiencias registradas por provincia, reproducciones de audio y planes activos.</p>
         </div>
 
         {/* Simulador Toolbar */}
@@ -174,7 +174,7 @@ export const AdminStats: React.FC = () => {
           <Button 
             variant="outline" 
             onClick={increaseSimulations}
-            className="flex items-center gap-1.5 border-indigo-200 text-indigo-700 bg-indigo-50/30 hover:bg-indigo-50 text-xs py-1.5 px-3 rounded-xl"
+            className="flex items-center gap-1.5 border-[#7F77DD]/30 text-[#7F77DD] hover:text-[#8D84F7] bg-[#534AB7]/10 hover:bg-[#534AB7]/20 text-xs py-1.5 px-3 rounded-xl cursor-pointer transition-colors"
             title="Simular tráfico en tiempo real"
           >
             <Activity size={13} className="animate-pulse" />
@@ -184,7 +184,7 @@ export const AdminStats: React.FC = () => {
           <Button
             variant="ghost"
             onClick={handleResetSimulations}
-            className="p-2 text-gray-400 hover:text-red-500 rounded-xl"
+            className="p-2 text-white/40 hover:text-red-400 rounded-xl cursor-pointer transition-colors"
             title="Restablecer"
           >
             <RefreshCw size={13} />
@@ -196,65 +196,65 @@ export const AdminStats: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
         {/* Metric 1: Clients */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-indigo-100 transition-all">
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-[#7F77DD]/30 transition-all">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] uppercase font-mono font-bold text-gray-400 tracking-wider block">Clientes Registrados</span>
-            <div className="p-1.5 bg-indigo-50 rounded-lg text-indigo-600">
+            <span className="text-[10px] uppercase font-mono font-bold text-white/40 tracking-wider block">Clientes Registrados</span>
+            <div className="p-1.5 bg-blue-500/10 rounded-lg text-blue-400">
               <Users size={14} />
             </div>
           </div>
-          <h3 className="text-2xl font-bold font-mono text-gray-900">{simulatedClients}</h3>
-          <div className="flex items-center gap-1 text-[10.5px] text-emerald-605">
-            <ArrowUpRight size={12} className="text-emerald-500 font-bold" />
-            <span className="text-emerald-600 font-bold">+12%</span>
-            <span className="text-gray-400 font-normal">esta semana</span>
+          <h3 className="text-2xl font-bold font-mono text-white">{simulatedClients}</h3>
+          <div className="flex items-center gap-1 text-[10.5px]">
+            <ArrowUpRight size={12} className="text-emerald-400 font-bold" />
+            <span className="text-emerald-400 font-bold">+12%</span>
+            <span className="text-white/40 font-normal">esta semana</span>
           </div>
         </div>
 
         {/* Metric 2: Producers */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-indigo-100 transition-all">
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-[#7F77DD]/30 transition-all">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] uppercase font-mono font-bold text-gray-400 tracking-wider block">Productores Totales</span>
-            <div className="p-1.5 bg-violet-50 rounded-lg text-violet-600">
+            <span className="text-[10px] uppercase font-mono font-bold text-white/40 tracking-wider block">Productores Totales</span>
+            <div className="p-1.5 bg-brand-primary-light/10 rounded-lg text-brand-primary-light">
               <Radio size={14} />
             </div>
           </div>
-          <h3 className="text-2xl font-bold font-mono text-gray-900">{liveProducersCount + 45 + 68 + 41}</h3>
+          <h3 className="text-2xl font-bold font-mono text-white">{liveProducersCount + 45 + 68 + 41}</h3>
           <div className="flex items-center gap-1 text-[10.5px]">
-            <span className="text-neutral-500 font-bold">{liveProducersCount} cuentas reales</span>
-            <span className="text-gray-300">•</span>
-            <span className="text-gray-400">154 simuladas</span>
+            <span className="text-white/60 font-medium">{liveProducersCount} reales</span>
+            <span className="text-white/20">•</span>
+            <span className="text-white/40">154 simulaciones</span>
           </div>
         </div>
 
         {/* Metric 3: Visitas */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-indigo-100 transition-all">
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-[#7F77DD]/30 transition-all">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] uppercase font-mono font-bold text-gray-400 tracking-wider block">Visitas Acumuladas</span>
-            <div className="p-1.5 bg-cyan-50 rounded-lg text-cyan-600">
+            <span className="text-[10px] uppercase font-mono font-bold text-white/40 tracking-wider block">Visitas Acumuladas</span>
+            <div className="p-1.5 bg-cyan-500/10 rounded-lg text-cyan-400">
               <Eye size={14} />
             </div>
           </div>
           <h3 className="text-2xl font-bold font-mono text-[#06B6D4]">{extraVisits.toLocaleString()}</h3>
-          <div className="flex items-center gap-1 text-[10.5px] text-emerald-605">
-            <TrendingUp size={12} className="text-emerald-500 font-bold" />
-            <span className="text-emerald-600 font-bold">2.4k</span>
-            <span className="text-gray-400 font-normal">diarias promedio</span>
+          <div className="flex items-center gap-1 text-[10.5px]">
+            <TrendingUp size={12} className="text-emerald-400 font-bold" />
+            <span className="text-emerald-400 font-bold">2.4k</span>
+            <span className="text-white/40 font-normal">diarias promedio</span>
           </div>
         </div>
 
         {/* Metric 4: Plays */}
-        <div className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-indigo-100 transition-all">
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-1.5 relative overflow-hidden group hover:border-[#7F77DD]/30 transition-all">
           <div className="flex justify-between items-center">
-            <span className="text-[10px] uppercase font-mono font-bold text-gray-400 tracking-wider block">Reproducciones Audio</span>
-            <div className="p-1.5 bg-emerald-50 rounded-lg text-emerald-600">
+            <span className="text-[10px] uppercase font-mono font-bold text-white/40 tracking-wider block">Reproducciones Audio</span>
+            <div className="p-1.5 bg-emerald-500/10 rounded-lg text-emerald-400">
               <Play size={14} />
             </div>
           </div>
-          <h3 className="text-2xl font-bold font-mono text-emerald-600">{aggregatePlaysCount.toLocaleString()}</h3>
+          <h3 className="text-2xl font-bold font-mono text-emerald-400">{aggregatePlaysCount.toLocaleString()}</h3>
           <div className="flex items-center gap-1 text-[10.5px]">
-            <Sparkles size={11} className="text-amber-500 animate-pulse" />
-            <span className="text-gray-500 font-medium">BPM Promedio: 110-125</span>
+            <Sparkles size={11} className="text-amber-400 animate-pulse" />
+            <span className="text-white/50 font-medium">BPM Promedio: 110-125</span>
           </div>
         </div>
 
@@ -264,12 +264,12 @@ export const AdminStats: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
         {/* CHART A: CLIENTS VS PRODUCERS COMPARISON */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4">
+        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Users size={16} className="text-indigo-600" /> Relación de Clientes vs. Productores
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Users size={16} className="text-brand-primary-light" /> Relación de Clientes vs. Productores
             </h3>
-            <p className="text-[11px] text-gray-500">Comportamiento proporcional de las cuentas compradoras de instrumentales frente a los creadores de ritmos.</p>
+            <p className="text-[11px] text-white/60">Comportamiento proporcional de las cuentas compradoras de instrumentales frente a los creadores de ritmos.</p>
           </div>
 
           <div className="h-64 mt-2">
@@ -281,12 +281,12 @@ export const AdminStats: React.FC = () => {
                 ]}
                 margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
-                <XAxis dataKey="name" fontSize={11} stroke="#9CA3AF" />
-                <YAxis fontSize={11} stroke="#9CA3AF" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="name" fontSize={11} stroke="#9CA3AF" tickLine={false} />
+                <YAxis fontSize={11} stroke="#9CA3AF" tickLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '11px', fontWeight: 'bold' }} 
-                  cursor={{ fill: '#F9FAFB' }}
+                  contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '11px', color: '#fff' }} 
+                  cursor={{ fill: 'rgba(255,255,255,0.02)' }}
                 />
                 <Bar dataKey="cantidad" radius={[12, 12, 0, 0]}>
                   {
@@ -302,19 +302,19 @@ export const AdminStats: React.FC = () => {
             </ResponsiveContainer>
           </div>
 
-          <div className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex justify-between text-xs">
-            <span className="text-gray-500">Tasa de Compradores Activos:</span>
-            <strong className="text-gray-900">{(simulatedClients / totalRegisteredUsers * 100).toFixed(1)}% de comunidad cubana</strong>
+          <div className="bg-[#13131F]/50 p-3 rounded-xl border border-brand-border/20 flex justify-between text-xs">
+            <span className="text-white/60">Tasa de Compradores Activos:</span>
+            <strong className="text-white">{(simulatedClients / totalRegisteredUsers * 100).toFixed(1)}% de comunidad cubana</strong>
           </div>
         </div>
 
         {/* CHART B: PRODUCERS DISTRIBUTION BY SUBSCRIPTION PLAN */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-155 shadow-sm space-y-4">
+        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Radio size={16} className="text-violet-600" /> Suscripción de Productores por Plan
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Radio size={16} className="text-amber-400" /> Suscripción de Productores por Plan
             </h3>
-            <p className="text-[11px] text-gray-500">Desglose de los planes activos adquiridos por los productores registrados para alojar beats.</p>
+            <p className="text-[11px] text-white/60">Desglose de los planes activos adquiridos por los productores registrados para alojar beats.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
@@ -337,7 +337,7 @@ export const AdminStats: React.FC = () => {
                     ))}
                   </Pie>
                   <Tooltip 
-                    contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '11px', fontWeight: 'bold' }} 
+                    contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '11px', color: '#fff' }} 
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -348,10 +348,10 @@ export const AdminStats: React.FC = () => {
               {planDistribution.map((pl, idx) => (
                 <div key={pl.name} className="flex flex-col gap-0.5 border-l-2 pl-2.5" style={{ borderColor: COLORS[idx % COLORS.length] }}>
                   <div className="flex items-center justify-between">
-                    <span className="text-gray-500 font-medium">{pl.name}</span>
-                    <strong className="text-gray-900 font-mono">{pl.value}</strong>
+                    <span className="text-white/60 font-medium">{pl.name}</span>
+                    <strong className="text-white font-mono">{pl.value}</strong>
                   </div>
-                  <span className="text-[10px] text-gray-400 block font-semibold">
+                  <span className="text-[10px] text-white/40 block font-semibold">
                     {((pl.value / (planDistribution.reduce((sum, p) => sum + p.value, 0))) * 100).toFixed(0)}% de los artistas
                   </span>
                 </div>
@@ -360,7 +360,7 @@ export const AdminStats: React.FC = () => {
 
           </div>
 
-          <div className="text-[10px] text-center text-gray-400 italic">
+          <div className="text-[10px] text-center text-white/40 italic">
             * Los planes Pro y Elite requieren aprobación de comprobantes por Transfermóvil o QvaPay.
           </div>
         </div>
@@ -371,12 +371,12 @@ export const AdminStats: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         
         {/* CHART C: CUBAN PROVINCES DISTRIBUTION (LARGE BAR CHART) */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4 lg:col-span-2">
+        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 lg:col-span-2">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <MapPin size={16} className="text-emerald-600" /> Distribución Geográfica Cubana (Provincias)
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <MapPin size={16} className="text-emerald-400" /> Distribución Geográfica Cubana (Provincias)
             </h3>
-            <p className="text-[11px] text-gray-500">Representación de la localización de productores independientes y sus estudios a lo largo del archipiélago nacional.</p>
+            <p className="text-[11px] text-white/60">Representación de la localización de productores independientes y sus estudios a lo largo del archipiélago nacional.</p>
           </div>
 
           <div className="h-68 mt-3">
@@ -385,7 +385,7 @@ export const AdminStats: React.FC = () => {
                 data={provincesData}
                 margin={{ top: 10, right: 10, left: -25, bottom: 20 }}
               >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F3F4F6" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
                 <XAxis 
                   dataKey="name" 
                   fontSize={9} 
@@ -394,10 +394,11 @@ export const AdminStats: React.FC = () => {
                   textAnchor="end"
                   interval={0}
                   height={50}
+                  tickLine={false}
                 />
-                <YAxis fontSize={10} stroke="#9CA3AF" />
+                <YAxis fontSize={10} stroke="#9CA3AF" tickLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#fff', borderRadius: '12px', border: '1px solid #E5E7EB', fontSize: '11px', fontWeight: 'bold' }} 
+                  contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '11px', color: '#fff' }} 
                 />
                 <Bar dataKey="value" fill="#10B981" radius={[4, 4, 0, 0]} />
               </BarChart>
@@ -406,12 +407,12 @@ export const AdminStats: React.FC = () => {
         </div>
 
         {/* CHART D: TRAFFIC & REPRODUCTIONS TREND (LINE CHART) */}
-        <div className="bg-white p-6 rounded-2xl border border-gray-150 shadow-sm space-y-4 lg:col-span-1">
+        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 lg:col-span-1">
           <div>
-            <h3 className="text-sm font-bold text-gray-900 flex items-center gap-2">
-              <Activity size={16} className="text-cyan-600" /> Tránsito y Reproducción Semanal
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Activity size={16} className="text-cyan-400" /> Tránsito y Reproducción Semanal
             </h3>
-            <p className="text-[11px] text-gray-500">Resumen del volumen de tráfico promedio e interacciones de audición de beats de lunes a domingo.</p>
+            <p className="text-[11px] text-white/60">Resumen del volumen de tráfico promedio e interacciones de audición de beats de lunes a domingo.</p>
           </div>
 
           <div className="h-68 mt-3">
@@ -426,17 +427,17 @@ export const AdminStats: React.FC = () => {
                     <stop offset="95%" stopColor="#06B6D4" stopOpacity={0}/>
                   </linearGradient>
                   <linearGradient id="colorReproducciones" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#534AB7" stopOpacity={0.2}/>
+                    <stop offset="5%" stopColor="#534AB7" stopOpacity={0.25}/>
                     <stop offset="95%" stopColor="#534AB7" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F9FAFB" />
-                <XAxis dataKey="name" fontSize={9} stroke="#9CA3AF" />
-                <YAxis fontSize={9} stroke="#9CA3AF" />
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
+                <XAxis dataKey="name" fontSize={9} stroke="#9CA3AF" tickLine={false} />
+                <YAxis fontSize={9} stroke="#9CA3AF" tickLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#1E1E2E', borderRadius: '12px', color: '#fff', fontSize: '10px', border: 'none' }} 
+                  contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '10px', color: '#fff' }} 
                 />
-                <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: '10.5px', marginTop: '10px' }} />
+                <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: '10.5px', marginTop: '10px', color: '#94A3B8' }} />
                 <Area type="monotone" name="Visitas Diarias" dataKey="visitas" stroke="#06B6D4" strokeWidth={2} fillOpacity={1} fill="url(#colorVisitas)" />
                 <Area type="monotone" name="Plays Beats" dataKey="reproducciones" stroke="#534AB7" strokeWidth={2} fillOpacity={1} fill="url(#colorReproducciones)" />
               </AreaChart>
@@ -447,9 +448,9 @@ export const AdminStats: React.FC = () => {
       </div>
 
       {/* FOOTER METRIC NOTE */}
-      <div className="bg-amber-50/70 border border-amber-200/50 p-4.5 rounded-2xl flex items-start gap-3">
-        <Sliders className="text-amber-600 flex-shrink-0 mt-0.5" size={16} />
-        <div className="text-xs text-amber-900 leading-normal">
+      <div className="bg-amber-500/10 border border-amber-500/20 p-4.5 rounded-2xl flex items-start gap-3">
+        <Sliders className="text-amber-400 flex-shrink-0 mt-0.5" size={16} />
+        <div className="text-xs text-amber-300 leading-normal">
           <strong>Sugerencia del Sistema:</strong> El panel superior de simulación te permite aumentar aleatoriamente el conteo acumulativo de visitas para probar la reactividad de los gráficos y predecir cargas de hosting de almacenamiento. La escala se guarda en caché local.
         </div>
       </div>

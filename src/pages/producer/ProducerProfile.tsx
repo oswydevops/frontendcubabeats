@@ -151,7 +151,7 @@ export const ProducerProfile: React.FC = () => {
       <div className="border-b border-brand-border/40 pb-4 flex justify-between items-center flex-wrap gap-4">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <User className="text-[#7F77DD]" /> Mi Perfil Studio CubaBeats
+            <User className="text-[#7F77DD]" /> Mi Perfil Studio D'Cuban Beats
           </h2>
           <p className="text-xs text-slate-400 mt-1">Configure todos sus datos oficiales de beatmaker, requeridos para firmas de licencias, estadísticas nacionales y seguridad KYC.</p>
         </div>
@@ -299,7 +299,7 @@ export const ProducerProfile: React.FC = () => {
                   <input
                     type="email"
                     disabled
-                    value={user?.email || 'p@cubabeats.cu'}
+                    value={user?.email || 'p@dcubanbeats.cu'}
                     className="w-full pl-9 bg-brand-card/40 border border-brand-border/30 rounded-xl p-3 text-xs text-slate-400 cursor-not-allowed opacity-80 font-mono outline-none"
                   />
                   <Lock size={12} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -417,7 +417,7 @@ export const ProducerProfile: React.FC = () => {
                 <div className="space-y-1">
                   <h4 className="text-base font-bold text-white">¡Su cuenta de Productor está Acreditada!</h4>
                   <p className="text-xs text-slate-400 leading-relaxed font-sans">
-                    Felicidades, tus documentos han sido validados con éxito. Tienes acceso completo para subir y vender beats ilimitadamente en CubaBeats.
+                    Felicidades, tus documentos han sido validados con éxito. Tienes acceso completo para subir y vender beats ilimitadamente en D'Cuban Beats.
                   </p>
                 </div>
               </div>
@@ -643,7 +643,7 @@ export const ProducerProfile: React.FC = () => {
 
         {/* Right col: Avatar live preview card */}
         <div className="lg:col-span-4 bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-xl text-center space-y-4 sticky top-6">
-          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block border-b border-brand-border/20 pb-2">Vista Previa CubaBeats</span>
+          <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block border-b border-brand-border/20 pb-2">Vista Previa D'Cuban Beats</span>
           
           <div className="relative w-28 h-28 rounded-3xl overflow-hidden shadow-md mx-auto border-4 border-[#534AB7]/25 flex-shrink-0 bg-brand-card">
             {avatarUrl ? (
