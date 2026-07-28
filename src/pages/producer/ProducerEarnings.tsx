@@ -74,184 +74,24 @@ export const ProducerEarnings: React.FC = () => {
     const lives = myOrders.filter(o => o.status === 'approved');
     const now = Date.now();
   
-    // High-fidelity historical seeds for both beats and libraries
-    const historic = [
-      {
-        id: 'CB-HIST-41',
-        beatTitle: 'Malecón Sunset',
-        buyerName: 'Yomil Oficial',
-        buyerEmail: 'yomil.reparto@yahoo.com',
-        buyerPhone: '+53 5 289 4012',
-        amount: 4500,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '12 Jun 2026',
-        hour: '16:45',
-        timestamp: now - 8 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Exclusiva',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8389',
-        beatTitle: 'Flow Repartero Vol. 2',
-        buyerName: 'Yoandri García',
-        buyerEmail: 'yoandrig7@gmail.com',
-        buyerPhone: '+53 5 331 9904',
-        amount: 1500,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '20 Jun 2026',
-        hour: '12:15',
-        timestamp: now - 3 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-40',
-        beatTitle: 'Dembow King',
-        buyerName: 'Chacal de Cuba',
-        buyerEmail: 'chacalito.beats@nauta.cu',
-        buyerPhone: '+53 5 440 1289',
-        amount: 6500,
-        currency: 'CUP' as const,
-        method: 'QvaPay',
-        date: '08 Jun 2026',
-        hour: '21:05',
-        timestamp: now - 12 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Exclusiva',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-39',
-        beatTitle: 'Callejera Flow',
-        buyerName: 'El Micha Oficial',
-        buyerEmail: 'el_micha_flow@reparto.com',
-        buyerPhone: '+53 5 125 3840',
-        amount: 750,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '05 Jun 2026',
-        hour: '10:30',
-        timestamp: now - 15 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Básica',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8342',
-        beatTitle: 'Varadero Blue Loop Kit',
-        buyerName: 'Christian Delgado',
-        buyerEmail: 'chris.delgado99@nauta.cu',
-        buyerPhone: '+53 5 889 0281',
-        amount: 800,
-        currency: 'CUP' as const,
-        method: 'EnZona',
-        date: '01 Jun 2026',
-        hour: '14:20',
-        timestamp: now - 19 * 24 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-38',
-        beatTitle: 'Urban Soul',
-        buyerName: 'Danay Suárez',
-        buyerEmail: 'danay_suarez_oficial@gmail.com',
-        buyerPhone: '+53 5 512 8094',
-        amount: 3800,
-        currency: 'CUP' as const,
-        method: 'EnZona',
-        date: '28 May 2026',
-        hour: '19:12',
-        timestamp: now - 23 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Básica',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8316',
-        beatTitle: 'Sublows & Reparto Drums Toolkit Vol. 4',
-        buyerName: 'Estudio La Aldea',
-        buyerEmail: 'la.aldea.studios@gmail.com',
-        buyerPhone: '+53 5 918 3045',
-        amount: 1800,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '29 May 2026',
-        hour: '15:40',
-        timestamp: now - 22 * 24 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1487180142328-054b783fc471?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-37',
-        beatTitle: 'Callejera Flow',
-        buyerName: 'Alex Duvall',
-        buyerEmail: 'duvall_alex@gmail.com',
-        buyerPhone: '+53 5 339 1221',
-        amount: 5000,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '24 May 2026',
-        hour: '11:00',
-        timestamp: now - 27 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Exclusiva',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8119',
-        beatTitle: 'Havana Golden Strings Loops',
-        buyerName: 'Maikel Almira',
-        buyerEmail: 'maikel_almira94@nauta.cu',
-        buyerPhone: '+53 5 831 9284',
-        amount: 950,
-        currency: 'CUP' as const,
-        method: 'EnZona',
-        date: '11 May 2026',
-        hour: '18:15',
-        timestamp: now - 40 * 24 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1465847899084-5161dfdc397c?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?q=80&w=400&auto=format&fit=crop'
-      }
-    ];
-
-    // Merge live approved orders on top of history log
-    const merged = [
-      ...lives.map(o => ({
-        id: o.id,
-        beatTitle: o.beatTitle,
-        buyerName: o.buyerName || 'Cantante D\'Cuban Beats',
-        buyerEmail: 'cantante.activo@dcubanbeats.com',
-        buyerPhone: '+53 5 448 9121',
-        amount: o.amount,
-        currency: o.currency,
-        method: o.method,
-        date: o.date || 'Reciente',
-        hour: '14:20',
-        timestamp: now,
-        licenceType: o.amount >= 3000 ? 'Licencia Exclusiva' : 'Licencia Básica',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      })),
-      ...historic
-    ];
+    // Real transactions derived exclusively from live approved orders
+    const merged = lives.map(o => ({
+      id: o.id,
+      beatTitle: o.beatTitle,
+      buyerName: o.buyerName || 'Cliente Comprador',
+      buyerEmail: o.buyerEmail || 'cliente@dcubanbeats.com',
+      buyerPhone: '+53 5 448 9121',
+      amount: o.amount,
+      currency: o.currency,
+      method: o.method,
+      date: o.date || 'Reciente',
+      hour: '14:20',
+      timestamp: o.approvedAt ? new Date(o.approvedAt).getTime() : now,
+      licenceType: o.beatTitle.toLowerCase().includes('librería') ? 'Librería de Sonido' : (o.amount >= 3000 ? 'Licencia Exclusiva' : 'Licencia Básica'),
+      type: o.beatTitle.toLowerCase().includes('librería') ? ('sound_library' as const) : ('beat' as const),
+      productImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=200&auto=format&fit=crop',
+      receiptImage: o.receiptUrl || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
+    }));
 
     return merged.sort((a, b) => b.timestamp - a.timestamp);
   }, [myOrders]);

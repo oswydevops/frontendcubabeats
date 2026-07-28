@@ -7,24 +7,45 @@ import { Modal } from '../../components/ui/Modal';
 import { 
   Plus, Edit2, Trash2, Search, SlidersHorizontal, Music, 
   Disc, Tag, CheckCircle2, DollarSign, CloudUpload, Play, Pause,
-  Lock, ShieldAlert, Share2
+  Lock, ShieldAlert, Share2, FolderArchive, FileArchive, Library, ArrowLeft, Crown
 } from 'lucide-react';
 
 export const ProducerBeats: React.FC = () => {
-  const { beats, addBeat, deleteBeat, updateBeat, navigateTo, playBeat, activeBeat, isPlaying, addToast, user, convertPrice } = useApp();
+  const { beats, addBeat, deleteBeat, updateBeat, navigateTo, playBeat, activeBeat, isPlaying, addToast, user, convertPrice, plans, exchangeRates } = useApp();
 
-  const isPremium = user?.plan === 'Pro' || user?.plan === 'Elite';
+  const activePlan = useMemo(() => {
+    const planName = user?.plan || 'Gratis';
+    return plans.find(p => p.name.toLowerCase() === planName.toLowerCase()) || plans[0];
+  }, [user, plans]);
+
+  const isPremium = activePlan ? (activePlan.stemsAllowed || (activePlan.allowedFormats || '').toUpperCase().includes('WAV')) : false;
+
+  // Active Tab for Beats vs Libraries
+  const [activeTab, setActiveTab] = useState<'beats' | 'libraries'>('beats');
+
+  // Library Form States
+  const [isLibrarySetupMode, setIsLibrarySetupMode] = useState(false);
+  const [libraryStep, setLibraryStep] = useState(1);
+  const [libraryTitle, setLibraryTitle] = useState('');
+  const [libraryFileCount, setLibraryFileCount] = useState('150');
+  const [libraryGenre, setLibraryGenre] = useState('Reparto');
+  const [libraryCoverUrl, setLibraryCoverUrl] = useState('https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop');
+  const [libraryPrice, setLibraryPrice] = useState('900');
+  const [libraryFileName, setLibraryFileName] = useState('');
+  const [libraryFileSizeMB, setLibraryFileSizeMB] = useState(100); // default simulated size in MB
+  const [libraryDescription, setLibraryDescription] = useState('Librería de sonidos premium con percusiones cubanas, loops de reparto y sintetizadores analógicos listos para usar.');
 
   const [searchQuery, setSearchQuery] = useState('');
   const [editingBeatId, setEditingBeatId] = useState<string | null>(null);
+  const [editingLibraryId, setEditingLibraryId] = useState<string | null>(null);
 
   // Form States for Upload/Edit
   const [title, setTitle] = useState('');
   const [genre, setGenre] = useState('Reggaetón');
   const [bpm, setBpm] = useState('94');
   const [scaleKey, setScaleKey] = useState('C Minor');
-  const [priceBasic, setPriceBasic] = useState('600');
-  const [priceExclusive, setPriceExclusive] = useState('4500');
+  const [priceBasic, setPriceBasic] = useState('');
+  const [priceExclusive, setPriceExclusive] = useState('');
   const [tags, setTags] = useState('');
   const [coverUrl, setCoverUrl] = useState('');
   const [description, setDescription] = useState('');
@@ -37,7 +58,19 @@ export const ProducerBeats: React.FC = () => {
   const [stemsUrl, setStemsUrl] = useState('');
   const [stemsFileName, setStemsFileName] = useState('');
 
-  const DEFAULT_LICENSE_TEMPLATE = "Por la presente, el productor otorga al comprador una licencia no exclusiva para grabar voces sobre este beat, distribuir hasta 5000 copias digitales y reproducir en plataformas de streaming de forma independiente. Queda prohibida la reventa o redistribución del beat por separado. El artista debe dar crédito oficial: \"Prod. por Flow Habano\".";
+  const DEFAULT_LICENSE_TEMPLATE = `LICENCIA EXCLUSIVA DE POR VIDA - TÉRMINOS DEL PRODUCTOR (ESTILO BEATSTARS)
+
+1. CANTIDAD DE COPIAS A DISTRIBUIR:
+✓ [ILIMITADO] Se concede al artista el derecho ilimitado de fabricar, distribuir y vender copias físicas (CDs, vinilos) y descargas digitales de la canción grabada de por vida.
+
+2. CANTIDAD DE VIDEOS:
+✓ [ILIMITADO] Se autoriza la creación y distribución de un número ilimitado de videos musicales, videoclips oficiales y sincronizaciones audiovisuales en plataformas como YouTube, Vimeo y redes sociales, con derecho a monetización ilimitada de por vida.
+
+3. PLATAFORMAS DE STREAMING:
+✓ [ILIMITADO] Se permite la reproducción y transmisión ilimitada de la canción en todas las plataformas de streaming de audio digital (incluyendo Spotify, Apple Music, Amazon Music, Tidal, Deezer, etc.) de por vida, sin límite de reproducciones.
+
+4. DERECHOS DE AUTOR SOBRE EL BEAT:
+✓ [DE POR VIDA] El artista adquiere la exclusividad comercial absoluta de esta obra. El beat se retira del catálogo comercial para nuevos compradores. Los derechos de explotación comercial quedan reservados de por vida para el comprador original bajo los créditos indicados.`;
 
   // Step Setup Form States
   const [isSetupMode, setIsSetupMode] = useState(false);
@@ -47,6 +80,17 @@ export const ProducerBeats: React.FC = () => {
   const [paymentQvapay, setPaymentQvapay] = useState(false);
   const [customLicenseClause, setCustomLicenseClause] = useState('');
 
+  const [licCopiesUnlimited, setLicCopiesUnlimited] = useState(false);
+  const [licVideosUnlimited, setLicVideosUnlimited] = useState(false);
+  const [licStreamingUnlimited, setLicStreamingUnlimited] = useState(false);
+  const [licCopyrightLifetime, setLicCopyrightLifetime] = useState(false);
+  const [licStemsIncluded, setLicStemsIncluded] = useState(false);
+  const [licAudioFormatWav, setLicAudioFormatWav] = useState(false);
+
+  // Copyright Agreement Checkboxes for Step 5
+  const [copyrightChecked1, setCopyrightChecked1] = useState(false);
+  const [copyrightChecked2, setCopyrightChecked2] = useState(false);
+
   // Real-time visual validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -54,27 +98,50 @@ export const ProducerBeats: React.FC = () => {
   const stepsValidity = useMemo(() => {
     const isStep1Valid = !!title.trim() && !!bpm && Number(bpm) > 0 && !!scaleKey.trim();
     const isStep2Valid = !!audioUrl || !!audioFileName;
-    const isStep3Valid = !!priceBasic && Number(priceBasic) > 0 && !!priceExclusive && Number(priceExclusive) > Number(priceBasic) && (paymentTransfermovil || paymentEnzona || paymentQvapay);
+    const isStep3Valid = !!priceBasic && Number(priceBasic) > 0;
     const isStep4Valid = true; // optional
+    const isStep5Valid = copyrightChecked1 && copyrightChecked2;
     
     return {
       step1: isStep1Valid,
       step2: isStep2Valid,
       step3: isStep3Valid,
       step4: isStep4Valid,
-      allValid: isStep1Valid && isStep2Valid && isStep3Valid && isStep4Valid
+      step5: isStep5Valid,
+      allValid: isStep1Valid && isStep2Valid && isStep3Valid && isStep4Valid && isStep5Valid
     };
-  }, [title, bpm, scaleKey, audioUrl, audioFileName, priceBasic, priceExclusive, paymentTransfermovil, paymentEnzona, paymentQvapay]);
+  }, [title, bpm, scaleKey, audioUrl, audioFileName, priceBasic, copyrightChecked1, copyrightChecked2]);
 
-  // Filter beats belonging to this producer
+  // Plan configuration and limits for sound libraries
+  const planLimits = useMemo(() => {
+    if (!activePlan) return { maxCount: 0, maxSizeMB: 0, allowed: false };
+    const maxCount = activePlan.limitLibrariesCount ?? 0;
+    const maxSizeMB = activePlan.maxLibrarySizeEach ?? 0;
+    const allowed = maxCount > 0;
+    return { maxCount, maxSizeMB, allowed };
+  }, [activePlan]);
+
+  // Filter beats belonging to this producer (EXCLUDING sound libraries)
   const myBeats = useMemo(() => {
     return beats.filter((beat) => {
-      const isMine = beat.producerId === 'p2' || beat.producerName === 'Flow Habano';
+      const isMine = beat.producerId === (user?.id || 'p2') || beat.producerName === (user?.artistName || 'Flow Habano');
+      const isBeat = !beat.isSoundLibrary;
       const matchesSearch = beat.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
                             beat.genre.toLowerCase().includes(searchQuery.toLowerCase());
-      return isMine && matchesSearch;
+      return isMine && isBeat && matchesSearch;
     });
-  }, [beats, searchQuery]);
+  }, [beats, searchQuery, user]);
+
+  // Filter sound libraries belonging to this producer
+  const myLibraries = useMemo(() => {
+    return beats.filter((beat) => {
+      const isMine = beat.producerId === (user?.id || 'p2') || beat.producerName === (user?.artistName || 'Flow Habano');
+      const isLib = !!beat.isSoundLibrary;
+      const matchesSearch = beat.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                            beat.genre.toLowerCase().includes(searchQuery.toLowerCase());
+      return isMine && isLib && matchesSearch;
+    });
+  }, [beats, searchQuery, user]);
 
   const stopLocalAudio = () => {
     if (localAudioRef.current) {
@@ -133,9 +200,163 @@ export const ProducerBeats: React.FC = () => {
     }
   };
 
+  const handleOpenUploadLibrary = () => {
+    if (!user?.verified) {
+      addToast('Verificación KYC obligatoria: Debes acreditar tu identidad en Mi Perfil para subir u ofrecer librerías.', 'error');
+      return;
+    }
+    if (!planLimits.allowed) {
+      addToast('Tu plan actual (Gratis) no permite subir librerías de sonidos. Actualízate en la sección Planes.', 'error');
+      return;
+    }
+    if (myLibraries.length >= planLimits.maxCount) {
+      addToast(`Límite alcanzado: Tu plan actual (${user?.plan}) solo permite subir hasta ${planLimits.maxCount} librerías de sonido.`, 'error');
+      return;
+    }
+    
+    setEditingLibraryId(null);
+    // reset library fields
+    setLibraryTitle('');
+    setLibraryFileCount('150');
+    setLibraryGenre('Reparto');
+    setLibraryCoverUrl('https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop');
+    setLibraryPrice('900');
+    setLibraryFileName('');
+    setLibraryFileSizeMB(100);
+    setLibraryDescription('Librería de sonidos premium con percusiones cubanas, loops de reparto y sintetizadores analógicos listos para usar.');
+    
+    setLibraryStep(1);
+    setIsLibrarySetupMode(true);
+  };
+
+  const handleOpenEditLibrary = (lib: any) => {
+    if (!user?.verified) {
+      addToast('Verificación KYC obligatoria: Debes acreditar tu identidad en Mi Perfil para gestionar e instrumentar cambios.', 'error');
+      return;
+    }
+    
+    setEditingLibraryId(lib.id);
+    setLibraryTitle(lib.title);
+    setLibraryFileCount((lib.fileCount || 150).toString());
+    setLibraryGenre(lib.genre || 'Reparto');
+    setLibraryCoverUrl(lib.coverUrl);
+    
+    const rateUSD = exchangeRates?.USD || 360.0;
+    const cupPrice = Math.round(lib.priceBasic * rateUSD);
+    setLibraryPrice(cupPrice.toString());
+    
+    setLibraryFileName(lib.libraryFileName || '');
+    setLibraryFileSizeMB(lib.librarySizeMB || 100);
+    setLibraryDescription(lib.description || '');
+    
+    setLibraryStep(1);
+    setIsLibrarySetupMode(true);
+  };
+
+  const handleSaveLibrary = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!libraryTitle.trim()) {
+      addToast('El nombre de la librería es requerido', 'error');
+      return;
+    }
+    if (!libraryPrice || Number(libraryPrice) <= 0) {
+      addToast('Ingresa un precio válido para la librería', 'error');
+      return;
+    }
+    if (!libraryFileName) {
+      addToast('Debes seleccionar o arrastrar un archivo .zip o .rar para la librería', 'error');
+      return;
+    }
+    if (libraryFileSizeMB > planLimits.maxSizeMB) {
+      addToast(`El archivo excede el tamaño máximo permitido por tu plan (${planLimits.maxSizeMB} MB)`, 'error');
+      return;
+    }
+    if (!editingLibraryId && myLibraries.length >= planLimits.maxCount) {
+      addToast('Ya has alcanzado el límite de librerías permitidas en tu plan.', 'error');
+      return;
+    }
+
+    const rateUSD = exchangeRates?.USD || 360.0;
+    const libPayload = {
+      id: editingLibraryId || `library_new_${Date.now()}`,
+      title: libraryTitle,
+      producerName: user?.artistName || user?.name || 'Flow Habano',
+      producerId: user?.id || 'p2',
+      genre: libraryGenre || 'Librería de Sonidos', // Use chosen genre for synchronization
+      bpm: 0,
+      key: 'N/A',
+      priceBasic: Number(libraryPrice) / rateUSD,
+      priceExclusive: Number(libraryPrice) / rateUSD, // Single price
+      tags: [libraryGenre.toLowerCase(), 'samples', 'sound kit', 'loops'],
+      coverUrl: libraryCoverUrl || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600&auto=format&fit=crop',
+      audioUrl: '', // No single audio preview required or simulated
+      status: 'available' as const,
+      plays: editingLibraryId ? (beats.find(b => b.id === editingLibraryId)?.plays ?? 0) : 0,
+      downloads: editingLibraryId ? (beats.find(b => b.id === editingLibraryId)?.downloads ?? 0) : 0,
+      description: libraryDescription,
+      duration: 'Librería',
+      releasedAt: 'Hoy',
+      isSoundLibrary: true,
+      fileCount: Number(libraryFileCount),
+      librarySizeMB: libraryFileSizeMB,
+      libraryFileName: libraryFileName,
+      customLicenseClause: `LICENCIA DE USO COMERCIAL DE LIBRERÍA DE SONIDOS - D'CUBAN BEATS
+
+Esta licencia otorga al comprador un derecho no exclusivo e intransferible para utilizar los samples, loops, sonidos y archivos incluidos en "${libraryTitle}" en sus propias producciones musicales de forma 100% libre de regalías (Royalty-Free) de por vida. Se permite el uso comercial y de distribución pública.`
+    };
+
+    if (editingLibraryId) {
+      updateBeat(libPayload);
+      addToast('¡Librería de sonidos actualizada con éxito!', 'success');
+    } else {
+      addBeat(libPayload);
+      addToast('¡Librería de sonidos publicada con éxito!', 'success');
+    }
+    setIsLibrarySetupMode(false);
+  };
+
+  const handleDeviceLibraryCoverChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const tempUrl = URL.createObjectURL(file);
+      setLibraryCoverUrl(tempUrl);
+      addToast('Mockup de la librería cargado correctamente', 'success');
+    }
+  };
+
+  const handleDeviceZipChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const name = file.name;
+      const lower = name.toLowerCase();
+      if (!lower.endsWith('.zip') && !lower.endsWith('.rar')) {
+        addToast('Formato no permitido: El archivo debe ser un archivo comprimido .zip o .rar', 'error');
+        return;
+      }
+      
+      // Calculate file size in MB
+      const sizeMB = Math.round((file.size / (1024 * 1024)) * 10) / 10 || 1.2;
+      
+      if (sizeMB > planLimits.maxSizeMB) {
+        addToast(`El archivo pesa ${sizeMB} MB, lo cual excede el límite máximo de tu plan para librerías (${planLimits.maxSizeMB} MB).`, 'error');
+        return;
+      }
+
+      setLibraryFileName(name);
+      setLibraryFileSizeMB(sizeMB);
+      addToast(`Archivo de sonido "${name}" (${sizeMB} MB) cargado correctamente`, 'success');
+    }
+  };
+
   const handleOpenUpload = () => {
     if (!user?.verified) {
       addToast('Verificación KYC obligatoria: Debes acreditar tu identidad en Mi Perfil para subir u ofrecer instrumentales.', 'error');
+      return;
+    }
+    const limit = activePlan?.limit ?? 5;
+    if (myBeats.length >= limit) {
+      addToast(`Límite de beats alcanzado: Tu plan actual (${user?.plan || 'Gratis'}) solo permite publicar hasta ${limit} beats. Por favor, actualiza tu plan en la pestaña de Planes.`, 'error');
       return;
     }
     setEditingBeatId(null);
@@ -143,8 +364,8 @@ export const ProducerBeats: React.FC = () => {
     setGenre('Reggaetón');
     setBpm('94');
     setScaleKey('C Minor');
-    setPriceBasic('600');
-    setPriceExclusive('4500');
+    setPriceBasic('');
+    setPriceExclusive('');
     setTags('reggaeton, perreo, cuba');
     setCoverUrl('https://images.unsplash.com/photo-1614613535308-eb5fbd3d2c17?q=80&w=600&auto=format&fit=crop');
     setDescription('Mezcla estéreo, gorda con sintetizadores retros grabada en La Habana.');
@@ -156,6 +377,14 @@ export const ProducerBeats: React.FC = () => {
     setPaymentTransfermovil(true);
     setPaymentEnzona(true);
     setPaymentQvapay(false);
+    setLicCopiesUnlimited(false);
+    setLicVideosUnlimited(false);
+    setLicStreamingUnlimited(false);
+    setLicCopyrightLifetime(false);
+    setLicStemsIncluded(false);
+    setLicAudioFormatWav(false);
+    setCopyrightChecked1(false);
+    setCopyrightChecked2(false);
     setCustomLicenseClause(DEFAULT_LICENSE_TEMPLATE);
     setErrors({});
     setIsSetupMode(true);
@@ -172,8 +401,13 @@ export const ProducerBeats: React.FC = () => {
     setGenre(beat.genre);
     setBpm(beat.bpm.toString());
     setScaleKey(beat.key);
-    setPriceBasic(beat.priceBasic.toString());
-    setPriceExclusive(beat.priceExclusive.toString());
+    
+    const rateUSD = exchangeRates?.USD || 360.0;
+    const cupPriceBasic = Math.round(beat.priceBasic * rateUSD);
+    const cupPriceExclusive = Math.round(beat.priceExclusive * rateUSD);
+    
+    setPriceBasic(cupPriceBasic.toString());
+    setPriceExclusive(cupPriceExclusive.toString());
     setTags(beat.tags.join(', '));
     setCoverUrl(beat.coverUrl);
     setDescription(beat.description || '');
@@ -185,6 +419,25 @@ export const ProducerBeats: React.FC = () => {
     setPaymentTransfermovil(beat.paymentTransfermovil ?? true);
     setPaymentEnzona(beat.paymentEnzona ?? true);
     setPaymentQvapay(beat.paymentQvapay ?? false);
+    
+    const licText = beat.customLicenseClause || '';
+    const hasCopiesLimited = licText.includes('✗ [LIMITADO] Cantidad de copias') || licText.includes('✗ [LIMITADO] Distribución sujeta');
+    const hasVideosLimited = licText.includes('✗ [LIMITADO] Cantidad de videos') || licText.includes('✗ [LIMITADO] Uso en videoclips');
+    const hasStreamingLimited = licText.includes('✗ [LIMITADO] Plataformas de streaming') || licText.includes('✗ [LIMITADO] Transmisiones digitales');
+    const hasCopyrightLimited = licText.includes('✗ [LIMITADO] Derechos de autor') || licText.includes('✗ [LIMITADO] Derechos exclusivos');
+    const hasStemsExcluded = licText.includes('✗ [NO INCLUIDO] Pistas por separado') || licText.includes('✗ No incluye pistas por separado');
+    const isMp3Format = licText.includes('[FORMATO] Audio entregado en formato MP3') || licText.includes('Calidad de audio: MP3');
+
+    setLicCopiesUnlimited(!hasCopiesLimited);
+    setLicVideosUnlimited(!hasVideosLimited);
+    setLicStreamingUnlimited(!hasStreamingLimited);
+    setLicCopyrightLifetime(!hasCopyrightLimited);
+    setLicStemsIncluded(!hasStemsExcluded);
+    setLicAudioFormatWav(!isMp3Format);
+
+    setCopyrightChecked1(false);
+    setCopyrightChecked2(false);
+
     setCustomLicenseClause(beat.customLicenseClause || DEFAULT_LICENSE_TEMPLATE);
     setErrors({});
     setIsSetupMode(true);
@@ -193,20 +446,21 @@ export const ProducerBeats: React.FC = () => {
 
   const handleSaveBeat = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!editingBeatId) {
+      const limit = activePlan?.limit ?? 5;
+      if (myBeats.length >= limit) {
+        addToast(`Límite de beats alcanzado: Tu plan actual (${user?.plan || 'Gratis'}) solo permite publicar hasta ${limit} beats. Por favor, actualiza tu plan en la pestaña de Planes.`, 'error');
+        return;
+      }
+    }
     
     const tempErrors: Record<string, string> = {};
     if (!title.trim()) tempErrors.title = 'El título de la instrumental es requerido';
     if (!bpm || Number(bpm) <= 0) tempErrors.bpm = 'Ingresa un valor de BPM válido';
     if (!scaleKey.trim()) tempErrors.scaleKey = 'La escala armónica (tono) es requerida';
     if (!audioUrl && !audioFileName) tempErrors.audio = 'Debes subir un archivo local de audio (.MP3 o .WAV)';
-    if (!priceBasic || Number(priceBasic) <= 0) tempErrors.priceBasic = 'Debes ingresar un precio básico válido mayor que cero';
-    if (!priceExclusive || Number(priceExclusive) <= 0) tempErrors.priceExclusive = 'Debes ingresar un precio exclusivo válido mayor que cero';
-    if (priceBasic && priceExclusive && Number(priceExclusive) <= Number(priceBasic)) {
-      tempErrors.priceExclusive = 'El precio exclusivo debe ser mayor que el precio de la licencia básica';
-    }
-    if (!paymentTransfermovil && !paymentEnzona && !paymentQvapay) {
-      tempErrors.payment = 'Debes activar al menos un método de pago';
-    }
+    if (!priceBasic || Number(priceBasic) <= 0) tempErrors.priceBasic = 'Debes ingresar un precio válido mayor que cero';
 
     if (Object.keys(tempErrors).length > 0) {
       setErrors(tempErrors);
@@ -221,20 +475,27 @@ export const ProducerBeats: React.FC = () => {
       return;
     }
 
+    if (!copyrightChecked1 || !copyrightChecked2) {
+      addToast('Debes aceptar las declaraciones de derechos de autor en el Paso 5 para poder publicar el beat', 'error');
+      setSetupStep(5);
+      return;
+    }
+
     setErrors({});
 
     const tagsArray = tags.split(',').map((t) => t.trim()).filter((t) => t !== '');
 
+    const rateUSD = exchangeRates?.USD || 360.0;
     const beatPayload = {
       id: editingBeatId || `beat_new_${Date.now()}`,
       title,
-      producerName: 'Flow Habano',
-      producerId: 'p2',
+      producerName: user?.artistName || user?.name || 'Flow Habano',
+      producerId: user?.id || 'p2',
       genre,
       bpm: Number(bpm),
       key: scaleKey,
-      priceBasic: Number(priceBasic),
-      priceExclusive: Number(priceExclusive),
+      priceBasic: Number(priceBasic) / rateUSD,
+      priceExclusive: Number(priceBasic) / rateUSD,
       tags: tagsArray,
       coverUrl: coverUrl || 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=600&auto=format&fit=crop',
       audioUrl: audioUrl || 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3',
@@ -278,10 +539,10 @@ export const ProducerBeats: React.FC = () => {
     const file = e.target.files?.[0];
     if (file) {
       const fileNameLower = file.name.toLowerCase();
-      const isMp3 = fileNameLower.endsWith('.mp3');
+      const isWav = fileNameLower.endsWith('.wav') || file.type.includes('wav');
       
-      if (!isPremium && !isMp3) {
-        addToast('Su plan actual (Gratis) solo admite subir instrumentales en formato MP3. Actualice a un Plan de pago para poder subir en formato WAV de alta calidad.', 'error');
+      if (!isWav && !fileNameLower.endsWith('.mp3')) {
+        addToast('El sistema requiere formato WAV (.wav) para la generación automática de FLAC máster y MP3 vista previa.', 'error');
         return;
       }
 
@@ -302,13 +563,14 @@ export const ProducerBeats: React.FC = () => {
         });
       }
 
-      addToast('Archivo de audio cargado correctamente', 'success');
+      addToast(`Archivo WAV "${file.name}" cargado. Se procesará la conversión automática a FLAC (máster) y MP3 (preview con watermark).`, 'success');
     }
   };
 
   const handleDeviceStemsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!isPremium) {
-      addToast('La subida de STEMS (pistas separadas) es una característica exclusiva para productores con planes de pago activos.', 'error');
+    const stemsAllowed = activePlan?.stemsAllowed ?? false;
+    if (!stemsAllowed) {
+      addToast(`La subida de STEMS (pistas separadas) no está permitida en su plan actual (${activePlan?.name || 'Gratis'}).`, 'error');
       return;
     }
     const file = e.target.files?.[0];
@@ -365,6 +627,32 @@ export const ProducerBeats: React.FC = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (isSetupMode) {
+      const generated = `LICENCIA EXCLUSIVA DE POR VIDA - TÉRMINOS DEL PRODUCTOR (ESTILO BEATSTARS)
+
+1. CANTIDAD DE COPIAS A DISTRIBUIR:
+${licCopiesUnlimited ? '✓ [ILIMITADO] Se concede al artista el derecho ilimitado de fabricar, distribuir y vender copias físicas (CDs, vinilos) y descargas digitales de la canción grabada de por vida.' : '✗ [LIMITADO] Distribución sujeta a negociación directa previa.'}
+
+2. CANTIDAD DE VIDEOS:
+${licVideosUnlimited ? '✓ [ILIMITADO] Se autoriza la creación y distribución de un número ilimitado de videos musicales, videoclips oficiales y sincronizaciones audiovisuales en plataformas como YouTube, Vimeo y redes sociales, con derecho a monetización ilimitada de por vida.' : '✗ [LIMITADO] Uso en videoclips y sincronizaciones audiovisuales limitado o sujeto a aprobación previa.'}
+
+3. PLATAFORMAS DE STREAMING:
+${licStreamingUnlimited ? '✓ [ILIMITADO] Se permite la reproducción y transmisión ilimitada de la canción en todas las plataformas de streaming de audio digital (incluyendo Spotify, Apple Music, Amazon Music, Tidal, Deezer, etc.) de por vida, sin límite de reproducciones.' : '✗ [LIMITADO] Transmisiones digitales y reproducciones limitadas o sujetas a regalías previas.'}
+
+4. DERECHOS DE AUTOR SOBRE EL BEAT:
+${licCopyrightLifetime ? '✓ [DE POR VIDA] El artista adquiere la exclusividad comercial absoluta de esta obra. El beat se retira del catálogo comercial para nuevos compradores. Los derechos de explotación comercial quedan reservados de por vida para el comprador original bajo los créditos indicados.' : '✗ [LIMITADO] Derechos exclusivos de autor de por vida sujetos a condiciones adicionales.'}
+
+5. ARCHIVOS Y PISTAS INCLUIDAS:
+${licStemsIncluded ? '✓ [INCLUIDO] Pistas por separado (STEMS) incluidas en la descarga para mezcla y masterización profesional.' : '✗ [NO INCLUIDO] Pistas por separado (STEMS) no incluidas en la descarga.'}
+
+6. FORMATO DE AUDIO:
+${licAudioFormatWav ? '✓ [FORMATO] Audio de alta calidad entregado en formato WAV profesional de 24 bits.' : '✓ [FORMATO] Audio entregado en formato MP3 comprimido de alta fidelidad (320 kbps).'}`;
+
+      setCustomLicenseClause(generated);
+    }
+  }, [licCopiesUnlimited, licVideosUnlimited, licStreamingUnlimited, licCopyrightLifetime, licStemsIncluded, licAudioFormatWav, isSetupMode]);
+
   const isCurrentPlaying = (bId: string) => {
     return activeBeat?.id === bId && isPlaying;
   };
@@ -372,8 +660,283 @@ export const ProducerBeats: React.FC = () => {
   return (
     <div className="space-y-6 text-left text-white bg-brand-bg">
       
-      {/* CASE A: SETUP MODE (Multi-step wizard instead of modal) */}
-      {isSetupMode ? (
+      {/* CASE A-1: LIBRARY SETUP MODE (Asistente de Publicación de Librería de Sonidos) */}
+      {isLibrarySetupMode ? (
+        <div className="bg-brand-surface border border-brand-border/40 rounded-2xl p-6 md:p-8 shadow-sm space-y-6 max-w-2xl mx-auto animate-in fade-in duration-300 text-left text-white">
+          {/* Header */}
+          <div className="flex justify-between items-center pb-4 border-b border-brand-border/20 flex-wrap gap-2">
+            <div>
+              <h3 className="text-lg font-bold text-white tracking-tight flex items-center gap-2">
+                <Library className="text-[#7F77DD]" size={18} /> {editingLibraryId ? 'Editar Parámetros de la Librería' : 'Asistente de Publicación de Librería'}
+              </h3>
+              <p className="text-xs text-gray-400">Publica un kit de samples, loops o efectos de sonido para artistas.</p>
+            </div>
+            <button
+              onClick={() => setIsLibrarySetupMode(false)}
+              className="text-xs font-semibold text-[#7F77DD] bg-[#534AB7]/10 border border-[#534AB7]/30 hover:bg-[#534AB7]/25 px-3.5 py-1.5 rounded-xl cursor-pointer transition-colors"
+            >
+              ← Cancelar
+            </button>
+          </div>
+
+          {/* Step Indicator */}
+          <div className="flex items-center gap-2 select-none">
+            <div className="flex items-center gap-1.5">
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${libraryStep === 1 ? 'bg-indigo-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                {libraryStep > 1 ? '✓' : '1'}
+              </span>
+              <span className={`text-xs font-bold ${libraryStep === 1 ? 'text-white' : 'text-gray-400'}`}>Datos Básicos</span>
+            </div>
+            <div className="h-px bg-brand-border w-8"></div>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${libraryStep === 2 ? 'bg-indigo-600 text-white' : 'bg-brand-border text-gray-400'}`}>
+                2
+              </span>
+              <span className={`text-xs font-bold ${libraryStep === 2 ? 'text-white' : 'text-gray-400'}`}>Subir Archivo (.ZIP / .RAR)</span>
+            </div>
+          </div>
+
+          <form onSubmit={handleSaveLibrary} className="space-y-6">
+            {libraryStep === 1 ? (
+              /* SECCION 1: DATOS BASICOS */
+              <div className="space-y-4 animate-in fade-in duration-200">
+                {/* Name */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-300 block">Nombre de la Librería *</label>
+                  <input
+                    type="text"
+                    required
+                    value={libraryTitle}
+                    onChange={(e) => setLibraryTitle(e.target.value)}
+                    placeholder="Ej. La Habana Reparto Loop Kit Vol. 1"
+                    className="w-full bg-brand-bg border border-brand-border/40 focus:border-[#534AB7] focus:ring-1 focus:ring-indigo-555/20 rounded-xl py-2 px-3 text-xs text-white placeholder-gray-500 outline-none"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Genre */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-300 block">Género Principal *</label>
+                    <select
+                      value={libraryGenre}
+                      onChange={(e) => setLibraryGenre(e.target.value)}
+                      className="w-full bg-brand-bg border border-brand-border/40 focus:border-[#534AB7] rounded-xl py-2 px-3 text-xs text-white outline-none animate-in fade-in duration-200"
+                    >
+                      <option value="Reparto">Reparto</option>
+                      <option value="Reggaetón">Reggaetón</option>
+                      <option value="Dembow">Dembow</option>
+                      <option value="Dancehall">Dancehall</option>
+                      <option value="Salsa">Salsa / Afro-Cuban</option>
+                      <option value="Timba">Timba</option>
+                      <option value="Songo">Songo / Rumba</option>
+                      <option value="Bachata">Bachata</option>
+                      <option value="Merengue">Merengue</option>
+                      <option value="Trap">Trap</option>
+                      <option value="Drill">Drill</option>
+                      <option value="Hip-Hop">Hip-Hop</option>
+                      <option value="R&B">R&B</option>
+                      <option value="Afrobeats">Afrobeats</option>
+                      <option value="Urban">Urban / Pop</option>
+                      <option value="Percusión">Percusión / SFX</option>
+                      <option value="Electronic">Electronic / EDM</option>
+                    </select>
+                  </div>
+
+                  {/* Quantity of files */}
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-gray-300 block">Cantidad de Elementos / Archivos *</label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      value={libraryFileCount}
+                      onChange={(e) => setLibraryFileCount(e.target.value)}
+                      placeholder="Ej. 150"
+                      className="w-full bg-brand-bg border border-brand-border/40 focus:border-[#534AB7] focus:ring-1 focus:ring-indigo-555/20 rounded-xl py-2 px-3 text-xs text-white placeholder-gray-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Price */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-300 block">Precio de la Librería (CUP) *</label>
+                  <div className="relative">
+                    <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-xs font-mono">CUP</span>
+                    <input
+                      type="number"
+                      required
+                      min={50}
+                      value={libraryPrice}
+                      onChange={(e) => setLibraryPrice(e.target.value)}
+                      placeholder="900"
+                      className="w-full bg-brand-bg border border-brand-border/40 focus:border-[#534AB7] focus:ring-1 focus:ring-indigo-555/20 rounded-xl py-2 pl-12 pr-3 text-xs text-white placeholder-gray-500 outline-none"
+                    />
+                  </div>
+                </div>
+
+                {/* Description */}
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-gray-300 block">Descripción / Detalles</label>
+                  <textarea
+                    value={libraryDescription}
+                    onChange={(e) => setLibraryDescription(e.target.value)}
+                    rows={2}
+                    placeholder="Describe qué contiene la librería (Ej. 30 kicks, 40 percusiones cubanas, stems de ritmos...)"
+                    className="w-full bg-brand-bg border border-brand-border/40 focus:border-[#534AB7] focus:ring-1 focus:ring-indigo-555/20 rounded-xl py-2 px-3 text-xs text-white placeholder-gray-500 outline-none resize-none"
+                  />
+                </div>
+
+                {/* Cover Image */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-300 block">Mockup o Imagen de Portada *</label>
+                  <div className="flex flex-col sm:flex-row gap-4 items-center bg-brand-bg/50 p-4 border border-brand-border/20 rounded-2xl">
+                    <div className="w-20 h-20 bg-brand-card rounded-xl overflow-hidden border border-brand-border/40 flex-shrink-0 relative group">
+                      <img
+                        src={libraryCoverUrl}
+                        alt="Library Mockup"
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <div className="space-y-2 text-left flex-1 w-full">
+                      <span className="text-[10px] text-gray-400 block leading-relaxed">Sube una imagen cuadrada para tu librería desde tu dispositivo local (Soporta JPG, PNG o WEBP).</span>
+                      <div className="flex">
+                        <label className="px-4 py-2 bg-[#534AB7] hover:bg-[#433A9B] text-white text-xs font-bold rounded-xl cursor-pointer transition-colors block text-center shadow-sm shadow-[#534AB7]/10">
+                          Examinar Dispositivo
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={handleDeviceLibraryCoverChange}
+                            className="hidden"
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* SECCION 2: SUBIR ARCHIVO (.ZIP o .RAR) */
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="p-4 bg-indigo-950/20 rounded-xl border border-indigo-900/40 text-indigo-300 text-xs text-left space-y-1.5">
+                  <h4 className="font-bold flex items-center gap-1.5 text-white">
+                    <Crown size={14} className="text-amber-400" /> Límites de tu Plan ({user?.plan || 'Gratis'})
+                  </h4>
+                  <ul className="list-disc list-inside space-y-1 text-[11px] text-gray-300">
+                    <li>Capacidad máxima por librería: <strong className="text-white">{planLimits.maxSizeMB} MB</strong></li>
+                    <li>Cantidad de librerías permitidas: <strong className="text-white">{planLimits.maxCount}</strong></li>
+                    <li>Librerías publicadas actualmente: <strong className="text-white">{myLibraries.length} / {planLimits.maxCount}</strong></li>
+                  </ul>
+                </div>
+
+                {/* ZIP drag zone */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-300 block">Archivo Comprimido (.ZIP o .RAR) *</label>
+                  
+                  {libraryFileName ? (
+                    /* File uploaded display */
+                    <div className="p-4 bg-emerald-950/20 border border-emerald-900/30 rounded-2xl flex items-center justify-between gap-3 animate-in zoom-in-95 duration-150">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-10 h-10 bg-emerald-500/10 text-emerald-400 rounded-lg flex items-center justify-center">
+                          <FileArchive size={20} />
+                        </div>
+                        <div className="text-left space-y-0.5">
+                          <span className="text-xs font-bold text-white block truncate max-w-xs">{libraryFileName}</span>
+                          <span className="text-[10px] text-gray-400 font-mono block">{libraryFileSizeMB} MB / Límite de {planLimits.maxSizeMB} MB</span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setLibraryFileName('')}
+                        className="p-1 px-2 border border-red-900/30 text-red-400 hover:bg-red-950/40 rounded-lg text-[10px] font-bold cursor-pointer transition-colors"
+                      >
+                        Remover
+                      </button>
+                    </div>
+                  ) : (
+                    /* File upload target zone */
+                    <label className="border-2 border-dashed border-brand-border/50 hover:border-[#534AB7]/50 rounded-2xl p-8 flex flex-col items-center justify-center gap-3 bg-brand-bg/20 hover:bg-brand-bg/40 transition-all cursor-pointer text-center group">
+                      <div className="w-12 h-12 bg-brand-surface rounded-full flex items-center justify-center text-gray-400 group-hover:text-[#7F77DD] group-hover:scale-105 transition-all">
+                        <CloudUpload size={24} />
+                      </div>
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold text-white block group-hover:text-[#7F77DD] transition-colors">Selecciona tu archivo de sonidos .zip o .rar</span>
+                        <span className="text-[10px] text-gray-400 block">Capacidad máxima: {planLimits.maxSizeMB} MB</span>
+                      </div>
+                      <input
+                        type="file"
+                        accept=".zip,.rar"
+                        onChange={handleDeviceZipChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                </div>
+
+                <div className="p-3 bg-brand-card/50 rounded-xl border border-brand-border/30 text-left space-y-1">
+                  <span className="text-[10px] font-bold text-emerald-400 block uppercase tracking-wider">Términos de la Plataforma (No Modificable)</span>
+                  <p className="text-[10px] text-gray-400 leading-normal">
+                    Al subir esta librería, certificas que todos los samples, bucles y efectos de sonido son 100% de tu autoría, creados de forma lícita y libres de regalías. La licencia se emitirá automáticamente de por vida con carácter comercial y libre de regalías para el comprador.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Footer Commands */}
+            <div className="flex justify-between pt-4 border-t border-brand-border/30 gap-2">
+              <button
+                type="button"
+                disabled={libraryStep === 1}
+                onClick={() => setLibraryStep(1)}
+                className={`px-4 py-2 text-xs font-bold rounded-xl border cursor-pointer select-none transition-all ${
+                  libraryStep === 1 
+                    ? 'border-brand-border/10 text-gray-600 cursor-not-allowed bg-transparent' 
+                    : 'border-[#534AB7] text-[#7F77DD] bg-brand-surface hover:bg-brand-card'
+                }`}
+              >
+                ← Anterior
+              </button>
+
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsLibrarySetupMode(false)}
+                  className="px-4 py-2 text-xs font-semibold text-gray-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+                >
+                  Descartar
+                </button>
+
+                {libraryStep === 1 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!libraryTitle.trim()) {
+                        addToast('Ingresa el nombre de la librería', 'error');
+                        return;
+                      }
+                      if (!libraryPrice || Number(libraryPrice) <= 0) {
+                        addToast('Ingresa un precio de venta lícito', 'error');
+                        return;
+                      }
+                      setLibraryStep(2);
+                    }}
+                    className="px-5 py-2 bg-[#534AB7] hover:bg-[#433A9B] text-white text-xs font-bold rounded-xl cursor-pointer transition-all shadow-sm shadow-[#534AB7]/10"
+                  >
+                    Siguiente (Subir Archivo) →
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-all shadow-sm shadow-emerald-600/10"
+                  >
+                    Publicar Librería Now ✓
+                  </button>
+                )}
+              </div>
+            </div>
+          </form>
+        </div>
+      ) : isSetupMode ? (
         <div className="bg-brand-surface border border-brand-border/40 rounded-2xl p-6 md:p-8 shadow-sm space-y-6 max-w-3xl mx-auto animate-in fade-in duration-300">
           
           {/* Wizard Header and back toolbar */}
@@ -382,7 +945,7 @@ export const ProducerBeats: React.FC = () => {
               <h3 className="text-lg font-bold text-white tracking-tight">
                 {editingBeatId ? 'Editar Parámetros de la Instrumental' : 'Asistente de Publicación de Beats'}
               </h3>
-              <p className="text-xs text-gray-400">Completa los 4 pasos obligatorios para preparar tu pista.</p>
+              <p className="text-xs text-gray-400">Completa los pasos obligatorios para preparar tu pista.</p>
             </div>
             
             <button
@@ -394,7 +957,7 @@ export const ProducerBeats: React.FC = () => {
           </div>
 
           {/* Sequential Step Progress Tracker Indicator */}
-          <div className="grid grid-cols-4 gap-2 text-center text-[10.5px] font-bold uppercase tracking-wider text-gray-400 select-none">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-[10.5px] font-bold uppercase tracking-wider text-gray-400 select-none">
             <div 
               onClick={() => setSetupStep(1)}
               className={`pb-2 border-b-2 cursor-pointer transition-all ${
@@ -454,10 +1017,30 @@ export const ProducerBeats: React.FC = () => {
               className={`pb-2 border-b-2 cursor-pointer transition-all ${
                 setupStep === 4 
                   ? 'border-[#7F77DD] text-white' 
-                  : 'border-brand-border/20 hover:text-gray-200'
+                  : stepsValidity.step4 
+                    ? 'border-emerald-500 text-emerald-400 hover:text-emerald-300' 
+                    : 'border-brand-border/20 hover:text-gray-200'
               }`}
             >
               4. Licencia {stepsValidity.step4 ? '✓' : ''}
+            </div>
+            <div 
+              onClick={() => {
+                if (stepsValidity.step1 && stepsValidity.step2 && stepsValidity.step3 && stepsValidity.step4) {
+                  setSetupStep(5);
+                } else {
+                  addToast('Completa todos los pasos requeridos anteriores primero', 'info');
+                }
+              }}
+              className={`pb-2 border-b-2 cursor-pointer transition-all ${
+                setupStep === 5 
+                  ? 'border-[#7F77DD] text-white' 
+                  : stepsValidity.step5 
+                    ? 'border-emerald-500 text-emerald-400 hover:text-emerald-300' 
+                    : 'border-brand-border/20 hover:text-gray-200'
+              }`}
+            >
+              5. Copyright {stepsValidity.step5 ? '✓' : '⚠'}
             </div>
           </div>
 
@@ -655,18 +1238,25 @@ export const ProducerBeats: React.FC = () => {
                     )}
 
                     <div className="space-y-3">
-                      <div className="text-[11px] text-gray-400">
-                        {isPremium ? (
-                          <span className="text-emerald-400 font-semibold">✓ Tu plan premium admite archivos MP3 y WAV.</span>
-                        ) : (
-                          <span className="text-amber-400 font-semibold">⚠️ Plan Gratis activo: Solo se admite formato MP3 (WAV deshabilitado).</span>
-                        )}
+                      <div className="p-3 bg-brand-surface/80 rounded-xl border border-brand-border/40 text-[11px] text-gray-300 space-y-1.5">
+                        <span className="font-bold text-[#7F77DD] block flex items-center gap-1">
+                          <CheckCircle2 size={12} className="text-emerald-400" /> Proceso Automático de Transcodificación:
+                        </span>
+                        <ul className="list-disc list-inside space-y-1 text-[10px] text-gray-400">
+                          <li>Sube tu archivo máster exclusivamente en formato <strong className="text-white">.WAV</strong>.</li>
+                          <li>El sistema convierte automáticamente el WAV a <strong className="text-emerald-400">FLAC</strong> (compresión sin pérdida, mismo audio, menor peso).</li>
+                          <li>Genera una vista previa en <strong className="text-indigo-300">MP3 128kbps con marca de agua (watermark)</strong> para reproducción pública.</li>
+                        </ul>
+                      </div>
+
+                      <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[10.5px] text-amber-200">
+                        <strong>⚠️ Aviso Obligatorio para el Productor:</strong> Conserva siempre una copia local de tus archivos originales WAV. Pasadas 39h tras una venta o de no ser descargado, el máster se elimina del almacenamiento temporal y deberás entregarlo manualmente a tu cliente.
                       </div>
 
                       <div>
                         <input 
                           type="file" 
-                          accept={isPremium ? "audio/*" : "audio/mp3,audio/mpeg"} 
+                          accept=".wav,audio/wav" 
                           id="device-audio-setup-input" 
                           className="hidden" 
                           onChange={handleDeviceAudioChange} 
@@ -676,7 +1266,7 @@ export const ProducerBeats: React.FC = () => {
                           className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/30 text-[#7F77DD] border border-[#534AB7]/35 text-xs font-bold rounded-xl cursor-pointer shadow-sm transition-all text-center h-[42px] whitespace-nowrap"
                         >
                           <CloudUpload size={14} />
-                          Seleccionar Beat Local
+                          Seleccionar Archivo Master WAV (.wav)
                         </label>
                       </div>
                     </div>
@@ -714,33 +1304,33 @@ export const ProducerBeats: React.FC = () => {
                   </div>
 
                   {/* STEMS OF THE BEAT SECTION */}
-                  <div className={`border ${isPremium ? 'border-[#7F77DD]/30 bg-[#7F77DD]/5' : 'border-brand-border/25 bg-brand-surface/20 opacity-60'} p-5 rounded-2xl space-y-4 text-left transition-all duration-200`}>
+                  <div className={`border ${activePlan?.stemsAllowed ? 'border-[#7F77DD]/30 bg-[#7F77DD]/5' : 'border-brand-border/25 bg-brand-surface/20 opacity-60'} p-5 rounded-2xl space-y-4 text-left transition-all duration-200`}>
                     <div className="flex justify-between items-center flex-wrap gap-2 pb-1 border-b border-brand-border/20">
                       <div>
                         <span className="text-xs font-bold uppercase tracking-wider text-[#7F77DD] block flex items-center gap-1">
-                          {!isPremium && <Lock size={12} className="text-amber-400" />} Pistas Separadas (STEMS)
+                          {!activePlan?.stemsAllowed && <Lock size={12} className="text-amber-400" />} Pistas Separadas (STEMS)
                         </span>
                         <span className="text-[10px] text-gray-400">Sube un archivo comprimido .ZIP o .RAR.</span>
                       </div>
 
-                      {isPremium && stemsUrl && (
+                      {activePlan?.stemsAllowed && stemsUrl && (
                         <span className="px-2 py-0.5 bg-indigo-950/20 text-indigo-400 border border-indigo-900/30 text-[9px] rounded-lg font-bold uppercase">
                           ✓ ZIP/RAR Listo
                         </span>
                       )}
                     </div>
 
-                    {!isPremium ? (
+                    {!activePlan?.stemsAllowed ? (
                       <div className="space-y-2 py-2">
                         <p className="text-[11px] text-slate-300 leading-normal">
-                          La subida de STEMS (pistas por separado) es una función <strong>Premium</strong>. No está disponible para su plan actual (<strong>Plan Gratis</strong>).
+                          La subida de STEMS (pistas por separado) no está permitida en su plan actual (<strong>Plan {activePlan?.name || 'Gratis'}</strong>).
                         </p>
                         <button
                           type="button"
                           onClick={() => navigateTo('/producer/plans')}
                           className="text-[11px] text-[#7F77DD] hover:text-[#9B94EC] font-bold underline flex items-center gap-1 cursor-pointer bg-transparent border-none"
                         >
-                          Adquirir Plan de Pago para Activar
+                          Adquirir Plan con Soporte de Stems para Activar
                         </button>
                       </div>
                     ) : (
@@ -787,17 +1377,17 @@ export const ProducerBeats: React.FC = () => {
               </div>
             )}
 
-            {/* STEP 3: PRECIOS Y METODOS DE PAGO PERMITIDOS */}
+            {/* STEP 3: PRECIO ÚNICO */}
             {setupStep === 3 && (
               <div className="space-y-4 animate-in fade-in duration-200">
                 <div className="p-3 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-xl text-xs text-indigo-200 flex items-center gap-2">
                   <div className="p-1 px-2.5 bg-[#534AB7] text-white rounded font-mono font-bold">3</div>
-                  <span>Establece tus tarifas y selecciona con qué métodos deseas que los artistas te envíen transferencias.</span>
+                  <span>Establece la tarifa única para tu beat instrumental.</span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="max-w-md mx-auto">
                   <Input
-                    label="Precio Licencia Básica (CUP) *"
+                    label="Precio de la Instrumental (CUP) *"
                     type="number"
                     placeholder="600"
                     value={priceBasic}
@@ -814,144 +1404,237 @@ export const ProducerBeats: React.FC = () => {
                     error={errors.priceBasic}
                     themeMode="dark"
                   />
-                  <Input
-                    label="Precio Adquisición Exclusiva ($ CUP) *"
-                    type="number"
-                    placeholder="4500"
-                    value={priceExclusive}
-                    onChange={(e) => {
-                      setPriceExclusive(e.target.value);
-                      if (errors.priceExclusive) {
-                        setErrors(prev => {
-                          const next = { ...prev };
-                          delete next.priceExclusive;
-                          return next;
-                        });
-                      }
-                    }}
-                    error={errors.priceExclusive}
-                    themeMode="dark"
-                  />
                 </div>
 
-                <div className={`p-4 rounded-xl border ${errors.payment ? 'border-brand-accent-red/80 bg-brand-accent-red/5' : 'border-brand-border/20 bg-brand-card/45'} space-y-3 transition-all duration-200`}>
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold uppercase tracking-wider text-white block">Métodos de pago habilitados para este Beat *</span>
-                    {errors.payment && (
-                      <span className="text-xs text-brand-accent-red font-medium animate-pulse">⚠️ {errors.payment}</span>
-                    )}
-                  </div>
-                  <p className="text-[11px] text-gray-400">Los clientes podrán usar únicamente los métodos habilitados que marques a continuación:</p>
-                  
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                    <label className="flex items-center gap-2 bg-brand-surface p-3 border border-brand-border/30 rounded-xl cursor-pointer hover:bg-brand-card transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={paymentTransfermovil} 
-                        onChange={(e) => {
-                          setPaymentTransfermovil(e.target.checked);
-                          if (errors.payment) {
-                            setErrors(prev => {
-                              const next = { ...prev };
-                              delete next.payment;
-                              return next;
-                            });
-                          }
-                        }}
-                        className="rounded border-brand-border text-[#7F77DD] focus:ring-[#534AB7]/30 h-4 w-4 bg-brand-card"
-                      />
-                      <div className="text-left">
-                        <span className="text-xs font-bold text-white block leading-tight">Transfermóvil</span>
-                        <span className="text-[9px] text-gray-400">CUP pesos directos</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-2 bg-[#1C1C2E] p-3 border border-brand-border/30 rounded-xl cursor-pointer hover:bg-brand-card transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={paymentEnzona} 
-                        onChange={(e) => {
-                          setPaymentEnzona(e.target.checked);
-                          if (errors.payment) {
-                            setErrors(prev => {
-                              const next = { ...prev };
-                              delete next.payment;
-                              return next;
-                            });
-                          }
-                        }}
-                        className="rounded border-brand-border text-[#7F77DD] focus:ring-[#534AB7]/30 h-4 w-4 bg-brand-card"
-                      />
-                      <div className="text-left">
-                        <span className="text-xs font-bold text-white block leading-tight">EnZona</span>
-                        <span className="text-[9px] text-gray-400">CUP / MLC directo</span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-center gap-2 bg-[#1C1C2E] p-3 border border-brand-border/30 rounded-xl cursor-pointer hover:bg-brand-card transition-colors">
-                      <input 
-                        type="checkbox" 
-                        checked={paymentQvapay} 
-                        onChange={(e) => {
-                          setPaymentQvapay(e.target.checked);
-                          if (errors.payment) {
-                            setErrors(prev => {
-                              const next = { ...prev };
-                              delete next.payment;
-                              return next;
-                            });
-                          }
-                        }}
-                        className="rounded border-brand-border text-[#7F77DD] focus:ring-[#534AB7]/30 h-4 w-4 bg-brand-card"
-                      />
-                      <div className="text-left">
-                        <span className="text-xs font-bold text-white block leading-tight">QvaPay</span>
-                        <span className="text-[9px] text-gray-400">Pasarela multi-moneda</span>
-                      </div>
-                    </label>
-                  </div>
+                <div className="p-4 rounded-xl border border-brand-border/20 bg-brand-card/45 space-y-2 text-left">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#7F77DD] block flex items-center gap-1.5">
+                    <Lock size={13} className="text-[#7F77DD]" /> Métodos de Pago Integrados Automáticamente
+                  </span>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Ya no es necesario configurar métodos de pago específicos para cada beat. Al momento de pagar, el artista visualizará de forma automática los canales activos que has configurado en tus <strong>Métodos de Pago de Productor</strong> (Transfermóvil, EnZona y/o QvaPay).
+                  </p>
                 </div>
               </div>
             )}
 
             {/* STEP 4: LICENCIA (OPCIONAL/PREESTABLECIDA) */}
             {setupStep === 4 && (
-              <div className="space-y-4 animate-in fade-in duration-200">
+              <div className="space-y-5 animate-in fade-in duration-200">
                 <div className="p-3 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-xl text-xs text-indigo-200 flex items-center gap-2">
                   <div className="p-1 px-2.5 bg-[#534AB7] text-white rounded font-mono font-bold">4</div>
-                  <span>Licencia Contractual. Configura los términos legales del beat para los artistas.</span>
+                  <span>Licencia Contractual. Configura los términos de uso exclusivo para tu instrumental.</span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Left: Producer customizable part */}
-                  <div className="space-y-1.5 text-left">
-                    <label className="text-xs font-bold uppercase text-indigo-300 tracking-wider">Parte 1: Licencia del Productor (Editable)</label>
-                    <p className="text-[10px] text-gray-400">Describe tus términos de uso personales. El intérprete deberá aceptarlos.</p>
-                    <textarea
-                      rows={8}
-                      placeholder="Ej. El productor otorga al comprador una licencia para grabar voces..."
-                      value={customLicenseClause}
-                      onChange={(e) => setCustomLicenseClause(e.target.value)}
-                      className="w-full bg-brand-card border border-brand-border focus:border-[#534AB7] focus:ring-1 focus:ring-[#534AB7]/10 rounded-xl p-3 text-xs text-white placeholder-gray-500 outline-none font-sans leading-relaxed"
-                    />
-                    <span className="text-[10px] text-gray-500 block">Este texto se adjuntará al contrato de forma directa y puede ser modificado.</span>
+                {/* Section 1: Beatstars-style license terms */}
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center">
+                    <label className="text-xs font-bold uppercase text-indigo-300 tracking-wider">Parte 1: Términos y Condiciones de Uso (Estilo Beatstars) — Licencia Exclusiva</label>
+                    <span className="px-2 py-0.5 bg-indigo-950/40 text-indigo-300 border border-indigo-900/40 text-[9px] rounded-lg font-bold uppercase">
+                      ★ De por vida
+                    </span>
                   </div>
+                  <p className="text-[11px] text-gray-400">
+                    Marca las casillas para confirmar las cláusulas ilimitadas del contrato. Al ser una Licencia Exclusiva, estas condiciones tendrán validez permanente e ilimitada para el artista comprador.
+                  </p>
 
-                  {/* Right: Platform fixed part */}
-                  <div className="space-y-1.5 text-left opacity-90">
-                    <label className="text-xs font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1">
-                      <Lock size={12} /> Parte 2: Términos de la Plataforma (No Modificable)
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                    {/* Checkbox 1 */}
+                    <label className="flex items-start gap-3 bg-brand-card/45 p-4 border border-brand-border/40 hover:border-[#534AB7]/55 rounded-2xl cursor-pointer hover:bg-brand-card/75 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={licCopiesUnlimited} 
+                        onChange={(e) => setLicCopiesUnlimited(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5"
+                      />
+                      <div className="text-left space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white block leading-tight">Distribución Digital e Impresa Ilimitada</span>
+                          {licCopiesUnlimited && (
+                            <span className="px-1.5 py-0.2 bg-emerald-950/20 text-emerald-400 text-[8px] font-extrabold rounded uppercase tracking-wider scale-95">Ilimitado</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-normal">Permite al artista fabricar, distribuir y vender copias físicas y digitales (CDs, descargas, vinilos) de por vida.</p>
+                      </div>
                     </label>
-                    <p className="text-[10px] text-gray-400">Normativa legal del portal D'Cuban Beats que protege la transacción de ambas partes.</p>
-                    <div className="w-full h-[180px] bg-brand-surface border border-brand-border/60 rounded-xl p-3 text-xs text-gray-400 overflow-y-auto font-sans leading-relaxed select-none">
-                      D'Cuban Beats actúa como intermediario legal y certifica la validez de esta transacción. La plataforma garantiza el derecho de uso legítimo de la maqueta descargada y se reserva el derecho de auditar el origen lícito de la transacción en caso de controversias de propiedad intelectual. Esta licencia incluye la firma digital de la plataforma y se emitirá de forma definitiva con los datos exactos del comprobante de pago verificado por la administración al momento de liberarse la descarga.
-                    </div>
-                    <span className="text-[10px] text-emerald-500 block font-semibold">✓ El sistema de descargas integrará de forma automática el comprobante de pago al PDF.</span>
+
+                    {/* Checkbox 2 */}
+                    <label className="flex items-start gap-3 bg-brand-card/45 p-4 border border-brand-border/40 hover:border-[#534AB7]/55 rounded-2xl cursor-pointer hover:bg-brand-card/75 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={licVideosUnlimited} 
+                        onChange={(e) => setLicVideosUnlimited(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5"
+                      />
+                      <div className="text-left space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white block leading-tight">Videos Musicales y Sincronizaciones Ilimitados</span>
+                          {licVideosUnlimited && (
+                            <span className="px-1.5 py-0.2 bg-emerald-950/20 text-emerald-400 text-[8px] font-extrabold rounded uppercase tracking-wider scale-95">Ilimitado</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-normal">Autoriza la grabación y monetización de videos oficiales o promocionales de YouTube, TikTok, etc., sin topes de vistas.</p>
+                      </div>
+                    </label>
+
+                    {/* Checkbox 3 */}
+                    <label className="flex items-start gap-3 bg-brand-card/45 p-4 border border-brand-border/40 hover:border-[#534AB7]/55 rounded-2xl cursor-pointer hover:bg-brand-card/75 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={licStreamingUnlimited} 
+                        onChange={(e) => setLicStreamingUnlimited(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5"
+                      />
+                      <div className="text-left space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white block leading-tight">Transmisión Digital (Streaming) Ilimitada</span>
+                          {licStreamingUnlimited && (
+                            <span className="px-1.5 py-0.2 bg-emerald-950/20 text-emerald-400 text-[8px] font-extrabold rounded uppercase tracking-wider scale-95">Ilimitado</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-normal">Habilita transmisiones ilimitadas en plataformas principales como Spotify, Apple Music, Tidal, Deezer y más.</p>
+                      </div>
+                    </label>
+
+                    {/* Checkbox 4 */}
+                    <label className="flex items-start gap-3 bg-brand-card/45 p-4 border border-brand-border/40 hover:border-[#534AB7]/55 rounded-2xl cursor-pointer hover:bg-brand-card/75 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={licCopyrightLifetime} 
+                        onChange={(e) => setLicCopyrightLifetime(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5"
+                      />
+                      <div className="text-left space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white block leading-tight">Derechos de Autor y Exclusividad de por Vida</span>
+                          {licCopyrightLifetime && (
+                            <span className="px-1.5 py-0.2 bg-emerald-950/20 text-emerald-400 text-[8px] font-extrabold rounded uppercase tracking-wider scale-95">De Por Vida</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-normal">Otorga exclusividad absoluta sobre la obra musical. El beat se remueve de catálogos y se reserva al artista de por vida.</p>
+                      </div>
+                    </label>
+
+                    {/* Checkbox 5 (Stems) */}
+                    <label className="flex items-start gap-3 bg-brand-card/45 p-4 border border-brand-border/40 hover:border-[#534AB7]/55 rounded-2xl cursor-pointer hover:bg-brand-card/75 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={licStemsIncluded} 
+                        onChange={(e) => setLicStemsIncluded(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5"
+                      />
+                      <div className="text-left space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white block leading-tight">Incluye Pistas por Separado (STEMS)</span>
+                          {licStemsIncluded && (
+                            <span className="px-1.5 py-0.2 bg-emerald-950/20 text-emerald-400 text-[8px] font-extrabold rounded uppercase tracking-wider scale-95">Stems Listos</span>
+                          )}
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-normal">Marca si la descarga incluirá las pistas individuales o canales separados del beat para mezcla profesional.</p>
+                      </div>
+                    </label>
+
+                    {/* Checkbox 6 (Audio Format) */}
+                    <label className="flex items-start gap-3 bg-brand-card/45 p-4 border border-brand-border/40 hover:border-[#534AB7]/55 rounded-2xl cursor-pointer hover:bg-brand-card/75 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={licAudioFormatWav} 
+                        onChange={(e) => setLicAudioFormatWav(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5"
+                      />
+                      <div className="text-left space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-bold text-white block leading-tight">Formato de Alta Calidad WAV</span>
+                          <span className={`px-1.5 py-0.2 text-[8px] font-extrabold rounded uppercase tracking-wider scale-95 ${licAudioFormatWav ? 'bg-indigo-950/40 text-indigo-300' : 'bg-amber-950/20 text-amber-400'}`}>
+                            {licAudioFormatWav ? 'WAV' : 'MP3'}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-gray-400 leading-normal">Si se marca, el formato es WAV profesional de 24 bits. Si se desmarca, el formato es MP3 de alta fidelidad (320 kbps).</p>
+                      </div>
+                    </label>
                   </div>
                 </div>
 
-                <div className="p-4 bg-emerald-950/20 rounded-xl border border-emerald-900/30 text-emerald-400 text-xs text-left leading-relaxed">
-                  <strong>✓ Todo listo para publicación:</strong> Al hacer clic en publicar, los datos de la licencia se guardarán y estarán adjuntos al beat, descargables junto con la pista y los datos del recibo CUP/MLC.
+                {/* Optional Contract Preview Drawer */}
+                <div className="space-y-1.5 text-left bg-brand-surface p-3.5 border border-brand-border/45 rounded-xl">
+                  <span className="text-[10.5px] font-bold text-indigo-200 block uppercase tracking-wider">Vista Previa del Contrato Generado (Basado en Selección)</span>
+                  <div className="max-h-[110px] overflow-y-auto bg-brand-bg/60 border border-brand-border/30 rounded-lg p-2.5 text-[10px] font-mono text-gray-400 leading-relaxed whitespace-pre-wrap select-none scrollbar-thin">
+                    {customLicenseClause}
+                  </div>
+                </div>
+
+                {/* Section 2: Platform terms and conditions (Fixed) */}
+                <div className="space-y-1.5 text-left opacity-90 border-t border-brand-border/30 pt-4">
+                  <label className="text-xs font-bold uppercase text-emerald-400 tracking-wider flex items-center gap-1">
+                    <Lock size={12} /> Parte 2: Términos Generales de la Plataforma (No Modificable)
+                  </label>
+                  <p className="text-[10px] text-gray-400">Normativa del portal D'Cuban Beats que protege legalmente a productores y artistas en la transacción.</p>
+                  <div className="w-full h-[95px] bg-brand-surface border border-brand-border/60 rounded-xl p-3 text-[10.5px] text-gray-400 overflow-y-auto font-sans leading-relaxed select-none font-sans">
+                    D'Cuban Beats actúa como intermediario legal y certifica la validez de esta transacción. La plataforma garantiza el derecho de uso legítimo de la maqueta descargada y se reserva el derecho de auditar el origen lícito de la transacción en caso de controversias de propiedad intelectual. Esta licencia incluye la firma digital de la plataforma y se emitirá de forma definitiva con los datos exactos del comprobante de pago verificado por la administración al momento de liberarse la descarga.
+                  </div>
+                  <span className="text-[10px] text-emerald-500 block font-semibold">✓ El sistema de descargas integrará de forma automática el comprobante de pago al PDF.</span>
+                </div>
+
+                <div className="p-4 bg-emerald-950/20 rounded-xl border border-emerald-900/30 text-emerald-400 text-xs text-left leading-relaxed flex items-start gap-2">
+                  <CheckCircle2 size={15} className="mt-0.5 text-emerald-400 flex-shrink-0" />
+                  <div>
+                    <strong>✓ Todo listo para publicación:</strong> Al confirmar y publicar, los términos seleccionados estilo Beatstars se indexarán en el contrato de este beat para descargas automáticas por parte de los intérpretes en su cuenta personal.
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 5: COPYRIGHT */}
+            {setupStep === 5 && (
+              <div className="space-y-5 animate-in fade-in duration-200 text-left">
+                <div className="p-3 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-xl text-xs text-indigo-200 flex items-center gap-2">
+                  <div className="p-1 px-2.5 bg-[#534AB7] text-white rounded font-mono font-bold">5</div>
+                  <span>Declaración de autoría y propiedad intelectual (Copyright).</span>
+                </div>
+
+                <div className="bg-brand-card/45 border border-brand-border/40 rounded-2xl p-5 space-y-4">
+                  <h4 className="text-sm font-bold text-[#7F77DD] uppercase tracking-wider flex items-center gap-2">
+                    <ShieldAlert size={16} className="text-[#7F77DD]" /> Declaración de Derechos de Autor
+                  </h4>
+                  <p className="text-xs text-gray-400 leading-normal">
+                    Como parte de nuestro compromiso para proteger la propiedad intelectual de todos los creadores en D'Cuban Beats, debes confirmar los siguientes puntos antes de publicar tu obra.
+                  </p>
+
+                  <div className="space-y-4 pt-2">
+                    {/* Checkbox 1 */}
+                    <label className="flex items-start gap-3 bg-brand-bg/50 p-4 border border-brand-border/30 hover:border-[#534AB7]/40 rounded-xl cursor-pointer hover:bg-brand-bg/80 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={copyrightChecked1} 
+                        onChange={(e) => setCopyrightChecked1(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5 cursor-pointer"
+                      />
+                      <div className="text-left">
+                        <span className="text-xs font-medium text-white block leading-relaxed">
+                          Declaro que soy el autor original de este beat, o que cuento con los derechos y licencias necesarias para distribuirlo en D'Cuban Beats, y que no infringe derechos de autor de terceros.
+                        </span>
+                      </div>
+                    </label>
+
+                    {/* Checkbox 2 */}
+                    <label className="flex items-start gap-3 bg-brand-bg/50 p-4 border border-brand-border/30 hover:border-[#534AB7]/40 rounded-xl cursor-pointer hover:bg-brand-bg/80 transition-all group">
+                      <input 
+                        type="checkbox" 
+                        checked={copyrightChecked2} 
+                        onChange={(e) => setCopyrightChecked2(e.target.checked)}
+                        className="rounded border-brand-border/50 text-[#7F77DD] focus:ring-[#534AB7]/30 h-4.5 w-4.5 bg-brand-surface mt-0.5 cursor-pointer"
+                      />
+                      <div className="text-left">
+                        <span className="text-xs font-medium text-white block leading-relaxed">
+                          Entiendo que si se determina que este contenido no es de mi autoria, mi cuenta puede ser suspendida y podre ser responsable legal ante reclamos de terceros.
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-indigo-950/20 border border-indigo-900/30 rounded-xl flex items-center gap-2 text-[11px] text-gray-300">
+                  <CheckCircle2 size={14} className="text-indigo-400 flex-shrink-0" />
+                  <span>Ambas confirmaciones son requeridas de forma obligatoria para habilitar el botón de publicación.</span>
                 </div>
               </div>
             )}
@@ -980,7 +1663,7 @@ export const ProducerBeats: React.FC = () => {
                   Descartar
                 </button>
 
-                {setupStep < 4 ? (
+                {setupStep < 5 ? (
                   <button
                     type="button"
                     onClick={() => {
@@ -1012,17 +1695,10 @@ export const ProducerBeats: React.FC = () => {
 
                       if (setupStep === 3) {
                         const tempErrors: Record<string, string> = {};
-                        if (!priceBasic || Number(priceBasic) <= 0) tempErrors.priceBasic = 'Debes ingresar un precio básico válido mayor que cero';
-                        if (!priceExclusive || Number(priceExclusive) <= 0) tempErrors.priceExclusive = 'Debes ingresar un precio exclusivo válido mayor que cero';
-                        if (priceBasic && priceExclusive && Number(priceExclusive) <= Number(priceBasic)) {
-                          tempErrors.priceExclusive = 'El precio exclusivo debe ser mayor que el precio básico';
-                        }
-                        if (!paymentTransfermovil && !paymentEnzona && !paymentQvapay) {
-                          tempErrors.payment = 'Debes activar al menos un método de pago';
-                        }
+                        if (!priceBasic || Number(priceBasic) <= 0) tempErrors.priceBasic = 'Debes ingresar un precio válido mayor que cero';
                         if (Object.keys(tempErrors).length > 0) {
                           setErrors(tempErrors);
-                          addToast('Corrige los errores de precios o métodos de pago', 'error');
+                          addToast('Corrige los errores de precios', 'error');
                           return;
                         }
                         setErrors({});
@@ -1037,8 +1713,9 @@ export const ProducerBeats: React.FC = () => {
                 ) : (
                   <button
                     type="button"
+                    disabled={!copyrightChecked1 || !copyrightChecked2}
                     onClick={handleSaveBeat}
-                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-all shadow-sm shadow-emerald-600/10"
+                    className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-all shadow-sm shadow-emerald-600/10 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editingBeatId ? 'Guardar Cambios de Beat ✓' : 'Publicar Instrumental Now ✓'}
                   </button>
@@ -1071,19 +1748,68 @@ export const ProducerBeats: React.FC = () => {
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/40 pb-4">
             <div>
               <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-                <Disc className="text-[#7F77DD] animate-spin-slow" /> Mis Beats Publicados
+                <Disc className="text-[#7F77DD] animate-spin-slow" /> Mis Beats y Librerías Publicadas
               </h2>
-              <p className="text-xs text-gray-400">Carga, edita o elimina instrumentales de la tienda D'Cuban Beats.</p>
+              <p className="text-xs text-gray-400">Carga, edita o elimina instrumentales y librerías de sonidos de la tienda D'Cuban Beats.</p>
             </div>
 
-            <Button 
-              variant={user?.verified ? "primary" : "secondary"} 
-              onClick={handleOpenUpload} 
-              className={`text-xs font-bold gap-1.5 self-start sm:self-center ${!user?.verified ? 'opacity-70 cursor-not-allowed' : ''}`}
+            {activeTab === 'beats' ? (
+              <Button 
+                variant={user?.verified ? "primary" : "secondary"} 
+                onClick={handleOpenUpload} 
+                className={`text-xs font-bold gap-1.5 self-start sm:self-center ${!user?.verified ? 'opacity-70 cursor-not-allowed' : ''}`}
+              >
+                {user?.verified ? <Plus size={15} /> : <Lock size={14} className="text-rose-450" />}
+                Subir Nuevo Beat
+              </Button>
+            ) : (
+              <Button 
+                variant={(planLimits.allowed && myLibraries.length < planLimits.maxCount) ? "primary" : "secondary"}
+                disabled={!planLimits.allowed || myLibraries.length >= planLimits.maxCount}
+                onClick={handleOpenUploadLibrary}
+                className={`text-xs font-bold gap-1.5 self-start sm:self-center ${(!planLimits.allowed || myLibraries.length >= planLimits.maxCount) ? 'opacity-70 cursor-not-allowed' : ''}`}
+                title={
+                  !planLimits.allowed 
+                    ? 'Tu plan Gratis no permite subir librerías' 
+                    : myLibraries.length >= planLimits.maxCount 
+                      ? `Límite de ${planLimits.maxCount} librerías alcanzado` 
+                      : 'Subir librería comprimida .zip / .rar'
+                }
+              >
+                {!planLimits.allowed ? (
+                  <Lock size={14} className="text-rose-450" />
+                ) : myLibraries.length >= planLimits.maxCount ? (
+                  <CheckCircle2 size={14} className="text-emerald-450" />
+                ) : (
+                  <Plus size={15} />
+                )}
+                Subir Librería
+              </Button>
+            )}
+          </div>
+
+          {/* Navigation Tabs */}
+          <div className="flex border-b border-brand-border/30 gap-1">
+            <button
+              onClick={() => setActiveTab('beats')}
+              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                activeTab === 'beats'
+                  ? 'border-[#7F77DD] text-white bg-brand-surface/40'
+                  : 'border-transparent text-gray-400 hover:text-white hover:bg-brand-surface/10'
+              }`}
             >
-              {user?.verified ? <Plus size={15} /> : <Lock size={14} className="text-rose-450" />}
-              Subir Nuevo Beat
-            </Button>
+              <Music size={14} /> Beats Publicados ({myBeats.length})
+            </button>
+            <button
+              onClick={() => setActiveTab('libraries')}
+              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-2 cursor-pointer ${
+                activeTab === 'libraries'
+                  ? 'border-[#7F77DD] text-white bg-brand-surface/40'
+                  : 'border-transparent text-gray-400 hover:text-white hover:bg-brand-surface/10'
+              }`}
+            >
+              <Library size={14} /> Librerías de Sonidos ({myLibraries.length} / {planLimits.allowed ? planLimits.maxCount : 0})
+            </button>
           </div>
 
           {/* Grid Filter Search */}
@@ -1091,117 +1817,213 @@ export const ProducerBeats: React.FC = () => {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
             <input
               type="text"
-              placeholder="Buscar entre mis beats..."
+              placeholder={activeTab === 'beats' ? "Buscar entre mis beats..." : "Buscar entre mis librerías..."}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-brand-surface border border-brand-border/40 focus:border-[#534AB7] focus:ring-1 focus:ring-indigo-550/20 rounded-xl py-2 pl-10 pr-4 text-xs text-white placeholder-gray-500 outline-none"
             />
           </div>
 
-          {/* Beats Inventory table */}
-          {myBeats.length === 0 ? (
-            <div className="py-20 text-center bg-brand-surface rounded-3xl border border-dashed border-brand-border/30 space-y-4">
-              <div className="w-12 h-12 bg-brand-card text-gray-450 rounded-full flex items-center justify-center mx-auto">
-                <Music size={20} />
+          {/* Tab content conditional rendering */}
+          {activeTab === 'beats' ? (
+            myBeats.length === 0 ? (
+              <div className="py-20 text-center bg-brand-surface rounded-3xl border border-dashed border-brand-border/30 space-y-4">
+                <div className="w-12 h-12 bg-brand-card text-gray-450 rounded-full flex items-center justify-center mx-auto">
+                  <Music size={20} />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-semibold text-white text-sm">No has publicado beats para vender</p>
+                  <p className="text-xs text-gray-400">Comienza a rentabilizar tu música cargando tus primeros temas estéreo.</p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={handleOpenUpload}>
+                  Subir un Beat de Prueba
+                </Button>
               </div>
-              <div className="space-y-1">
-                <p className="font-semibold text-white text-sm">No has publicado beats para vender</p>
-                <p className="text-xs text-gray-400">Comienza a rentabilizar tu música cargando tus primeros temas estéreo.</p>
-              </div>
-              <Button variant="ghost" size="sm" onClick={handleOpenUpload}>
-                Subir un Beat de Prueba
-              </Button>
-            </div>
-          ) : (
-            <div className="bg-brand-surface rounded-2xl border border-brand-border/40 overflow-hidden shadow-sm">
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-xs text-left">
-                  <thead>
-                    <tr className="bg-brand-card/30 border-b border-brand-border/30 text-gray-400 font-bold uppercase select-none">
-                      <th className="py-3 px-4">Portada</th>
-                      <th className="py-3 px-4">Título Instrumental</th>
-                      <th className="py-3 px-4">Género / BPM</th>
-                      <th className="py-3 px-4">Escala</th>
-                      <th className="py-3 px-4">Precio (Básica / Excl.)</th>
-                      <th className="py-3 px-4 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-brand-border/20 text-gray-300">
-                    {myBeats.map((beat) => (
-                      <tr key={beat.id} className="hover:bg-brand-card/25 transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-brand-border/20 flex-shrink-0 group">
-                            <img 
-                              src={beat.coverUrl} 
-                              alt="mini cover" 
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover" 
-                            />
-                            <button 
-                              onClick={() => playBeat(beat)}
-                              className="absolute inset-0 bg-black/45 hover:bg-black/60 flex items-center justify-center text-white transition-colors cursor-pointer"
-                            >
-                              {isCurrentPlaying(beat.id) ? (
-                                <Pause size={12} fill="currentColor" />
-                              ) : (
-                                <Play size={12} fill="currentColor" className="ml-0.5" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                        
-                        <td className="py-3 px-4 font-bold text-white truncate max-w-[200px]" title={beat.title}>
-                          {beat.title}
-                          {beat.status === 'sold' && (
-                            <span className="block text-[8px] text-red-500 font-bold uppercase tracking-wide mt-0.5">● Vendido Exclusivo</span>
-                          )}
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <span className="font-semibold text-white">{beat.genre}</span>
-                          <span className="block text-[10px] text-gray-400 font-mono mt-0.5">{beat.bpm} BPM</span>
-                        </td>
-
-                        <td className="py-3 px-4">
-                          <span className="px-2 py-0.5 bg-brand-card border border-brand-border text-gray-300 rounded font-medium font-mono text-[10px]">
-                            {beat.key}
-                          </span>
-                        </td>
-
-                        <td className="py-3 px-4 font-mono font-bold text-[#7F77DD]">
-                          <div>{convertPrice(beat.priceBasic).formatted}</div>
-                          <div className="text-gray-400 text-[10px] font-normal font-sans mt-0.5">Excl: {convertPrice(beat.priceExclusive).formatted}</div>
-                        </td>
-
-                        <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
-                          <button 
-                            onClick={() => handleShareBeat(beat.id)}
-                            className="p-1 px-2 border border-[#8D84F7]/30 text-[#8D84F7] hover:bg-[#8D84F7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
-                            title="Compartir enlace"
-                          >
-                            <Share2 size={13} />
-                          </button>
-                          <button 
-                            onClick={() => handleOpenEdit(beat)}
-                            className="p-1 px-2 border border-[#534AB7]/40 text-[#7F77DD] hover:bg-[#534AB7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
-                            title="Editar parámetros"
-                          >
-                            <Edit2 size={13} />
-                          </button>
-                          <button 
-                            onClick={() => deleteBeat(beat.id)}
-                            className="p-1 px-2 border border-red-900/40 text-red-450 hover:bg-red-955/20 rounded-lg hover:text-red-400 transition-colors cursor-pointer inline-flex items-center"
-                            title="Eliminar instrumental"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </td>
+            ) : (
+              <div className="bg-brand-surface rounded-2xl border border-brand-border/40 overflow-hidden shadow-sm">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs text-left">
+                    <thead>
+                      <tr className="bg-brand-card/30 border-b border-brand-border/30 text-gray-400 font-bold uppercase select-none">
+                        <th className="py-3 px-4">Portada</th>
+                        <th className="py-3 px-4">Título Instrumental</th>
+                        <th className="py-3 px-4">Género / BPM</th>
+                        <th className="py-3 px-4">Escala</th>
+                        <th className="py-3 px-4">Precio (CUP)</th>
+                        <th className="py-3 px-4 text-right">Acciones</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border/20 text-gray-300">
+                      {myBeats.map((beat) => (
+                        <tr key={beat.id} className="hover:bg-brand-card/25 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-brand-border/20 flex-shrink-0 group">
+                              <img 
+                                src={beat.coverUrl} 
+                                alt="mini cover" 
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover" 
+                              />
+                              <button 
+                                onClick={() => playBeat(beat)}
+                                className="absolute inset-0 bg-black/45 hover:bg-black/60 flex items-center justify-center text-white transition-colors cursor-pointer"
+                              >
+                                {isCurrentPlaying(beat.id) ? (
+                                  <Pause size={12} fill="currentColor" />
+                                ) : (
+                                  <Play size={12} fill="currentColor" className="ml-0.5" />
+                                )}
+                              </button>
+                            </div>
+                          </td>
+                          
+                          <td className="py-3 px-4 font-bold text-white truncate max-w-[200px]" title={beat.title}>
+                            {beat.title}
+                            {beat.status === 'sold' && (
+                              <span className="block text-[8px] text-red-500 font-bold uppercase tracking-wide mt-0.5">● Vendido Exclusivo</span>
+                            )}
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <span className="font-semibold text-white">{beat.genre}</span>
+                            <span className="block text-[10px] text-gray-400 font-mono mt-0.5">{beat.bpm} BPM</span>
+                          </td>
+
+                          <td className="py-3 px-4">
+                            <span className="px-2 py-0.5 bg-brand-card border border-brand-border text-gray-300 rounded font-medium font-mono text-[10px]">
+                              {beat.key}
+                            </span>
+                          </td>
+
+                          <td className="py-3 px-4 font-mono font-bold text-[#7F77DD]">
+                            <div>{Math.round(beat.priceBasic * (exchangeRates?.USD || 360.0))} CUP</div>
+                          </td>
+
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <button 
+                              onClick={() => handleShareBeat(beat.id)}
+                              className="p-1 px-2 border border-[#8D84F7]/30 text-[#8D84F7] hover:bg-[#8D84F7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                              title="Compartir enlace"
+                            >
+                              <Share2 size={13} />
+                            </button>
+                            <button 
+                              onClick={() => handleOpenEdit(beat)}
+                              className="p-1 px-2 border border-[#534AB7]/40 text-[#7F77DD] hover:bg-[#534AB7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                              title="Editar parámetros"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button 
+                              onClick={() => deleteBeat(beat.id)}
+                              className="p-1 px-2 border border-red-900/40 text-red-450 hover:bg-red-955/20 rounded-lg hover:text-red-400 transition-colors cursor-pointer inline-flex items-center"
+                              title="Eliminar instrumental"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )
+          ) : (
+            myLibraries.length === 0 ? (
+              <div className="py-20 text-center bg-brand-surface rounded-3xl border border-dashed border-brand-border/30 space-y-4">
+                <div className="w-12 h-12 bg-brand-card text-gray-450 rounded-full flex items-center justify-center mx-auto animate-pulse">
+                  <FolderArchive size={20} className="text-indigo-400" />
+                </div>
+                <div className="space-y-1">
+                  <p className="font-semibold text-white text-sm">No has publicado librerías de sonidos</p>
+                  <p className="text-xs text-gray-400">Publica colecciones de samples, ritmos cubanos o loops listos para descargar.</p>
+                </div>
+                <Button
+                  variant={(planLimits.allowed && myLibraries.length < planLimits.maxCount) ? "primary" : "secondary"}
+                  disabled={!planLimits.allowed || myLibraries.length >= planLimits.maxCount}
+                  onClick={handleOpenUploadLibrary}
+                  size="sm"
+                  className={`${(!planLimits.allowed || myLibraries.length >= planLimits.maxCount) ? 'opacity-75 cursor-not-allowed' : ''}`}
+                >
+                  Subir tu Primera Librería
+                </Button>
+              </div>
+            ) : (
+              <div className="bg-brand-surface rounded-2xl border border-brand-border/40 overflow-hidden shadow-sm animate-in fade-in duration-300">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-xs text-left">
+                    <thead>
+                      <tr className="bg-brand-card/30 border-b border-brand-border/30 text-gray-400 font-bold uppercase select-none">
+                        <th className="py-3 px-4">Mockup</th>
+                        <th className="py-3 px-4">Librería de Sonidos</th>
+                        <th className="py-3 px-4">Elementos</th>
+                        <th className="py-3 px-4">Tamaño</th>
+                        <th className="py-3 px-4">Precio Único</th>
+                        <th className="py-3 px-4 text-right">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-brand-border/20 text-gray-300">
+                      {myLibraries.map((lib) => (
+                        <tr key={lib.id} className="hover:bg-brand-card/25 transition-colors">
+                          <td className="py-3 px-4">
+                            <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-brand-border/20 flex-shrink-0">
+                              <img 
+                                src={lib.coverUrl} 
+                                alt="mini mockup" 
+                                referrerPolicy="no-referrer"
+                                className="w-full h-full object-cover" 
+                              />
+                            </div>
+                          </td>
+                          
+                          <td className="py-3 px-4 font-bold text-white truncate max-w-[200px]" title={lib.title}>
+                            {lib.title}
+                            <span className="block text-[8px] text-indigo-400 font-bold uppercase tracking-wide mt-0.5">● Sound Kit ({lib.libraryFileName || '.zip'})</span>
+                          </td>
+
+                          <td className="py-3 px-4 font-semibold text-white">
+                            {lib.fileCount || 150} archivos
+                          </td>
+
+                          <td className="py-3 px-4 text-gray-400 font-mono">
+                            {lib.librarySizeMB || 100} MB
+                          </td>
+
+                          <td className="py-3 px-4 font-mono font-bold text-[#7F77DD]">
+                            <div>{Math.round(lib.priceBasic * (exchangeRates?.USD || 360.0))} CUP</div>
+                          </td>
+
+                          <td className="py-3 px-4 text-right space-x-1.5 whitespace-nowrap">
+                            <button 
+                              onClick={() => handleShareBeat(lib.id)}
+                              className="p-1 px-2 border border-[#8D84F7]/30 text-[#8D84F7] hover:bg-[#8D84F7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                              title="Compartir enlace de librería"
+                            >
+                              <Share2 size={13} />
+                            </button>
+                            <button 
+                              onClick={() => handleOpenEditLibrary(lib)}
+                              className="p-1 px-2 border border-[#534AB7]/40 text-[#7F77DD] hover:bg-[#534AB7]/10 rounded-lg transition-colors cursor-pointer inline-flex items-center"
+                              title="Editar parámetros de la librería"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+                            <button 
+                              onClick={() => deleteBeat(lib.id)}
+                              className="p-1 px-2 border border-red-900/40 text-red-450 hover:bg-red-955/20 rounded-lg hover:text-red-400 transition-colors cursor-pointer inline-flex items-center"
+                              title="Eliminar librería"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )
           )}
         </>
       )}

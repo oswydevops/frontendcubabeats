@@ -5,6 +5,7 @@ import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { User, Music, Check, Sparkles, AlertCircle, ArrowLeft } from 'lucide-react';
+import { BrandLogo } from '../../components/layout/BrandLogo';
 
 export const RegisterPage: React.FC = () => {
   const { setUser, navigateTo, plans, addToast, addAdminNotification } = useApp();
@@ -37,6 +38,28 @@ export const RegisterPage: React.FC = () => {
       isPlanSelected: !!selectedPlan
     };
   }, [role, name, email, password, artistName, selectedPlan]);
+
+  // Password strength checker helper
+  const passwordStrength = useMemo(() => {
+    if (!password) {
+      return { score: 0, color: 'bg-transparent', label: '', width: 'w-0' };
+    }
+    
+    let score = 0;
+    if (password.length >= 6) score += 1;
+    if (password.length >= 10) score += 1;
+    if (/[A-Z]/.test(password)) score += 1;
+    if (/[0-9]/.test(password)) score += 1;
+    if (/[^A-Za-z0-9]/.test(password)) score += 1;
+
+    if (score <= 2) {
+      return { score, color: 'bg-red-500', label: 'Débil', width: 'w-1/3' };
+    } else if (score === 3) {
+      return { score, color: 'bg-yellow-500', label: 'Media', width: 'w-2/3' };
+    } else {
+      return { score, color: 'bg-emerald-500', label: 'Fuerte', width: 'w-full' };
+    }
+  }, [password]);
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -161,12 +184,7 @@ export const RegisterPage: React.FC = () => {
         className="z-10 mb-6 flex items-center justify-center gap-2 cursor-pointer group active:scale-95 transition-all"
         title="Volver al inicio"
       >
-        <span className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#534AB7] to-[#7F77DD] flex items-center justify-center text-white shadow-lg shadow-indigo-500/10 transition-transform group-hover:scale-105">
-          <Music size={18} fill="currentColor" />
-        </span>
-        <span className="text-white font-bold text-xl tracking-tight">
-          D'Cuban<span className="text-[#7F77DD] font-semibold font-mono">[Beats]</span>
-        </span>
+        <BrandLogo className="h-20 w-auto transition-transform group-hover:scale-[1.02]" />
       </div>
 
       {/* Actual Form Modal Card Container */}
@@ -176,8 +194,8 @@ export const RegisterPage: React.FC = () => {
           {/* Header Title */}
           <div className="text-center space-y-2">
             <Badge variant="purple">Registro de Cuentas</Badge>
-            <h2 className="text-2xl font-bold tracking-tight text-white">Únete a la Familia D'Cuban Beats</h2>
-            <p className="text-white/40 text-xs">Busca ritmos únicos o empieza a monetizar tus pistas hoy mismo</p>
+            <h1 className="text-[24px] font-bold tracking-tight text-white">Únete a la Familia D'Cuban Beats</h1>
+            <p className="text-white/40 text-[14px] font-normal">Busca ritmos únicos o empieza a monetizar tus pistas hoy mismo</p>
           </div>
 
           {/* Dynamic Role Tab Buttons Selector */}
@@ -188,7 +206,7 @@ export const RegisterPage: React.FC = () => {
                 setRole('client');
                 setErrors({});
               }}
-              className={`py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
+              className={`py-3 rounded-xl font-semibold text-[14px] flex items-center justify-center gap-2 cursor-pointer transition-all ${
                 role === 'client' 
                   ? 'bg-[#1C1C2E] text-[#7F77DD] shadow-md border border-[rgba(127,119,221,0.2)]' 
                   : 'text-white/40 hover:text-white'
@@ -204,7 +222,7 @@ export const RegisterPage: React.FC = () => {
                 setRole('producer');
                 setErrors({});
               }}
-              className={`py-3 rounded-xl font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all ${
+              className={`py-3 rounded-xl font-semibold text-[14px] flex items-center justify-center gap-2 cursor-pointer transition-all ${
                 role === 'producer' 
                   ? 'bg-[#1C1C2E] text-[#7F77DD] shadow-md border border-[rgba(127,119,221,0.2)]' 
                   : 'text-white/40 hover:text-white'
@@ -252,7 +270,7 @@ export const RegisterPage: React.FC = () => {
           <form onSubmit={handleRegisterSubmit} className="space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Input
-                label={`Nombre Completo * ${name.trim() ? '(✓ Listo)' : '(Requerido)'}`}
+                label="Nombre Completo *"
                 placeholder="Ej. Carlos Santana"
                 value={name}
                 onChange={(e) => {
@@ -270,7 +288,7 @@ export const RegisterPage: React.FC = () => {
               />
 
               <Input
-                label={`Correo Electrónico * ${email.trim() && email.includes('@') ? '(✓ Listo)' : '(Requerido)'}`}
+                label="Correo Electrónico *"
                 type="email"
                 placeholder="correo@ejemplo.cu"
                 value={email}
@@ -290,24 +308,42 @@ export const RegisterPage: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label={`Contraseña * ${password.trim() && password.length >= 6 ? '(✓ Listo)' : '(Requerido)'}`}
-                type="password"
-                placeholder="Mínimo 6 caracteres"
-                value={password}
-                onChange={(e) => {
-                  setPassword(e.target.value);
-                  if (errors.password) {
-                    setErrors(prev => {
-                      const next = { ...prev };
-                      delete next.password;
-                      return next;
-                    });
-                  }
-                }}
-                error={errors.password}
-                className={`${password.trim() && password.length >= 6 ? 'border-emerald-500/40 focus:border-emerald-400' : errors.password ? 'border-brand-accent-red/80' : ''}`}
-              />
+              <div className="flex flex-col gap-1.5 justify-start">
+                <Input
+                  label="Contraseña *"
+                  type="password"
+                  placeholder="Mínimo 6 caracteres"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errors.password) {
+                      setErrors(prev => {
+                        const next = { ...prev };
+                        delete next.password;
+                        return next;
+                      });
+                    }
+                  }}
+                  error={errors.password}
+                  className={`${password.trim() && password.length >= 6 ? 'border-emerald-500/40 focus:border-emerald-400' : errors.password ? 'border-brand-accent-red/80' : ''}`}
+                />
+                {password && (
+                  <div className="px-1 space-y-1.5 transition-all duration-300">
+                    <div className="flex justify-between items-center text-[11px]">
+                      <span className="text-white/45">Fortaleza:</span>
+                      <span className={`font-bold tracking-wider uppercase ${
+                        passwordStrength.label === 'Débil' ? 'text-red-400' :
+                        passwordStrength.label === 'Media' ? 'text-yellow-400' : 'text-emerald-400'
+                      }`}>
+                        {passwordStrength.label}
+                      </span>
+                    </div>
+                    <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 p-[1px]">
+                      <div className={`h-full rounded-full transition-all duration-300 ${passwordStrength.color} ${passwordStrength.width}`} />
+                    </div>
+                  </div>
+                )}
+              </div>
               
               {role === 'client' ? (
                 <Input
@@ -316,7 +352,7 @@ export const RegisterPage: React.FC = () => {
                 />
               ) : (
                 <Input
-                  label={`Nombre de Productor Musical * ${artistName.trim() ? '(✓ Listo)' : '(Requerido)'}`}
+                  label="Nombre de Productor Musical *"
                   placeholder="Ej. Flow Habano"
                   value={artistName}
                   onChange={(e) => {
@@ -343,10 +379,6 @@ export const RegisterPage: React.FC = () => {
                   value={instagram}
                   onChange={(e) => setInstagram(e.target.value)}
                 />
-                <div className="bg-[#1C1C2E] rounded-xl p-3 border border-dashed border-white/5 flex items-center gap-1.5 text-[11px] text-white/50">
-                  <Sparkles size={14} className="text-brand-accent-amber" />
-                  <span>Recibe transferencias de Transfermóvil certificadas por SMS.</span>
-                </div>
               </div>
             )}
 
@@ -354,18 +386,18 @@ export const RegisterPage: React.FC = () => {
               variant={progressPercent === 100 ? "primary" : "secondary"} 
               fullWidth 
               type="submit" 
-              className={`mt-4 shadow-lg ${progressPercent === 100 ? 'shadow-[#534AB7]/10' : 'opacity-80 border-dashed border-amber-500/50 text-amber-500 hover:bg-amber-500/5'}`}
+              className={`mt-4 shadow-lg text-[14px] font-semibold ${progressPercent === 100 ? 'shadow-[#534AB7]/10' : 'opacity-80 border-dashed border-amber-500/50 text-amber-500 hover:bg-amber-500/5'}`}
             >
               {progressPercent === 100 ? 'Registrar mi Cuenta ✓' : `Completa los Datos Obligatorios (${filledCount}/${totalRequired})`}
             </Button>
           </form>
 
           <div className="text-center flex flex-col items-center gap-3">
-            <p className="text-xs text-white/40">
+            <p className="text-[14px] font-normal text-white/40">
               ¿Ya tienes una cuenta?{' '}
               <button 
                 onClick={() => navigateTo('/login')}
-                className="text-[#7F77DD] hover:underline font-semibold bg-transparent border-none cursor-pointer"
+                className="text-[#7F77DD] hover:underline font-semibold bg-transparent border-none cursor-pointer text-[14px]"
               >
                 Inicia sesión
               </button>
@@ -373,7 +405,7 @@ export const RegisterPage: React.FC = () => {
 
             <button
               onClick={() => navigateTo('/')}
-              className="inline-flex items-center gap-1.5 text-xs text-slate-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
+              className="inline-flex items-center gap-1.5 text-[14px] font-normal text-slate-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none"
             >
               <ArrowLeft size={13} />
               Volver al Catálogo

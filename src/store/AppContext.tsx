@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Beat, User, CartItem, Order, PaymentGatewayConfig, Plan, AdminNotification, ProducerNotification, ArtistNotification, SimulatedEmail, DirectMessage, DisplayCurrency, ExchangeRates } from '../types';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import { Beat, User, CartItem, Order, PaymentGatewayConfig, Plan, AdminNotification, ProducerNotification, ArtistNotification, SimulatedEmail, DirectMessage, DisplayCurrency, ExchangeRates, PlanRequest, SupportMessage, AdminPaymentMethod } from '../types';
 
 interface AppContextProps {
   user: User | null;
@@ -15,6 +15,8 @@ interface AppContextProps {
   paymentGateways: PaymentGatewayConfig[];
   plans: Plan[];
   currentPath: string;
+  isMaintenanceMode: boolean;
+  setMaintenanceMode: (mode: boolean) => void;
   selectedBeatId: string | null;
   selectedProducerId: string | null;
   isKycVerified: boolean;
@@ -41,14 +43,18 @@ interface AppContextProps {
   addToCart: (beat: Beat, licenseType: 'basic' | 'exclusive') => void;
   removeFromCart: (cartItemId: string) => void;
   clearCart: () => void;
+  toggleCartItemSelection: (cartItemId: string) => void;
+  toggleAllCartItems: (selected: boolean) => void;
   playBeat: (beat: Beat) => void;
   closePlayer: () => void;
   togglePlay: () => void;
   setVolume: (vol: number) => void;
   setPlayProgress: (progress: number) => void;
   setPlaybackTime: (time: number) => void;
-  createOrder: (order: Order) => void;
-  updateOrder: (orderId: string, status: 'approved' | 'rejected' | 'verified', verificationSMS?: string, downloadUrl?: string) => void;
+  createOrder: (order: Order) => boolean;
+  updateOrder: (orderId: string, status: 'approved' | 'rejected' | 'verified' | 'disputed', verificationSMS?: string, downloadUrl?: string) => void;
+  recordDownloadAttempt: (orderId: string, success: boolean) => void;
+  selectFreePlanBeats: (beatIds: string[]) => void;
   updateGateways: (gateways: PaymentGatewayConfig[]) => void;
   navigateTo: (path: string, options?: { beatId?: string; producerId?: string }) => void;
   updateUserProfile: (profile: Partial<User>) => void;
@@ -117,6 +123,31 @@ interface AppContextProps {
   producerPaymentMethods: any[];
   setProducerPaymentMethods: (methods: any[]) => void;
   getProducerPaymentMethods: (producerId: string) => any[];
+
+  // Admin configured payment methods
+  adminPaymentMethods: AdminPaymentMethod[];
+  setAdminPaymentMethods: (methods: AdminPaymentMethod[]) => void;
+
+  // Transaction ID verification & exchange rate snapshot
+  isTransactionIdUnique: (txId: string) => boolean;
+
+  // Plan Requests
+  planRequests: PlanRequest[];
+  createPlanRequest: (req: Omit<PlanRequest, 'id' | 'status' | 'date'>) => boolean;
+  updatePlanRequestStatus: (id: string, status: 'approved' | 'rejected') => void;
+
+  // Collaborator management
+  addAdminCollaborator: (collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => void;
+  updateAdminCollaborator: (id: string, collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => void;
+  deleteAdminCollaborator: (id: string) => void;
+  toggleUser2FA: (userId: string, enabled?: boolean) => void;
+
+  // Support System
+  supportMessages: SupportMessage[];
+  sendSupportMessage: (userId: string, userName: string, userRole: 'client' | 'producer', senderType: 'user' | 'support', text: string) => void;
+  markSupportAsReadBySupport: (userId: string) => void;
+  markSupportAsReadByUser: (userId: string) => void;
+  deleteSupportChat: (userId: string) => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -247,6 +278,32 @@ const INITIAL_BEATS: Beat[] = [
 
 const INITIAL_PRODUCERS: User[] = [
   {
+    id: 'admin_collab_1',
+    name: 'Roberto',
+    lastName: 'Gómez',
+    email: 'roberto.collab@dcubanbeats.com',
+    role: 'admin',
+    position: 'Moderador Colaborador',
+    verified: true,
+    plan: 'Elite',
+    isCollaborator: true,
+    avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop',
+    password: 'contraseña123'
+  },
+  {
+    id: 'admin_collab_2',
+    name: 'Alejandro',
+    lastName: 'Silva',
+    email: 'soporte@dcubanbeats.cu',
+    role: 'admin',
+    position: 'Gestor de Soporte',
+    verified: true,
+    plan: 'Elite',
+    isCollaborator: true,
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+    password: 'contraseña123'
+  },
+  {
     id: 'p1',
     name: 'Marco Antonio Valdés',
     email: 'marco.beats@cubamail.cu',
@@ -259,7 +316,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'La Habana',
     municipio: 'Centro Habana',
     plan: 'Pro',
-    verified: false,
+    verified: true,
     beatsCount: 14,
     soundLibrariesCount: 3,
     salesCount: 8,
@@ -288,7 +345,8 @@ const INITIAL_PRODUCERS: User[] = [
     totalEarningsCUP: 320000,
     online: true,
     lastActive: 'Activo ahora',
-    planDaysElapsed: 5
+    planDaysElapsed: 5,
+    password: 'contraseña123'
   },
   {
     id: 'p3',
@@ -350,7 +408,8 @@ const INITIAL_PRODUCERS: User[] = [
     plan: 'Gratis',
     verified: true,
     online: true,
-    lastActive: 'Activo ahora'
+    lastActive: 'Activo ahora',
+    password: 'contraseña123'
   },
   {
     id: 'a2',
@@ -390,120 +449,7 @@ const INITIAL_PRODUCERS: User[] = [
   }
 ];
 
-const INITIAL_ORDERS: Order[] = [
-  {
-    id: 'CB-4920',
-    beatId: 'b4',
-    beatTitle: 'Street Lights (Lo-fi)',
-    buyerName: 'Alex Rivera',
-    producerId: 'p2',
-    producerName: 'Flow Habano',
-    amount: 250,
-    currency: 'CUP',
-    method: 'Transfermovil',
-    status: 'pending',
-    date: 'Ayer, 10:24 AM',
-    transactionId: '99402123',
-    verificationSMS: 'Pago por Transferencia: Se ha recibido una transferencia de 250.00 CUP de Alex Rivera. Referencia: 99402123.',
-    receiptUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-  },
-  {
-    id: 'CB-4918',
-    beatId: 'b2',
-    beatTitle: 'Neon Horizon',
-    buyerName: 'Marco Polo',
-    producerId: 'p2',
-    producerName: 'Flow Habano',
-    amount: 10,
-    currency: 'MLC',
-    method: 'EnZona',
-    status: 'pending',
-    date: 'Hace 2 horas',
-    transactionId: 'EZ-8293-19',
-    verificationSMS: 'EnZona: Pago verificado de 10.00 MLC del usuario Marco Polo.',
-    receiptUrl: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?q=80&w=400&auto=format&fit=crop'
-  },
-  {
-    id: 'CB-4915',
-    beatId: 'b1',
-    beatTitle: 'Midnight Sax',
-    buyerName: 'Laura G.',
-    producerId: 'p2',
-    producerName: 'Flow Habano',
-    amount: 70.5,
-    currency: 'CUP',
-    method: 'Transfermovil',
-    status: 'pending',
-    date: 'Hace 1 día',
-    transactionId: '88371940',
-    verificationSMS: 'Pago por Transferencia: Se ha recibido una transferencia de 70.50 CUP de Laura G. Referencia: 88371940.',
-    receiptUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-  },
-  {
-    id: 'CB-8801',
-    beatId: 'b1',
-    beatTitle: 'Callejera Flow',
-    buyerName: 'Carlos',
-    producerId: 'p1',
-    producerName: 'El Chama',
-    amount: 750,
-    currency: 'CUP',
-    method: 'Transfermovil',
-    status: 'approved',
-    date: '20-06-2026, 04:30 PM',
-    transactionId: 'TRF-582910',
-    verificationSMS: 'Pago por Transferencia: Se ha recibido una transferencia de 750.00 CUP de Carlos. Referencia ID: TRF-582910.',
-    receiptUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-  },
-  {
-    id: 'CB-8802',
-    beatId: 'lib1',
-    beatTitle: 'Reggaetón Cubano Drums & Loops Vol. 1 (Librería de Sonido)',
-    buyerName: 'Carlos',
-    producerId: 'p2',
-    producerName: 'Flow Habano',
-    amount: 900,
-    currency: 'CUP',
-    method: 'EnZona',
-    status: 'approved',
-    date: '19-06-2026, 02:15 PM',
-    transactionId: 'EZ-99401-CU',
-    verificationSMS: 'EnZona: Pago verificado de 900.00 CUP para la Librería. Referencia: EZ-99401-CU.',
-    receiptUrl: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?q=80&w=400&auto=format&fit=crop'
-  },
-  {
-    id: 'CB-8803',
-    beatId: 'b2',
-    beatTitle: 'Malecón Sunset',
-    buyerName: 'Carlos',
-    producerId: 'p2',
-    producerName: 'Flow Habano',
-    amount: 600,
-    currency: 'CUP',
-    method: 'Transfermovil',
-    status: 'approved',
-    date: '18-06-2026, 08:30 AM',
-    transactionId: 'TRF-294012',
-    verificationSMS: 'Pago por Transferencia: Se ha recibido una transferencia de 600.00 CUP de Carlos. Referencia ID: TRF-294012.',
-    receiptUrl: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-  },
-  {
-    id: 'CB-8804',
-    beatId: 'lib2',
-    beatTitle: 'Reparto Synth & Vocals Sample Pack (Librería de Sonido)',
-    buyerName: 'Carlos',
-    producerId: 'p3',
-    producerName: 'Beat Lord',
-    amount: 15,
-    currency: 'USDT',
-    method: 'QvaPay',
-    status: 'approved',
-    date: '15-06-2026, 06:10 PM',
-    transactionId: 'QP-USDT-9301',
-    verificationSMS: 'QvaPay: Pago comprobado de 15.00 USDT correspondientes a la compra de librería.',
-    receiptUrl: 'https://images.unsplash.com/photo-1628157582853-a796fa650a6a?q=80&w=400&auto=format&fit=crop'
-  }
-];
+const INITIAL_ORDERS: Order[] = [];
 
 const DEFAULT_GATEWAYS: PaymentGatewayConfig[] = [
   { id: 'enzona', active: true, merchantUuid: 'enz-8293-cb-prod', apiKey: 'EZ_KEY_PRODUCTION_992' },
@@ -516,73 +462,166 @@ const DEFAULT_PLANS: Plan[] = [
     id: 'p_free',
     name: 'Gratis',
     price: 0,
-    limit: 5,
+    limit: 2,
     commission: 0,
-    support: 'Sin Soporte',
+    support: 'Soporte Estándar',
     featured: false,
-    benefits: ['Máximo 5 beats', 'Sin comisiones de venta', 'Sin Soporte Prioritario']
+    benefits: [
+      'Límite de beats publicados: 2',
+      'Bloqueo total de venta al llegar al límite',
+      '❌ No puede subir Librerías de sonido',
+      '❌ Mensajería directa Bloqueada',
+      '❌ Sin acceso a Analytics/Estadísticas',
+      'Insignia: Ninguna'
+    ],
+    limitLibrariesCount: 0,
+    maxLibrarySizeEach: 0,
+    directMessaging: '❌ Bloqueada',
+    analyticsAccess: false,
+    badgeType: 'Ninguno',
+    onPlanExpiryAction: 'Bloqueo total de venta hasta actualizar de plan',
+    stemsAllowed: false,
+    allowedFormats: 'MP3'
   },
   {
     id: 'p_pro',
     name: 'Pro',
-    price: 10,
-    limit: 50,
+    price: 12,
+    limit: 5,
     commission: 0,
-    support: 'Soporte Estándar',
-    featured: true,
-    benefits: ['Hasta 50 beats', 'Librerías de sonido: Máx 5000 MB', 'Sin comisiones de venta', 'Soporte Estándar', "Badge 'Pro' en perfil"],
-    maxSoundLibrarySize: 5000
+    support: 'Soporte Prioritario',
+    featured: false,
+    benefits: [
+      'Límite de beats publicados: 5',
+      'Bloqueo total de venta al llegar al límite',
+      '✅ 2 Librerías de sonido (150 MB c/u)',
+      '✅ Mensajería directa Ilimitada',
+      '✅ Acceso completo a Analytics',
+      'Badge "Pro" de perfil'
+    ],
+    limitLibrariesCount: 2,
+    maxLibrarySizeEach: 150,
+    directMessaging: '✅ Ilimitada',
+    analyticsAccess: true,
+    badgeType: 'Pro',
+    onPlanExpiryAction: 'Bloqueo total de venta hasta actualizar de plan',
+    stemsAllowed: true,
+    allowedFormats: 'WAV'
   },
   {
     id: 'p_elite',
     name: 'Elite',
     price: 30,
-    limit: 999,
+    limit: 10,
     commission: 0,
-    support: 'Soporte Prioritario 24/7',
-    featured: false,
-    benefits: ['Beats ilimitados', 'Librerías de sonido: Máx 20000 MB', 'Sin comisiones de venta', 'Soporte Prioritario 24/7', 'Destacado en Landing Page'],
-    maxSoundLibrarySize: 20000
+    support: 'Soporte 24/7',
+    featured: true,
+    benefits: [
+      'Límite de beats publicados: 10',
+      'Bloqueo total de venta al llegar al límite',
+      '✅ 5 Librerías de sonido (200 MB c/u)',
+      '✅ Mensajería directa Ilimitada',
+      '✅ Acceso completo a Analytics',
+      'Destacado en Landing Page',
+      'Badge "Elite" de perfil'
+    ],
+    limitLibrariesCount: 5,
+    maxLibrarySizeEach: 200,
+    directMessaging: '✅ Ilimitada',
+    analyticsAccess: true,
+    badgeType: 'Elite',
+    onPlanExpiryAction: 'Bloqueo total de venta hasta actualizar de plan',
+    stemsAllowed: true,
+    allowedFormats: 'WAV'
   }
 ];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Navigation Routing Simulation
   const [currentPath, setCurrentPath] = useState<string>('/');
+  const [isMaintenanceMode, setMaintenanceModeState] = useState<boolean>(() => {
+    return localStorage.getItem('cb_maintenance_mode') === 'true';
+  });
+
+  const setMaintenanceMode = (mode: boolean) => {
+    setMaintenanceModeState(mode);
+    localStorage.setItem('cb_maintenance_mode', String(mode));
+  };
+
   const [selectedBeatId, setSelectedBeatId] = useState<string | null>(null);
   const [selectedProducerId, setSelectedProducerId] = useState<string | null>(null);
 
   // States
-  const [user, setUserState] = useState<User | null>({
-    id: 'carlos_producer',
-    name: 'Carlos',
-    lastName: 'Santana',
-    email: 'carlitos.flow@gmail.com',
-    role: 'producer', // Default is producer so they can review panel pages easily!
-    artistName: 'Flow Habano',
-    avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
-    bio: 'Especialista en ritmos latinos y fusión caribeña. Produzco reggaetón comercial, timba-ton y dembow fresco.',
-    instagram: '@flow_habano_music',
-    plan: 'Elite',
-    verified: true,
-    beatsCount: 124,
-    salesCount: 1892,
-    totalEarningsCUP: 14250
-  });
+  const [user, setUserState] = useState<User | null>(null);
 
   const [beats, setBeats] = useState<Beat[]>(() => {
     const cached = localStorage.getItem('cb_beats');
     return cached ? JSON.parse(cached) : INITIAL_BEATS;
   });
 
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const cached = localStorage.getItem('cb_cart');
-    return cached ? JSON.parse(cached) : [];
+  const [userCartsMap, setUserCartsMap] = useState<Record<string, CartItem[]>>(() => {
+    try {
+      const cached = localStorage.getItem('cb_user_carts');
+      if (cached) return JSON.parse(cached);
+      const oldCart = localStorage.getItem('cb_cart');
+      if (oldCart) {
+        return { legacy: JSON.parse(oldCart) };
+      }
+    } catch (e) {}
+    return {};
   });
+
+  // Active cart for current logged-in user (strictly [] if not logged in)
+  const cart = useMemo(() => {
+    if (!user) return [];
+    return userCartsMap[user.id] || [];
+  }, [user, userCartsMap]);
 
   const [orders, setOrders] = useState<Order[]>(() => {
     const cached = localStorage.getItem('cb_orders');
-    return cached ? JSON.parse(cached) : INITIAL_ORDERS;
+    if (cached) {
+      try {
+        const parsed: Order[] = JSON.parse(cached);
+        const seedIds = ['CB-4920', 'CB-4918', 'CB-4915', 'CB-8801', 'CB-8802', 'CB-8803', 'CB-8804'];
+        return parsed.filter(o => !seedIds.includes(o.id) && !o.id.startsWith('CB-HIST'));
+      } catch (e) {
+        return [];
+      }
+    }
+    return INITIAL_ORDERS;
+  });
+
+  const [planRequests, setPlanRequests] = useState<PlanRequest[]>(() => {
+    const cached = localStorage.getItem('cb_plan_requests');
+    if (cached) return JSON.parse(cached);
+    return [
+      {
+        id: 'pr_1',
+        producerId: 'p1',
+        producerName: 'El Chama',
+        planId: 'pro',
+        planName: 'Plan Pro',
+        amount: 1500,
+        currency: 'CUP',
+        transactionId: 'TX-728192019',
+        receiptUrl: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
+        status: 'pending',
+        date: new Date(Date.now() - 4 * 3600 * 1000).toISOString().split('T')[0]
+      },
+      {
+        id: 'pr_2',
+        producerId: 'p2',
+        producerName: "D'Capo",
+        planId: 'elite',
+        planName: 'Plan Elite',
+        amount: 3500,
+        currency: 'CUP',
+        transactionId: 'TX-938201248',
+        receiptUrl: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
+        status: 'pending',
+        date: new Date(Date.now() - 20 * 3600 * 1000).toISOString().split('T')[0]
+      }
+    ];
   });
 
   const [verifiedProducersTask, setVerifiedProducersTask] = useState<User[]>(INITIAL_PRODUCERS);
@@ -604,38 +643,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   });
 
   const [producerPaymentMethods, setProducerPaymentMethodsState] = useState<any[]>(() => {
-    const cached = localStorage.getItem('cb_producer_payment_methods');
-    if (cached) return JSON.parse(cached);
-    return [
-      {
-        id: 'meth_1',
-        type: 'transfermovil',
-        cardNumber: '9225 1204 8839 2101',
-        currencyType: 'CUP',
-        phoneConfirm: '+53 58349202',
-        qrScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
-        active: true,
-        producerId: 'carlos_producer'
-      },
-      {
-        id: 'meth_2',
-        type: 'qvapay',
-        qvapayEmail: 'carlos.beats@gmail.com',
-        qvapayUser: 'carlitos_flow',
-        qrQvapayScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
-        active: true,
-        producerId: 'carlos_producer'
-      },
-      {
-        id: 'meth_3',
-        type: 'enzona',
-        enzonaUser: 'carlitoflow',
-        titularName: 'Carlos J. Santana',
-        qrScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
-        active: true,
-        producerId: 'carlos_producer'
+    try {
+      const cached = localStorage.getItem('cb_producer_payment_methods');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Filter out old legacy mock payment methods for Carlos Santana if they exist
+        const cleaned = parsed.filter((m: any) => m.id !== 'meth_1' && m.id !== 'meth_2' && m.id !== 'meth_3');
+        return cleaned;
       }
-    ];
+    } catch (e) {}
+    return [];
   });
 
   const setProducerPaymentMethods = (methods: any[]) => {
@@ -643,15 +660,65 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('cb_producer_payment_methods', JSON.stringify(methods));
   };
 
+  const [adminPaymentMethods, setAdminPaymentMethodsState] = useState<AdminPaymentMethod[]>(() => {
+    try {
+      const cached = localStorage.getItem('cb_admin_payment_methods');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (e) {}
+    return [
+      {
+        id: 'adm_meth_1',
+        type: 'bancos',
+        cardNumber: '9211 4483 1290 8378',
+        currencyType: 'CUP',
+        bankName: 'BANDEC',
+        cardHolder: "D'Cuban Beats S.A.",
+        phoneConfirm: '+53 52930211',
+        qrScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
+        acceptsTransfermovil: true,
+        acceptsEnzona: true,
+        active: true
+      },
+      {
+        id: 'adm_meth_2',
+        type: 'bancos',
+        cardNumber: '9225 1104 8832 9901',
+        currencyType: 'MLC',
+        bankName: 'BPA',
+        cardHolder: "D'Cuban Beats S.A.",
+        phoneConfirm: '+53 52930211',
+        qrScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
+        acceptsTransfermovil: true,
+        acceptsEnzona: false,
+        active: true
+      },
+      {
+        id: 'adm_meth_3',
+        type: 'qvapay',
+        qvapayEmail: 'cobros.admin@dcubanbeats.com',
+        qvapayUser: 'admin_dcubanbeats',
+        qrQvapayScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
+        active: true
+      }
+    ];
+  });
+
+  const setAdminPaymentMethods = (methods: AdminPaymentMethod[]) => {
+    setAdminPaymentMethodsState(methods);
+    localStorage.setItem('cb_admin_payment_methods', JSON.stringify(methods));
+  };
+
   const getProducerPaymentMethods = (producerId: string) => {
-    // Return payment methods of the given producerId, but fallback to Carlos if none found or if id represents Carlos
+    // Return payment methods of the given producerId strictly
     const carlosIds = ['p2', 'carlos_producer'];
     const filtered = producerPaymentMethods.filter(m => 
       m.producerId === producerId || 
       (carlosIds.includes(producerId) && carlosIds.includes(m.producerId))
     );
-    if (filtered.length > 0) return filtered;
-    return producerPaymentMethods.filter(m => carlosIds.includes(m.producerId));
+    return filtered;
   };
 
   const fetchRates = async () => {
@@ -672,12 +739,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(interval);
   }, []);
 
+  // Periodic business rules check (24h dispute timer, download windows, plan grace period, 24h cart expiration for beats)
+  useEffect(() => {
+    const checkBusinessRules = () => {
+      const now = Date.now();
+
+      // 1. Check orders: pending > 24h becomes disputed
+      setOrders(prevOrders => {
+        let updated = false;
+        const newOrders = prevOrders.map(ord => {
+          if (ord.status === 'pending') {
+            const createdTime = new Date(ord.createdAt || ord.date).getTime();
+            if (!isNaN(createdTime) && (now - createdTime) >= 24 * 3600 * 1000) {
+              updated = true;
+              return { ...ord, status: 'disputed' as const };
+            }
+          }
+          return ord;
+        });
+        return updated ? newOrders : prevOrders;
+      });
+
+      // 2. Check cart items: beats in cart expire after 24 hours (does NOT apply to sound libraries)
+      const expiredToastsToTrigger: string[] = [];
+      setUserCartsMap(prevMap => {
+        let changed = false;
+        const newMap = { ...prevMap };
+
+        Object.keys(newMap).forEach(userId => {
+          const userCart = newMap[userId] || [];
+          const validItems = userCart.filter(item => {
+            const isLibrary = item.beat.isSoundLibrary || 
+                              item.beat.genre === 'Librería' || 
+                              item.beat.genre === 'Librería de Sonidos' ||
+                              item.beat.genre === 'Sound Library';
+            if (isLibrary) {
+              return true; // Sound libraries never expire from cart
+            }
+            const addedTime = new Date(item.addedAt || now).getTime();
+            const ageMs = now - addedTime;
+            const isExpired = ageMs >= 24 * 3600 * 1000;
+            if (isExpired) {
+              if (user && user.id === userId) {
+                expiredToastsToTrigger.push(item.beat.title);
+              }
+              return false;
+            }
+            return true;
+          });
+
+          if (validItems.length !== userCart.length) {
+            changed = true;
+            newMap[userId] = validItems;
+          }
+        });
+
+        if (changed) {
+          try {
+            localStorage.setItem('cb_user_carts', JSON.stringify(newMap));
+          } catch (e) {}
+          return newMap;
+        }
+        return prevMap;
+      });
+
+      if (expiredToastsToTrigger.length > 0) {
+        expiredToastsToTrigger.forEach(title => {
+          addToast(`El beat "${title}" ha sido eliminado de tu carrito por vencer el plazo de compra de 24 horas.`, 'info');
+        });
+      }
+    };
+
+    checkBusinessRules();
+    const interval = setInterval(checkBusinessRules, 10 * 1000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('cb_user_carts', JSON.stringify(userCartsMap));
+    } catch (e) {}
+  }, [userCartsMap]);
+
   useEffect(() => {
     localStorage.setItem('cb_display_currency', displayCurrency);
   }, [displayCurrency]);
 
   const convertPrice = (priceInUSD: number, toCurrency?: DisplayCurrency) => {
-    const targetCurrency = toCurrency || displayCurrency;
+    const isAllowedCurrencyPath = currentPath === '/' || currentPath === '/cart' || currentPath === '/checkout';
+    const targetCurrency = toCurrency || (isAllowedCurrencyPath ? displayCurrency : 'USD');
     if (targetCurrency === 'USD') {
       return {
         amount: priceInUSD.toFixed(2),
@@ -750,9 +900,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const [hasUsed2FA, setHasUsed2FA] = useState<boolean>(false);
 
-  // Liked Beats (Favorites)
-  const [likedBeats, setLikedBeats] = useState<string[]>(() => {
-    const cached = localStorage.getItem('cb_liked_beats');
+  // Liked Beats (Favorites per user account)
+  const [userLikedBeatsMap, setUserLikedBeatsMap] = useState<Record<string, string[]>>(() => {
+    const cached = localStorage.getItem('cb_user_liked_beats_map');
     if (cached) {
       try {
         return JSON.parse(cached);
@@ -760,16 +910,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // ignore
       }
     }
-    return ['b1', 'b2']; // default initial sample liked beats
+    return {};
   });
 
   useEffect(() => {
-    localStorage.setItem('cb_liked_beats', JSON.stringify(likedBeats));
-  }, [likedBeats]);
+    localStorage.setItem('cb_user_liked_beats_map', JSON.stringify(userLikedBeatsMap));
+  }, [userLikedBeatsMap]);
+
+  // Derived likedBeats array: strictly empty [] when logged out, user-specific when logged in
+  const activeUserId = user ? user.id : null;
+  const likedBeats = activeUserId ? (userLikedBeatsMap[activeUserId] || []) : [];
 
   const toggleLikeBeat = (beatId: string) => {
     if (!user) {
-      addToast('Debes iniciar sesión como productor o comprador para dar me gusta', 'error');
+      addToast('Debes iniciar sesión como comprador o productor para guardar beats en tus favoritos', 'error');
       navigateTo('/login');
       return;
     }
@@ -779,36 +933,39 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
-    setLikedBeats(prev => {
-      const isLiked = prev.includes(beatId);
-      if (isLiked) {
-        addToast('Lanzamiento quitado de favoritos', 'info');
-        return prev.filter(id => id !== beatId);
-      } else {
-        addToast('Añadido a tus beats favoritos', 'success');
-        
-        // Trigger a real producer notification!
-        const b = beats.find(x => x.id === beatId);
-        if (b) {
-          const lArtist = user?.artistName || user?.name || 'Un artista / MC';
-          const isPlatformAdmin = user?.role === 'admin';
-          const newNotif: ProducerNotification = {
-            id: `prod_notif_${Date.now()}_likes_${Math.floor(Math.random() * 10000000)}`,
-            type: 'beat_liked',
-            title: '¡Nuevo Me Gusta!',
-            description: isPlatformAdmin 
-              ? `El administrador de la plataforma le dio me gusta a tu beat "${b.title}"`
-              : `Al artista "${lArtist}" le gustó tu beat "${b.title}" y lo guardó en su lista privada.`,
-            beatId: beatId,
-            timestamp: 'Ahora mismo',
-            read: false
-          };
-          setProducerNotifications(pNotifs => [newNotif, ...pNotifs]);
-        }
-        
-        return [...prev, beatId];
+    const userId = user.id;
+    const currentList = userLikedBeatsMap[userId] || [];
+    const isLiked = currentList.includes(beatId);
+
+    if (isLiked) {
+      addToast('Lanzamiento quitado de favoritos', 'info');
+      setUserLikedBeatsMap(prevMap => ({
+        ...prevMap,
+        [userId]: (prevMap[userId] || []).filter(id => id !== beatId)
+      }));
+    } else {
+      addToast('Añadido a tus beats favoritos', 'success');
+
+      const b = beats.find(x => x.id === beatId);
+      if (b) {
+        const lArtist = user?.artistName || user?.name || 'Un artista / MC';
+        const newNotif: ProducerNotification = {
+          id: `prod_notif_${Date.now()}_likes_${Math.floor(Math.random() * 10000000)}`,
+          type: 'beat_liked',
+          title: '¡Nuevo Me Gusta!',
+          description: `Al artista "${lArtist}" le gustó tu beat "${b.title}" y lo guardó en su lista privada.`,
+          beatId: beatId,
+          timestamp: 'Ahora mismo',
+          read: false
+        };
+        setProducerNotifications(pNotifs => [newNotif, ...pNotifs]);
       }
-    });
+
+      setUserLikedBeatsMap(prevMap => ({
+        ...prevMap,
+        [userId]: [...(prevMap[userId] || []), beatId]
+      }));
+    }
   };
 
   // Admin Notifications
@@ -1183,6 +1340,88 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDirectMessages([]);
   };
 
+  // Support Messages State & Actions
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>(() => {
+    const cached = localStorage.getItem('cb_support_messages');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return [
+      {
+        id: 'sup_seed_1',
+        userId: 'a1',
+        userName: 'Yomil Oficial',
+        userRole: 'client',
+        senderType: 'user',
+        text: 'Hola, tengo una duda sobre la pasarela EnZona. ¿Cómo puedo subir mi comprobante?',
+        timestamp: 'Hace 10 minutos',
+        readBySupport: false,
+        readByUser: true
+      },
+      {
+        id: 'sup_seed_2',
+        userId: 'carlos_producer',
+        userName: 'Flow Habano',
+        userRole: 'producer',
+        senderType: 'user',
+        text: 'Saludos equipo, ¿cuánto tiempo toma la aprobación de mi verificación de identidad (KYC)? Subí mi documento esta mañana.',
+        timestamp: 'Hace 2 horas',
+        readBySupport: false,
+        readByUser: true
+      }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('cb_support_messages', JSON.stringify(supportMessages));
+  }, [supportMessages]);
+
+  const sendSupportMessage = (
+    userId: string,
+    userName: string,
+    userRole: 'client' | 'producer',
+    senderType: 'user' | 'support',
+    text: string
+  ) => {
+    const newMsg: SupportMessage = {
+      id: `sup_msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      userId,
+      userName,
+      userRole,
+      senderType,
+      text,
+      timestamp: 'Ahora mismo',
+      readBySupport: senderType === 'support',
+      readByUser: senderType === 'user'
+    };
+    setSupportMessages(prev => [...prev, newMsg]);
+  };
+
+  const markSupportAsReadBySupport = (userId: string) => {
+    setSupportMessages(prev => prev.map(m => 
+      m.userId === userId && !m.readBySupport 
+        ? { ...m, readBySupport: true } 
+        : m
+    ));
+  };
+
+  const markSupportAsReadByUser = (userId: string) => {
+    setSupportMessages(prev => prev.map(m => 
+      m.userId === userId && !m.readByUser 
+        ? { ...m, readByUser: true } 
+        : m
+    ));
+  };
+
+  const deleteSupportChat = (userId: string) => {
+    setSupportMessages(prev => prev.filter(m => m.userId !== userId));
+  };
+
   const addProducerNotification = (type: ProducerNotification['type'], title: string, description: string, beatId?: string) => {
     const newNotif: ProducerNotification = {
       id: `prod_notif_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -1255,6 +1494,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('cb_orders', JSON.stringify(orders));
   }, [orders]);
+
+  useEffect(() => {
+    localStorage.setItem('cb_plan_requests', JSON.stringify(planRequests));
+  }, [planRequests]);
 
   // Audio Player Simulated Loop
   useEffect(() => {
@@ -1363,6 +1606,115 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   };
 
+  const isTransactionIdUnique = (txId: string): boolean => {
+    if (!txId || !txId.trim()) return false;
+    const clean = txId.trim().toLowerCase();
+
+    const existsInOrders = orders.some(o => o.transactionId && o.transactionId.trim().toLowerCase() === clean);
+    if (existsInOrders) return false;
+
+    const existsInPlans = planRequests.some(r => r.transactionId && r.transactionId.trim().toLowerCase() === clean);
+    if (existsInPlans) return false;
+
+    return true;
+  };
+
+  const createPlanRequest = (req: Omit<PlanRequest, 'id' | 'status' | 'date'>): boolean => {
+    if (!req.transactionId || !isTransactionIdUnique(req.transactionId)) {
+      addToast(`Error de seguridad: El ID de transacción "${req.transactionId}" ya fue procesado o registrado anteriormente en la plataforma.`, 'error');
+      return false;
+    }
+
+    const rateUsed = req.exchangeRateUsed ?? (req.currency === 'CUP' ? (exchangeRates.CUP || 330) : 1);
+    const usdVal = req.amountUSD ?? req.amount;
+    const localVal = req.amountConverted ?? (req.currency === 'CUP' ? req.amount * rateUsed : req.amount);
+    const frozenAt = req.rateFrozenAt ?? new Date().toISOString();
+
+    const newRequest: PlanRequest = {
+      ...req,
+      exchangeRateUsed: rateUsed,
+      amountUSD: usdVal,
+      amountConverted: localVal,
+      rateFrozenAt: frozenAt,
+      id: 'pr_' + Math.floor(Math.random() * 1000000),
+      status: 'pending',
+      date: new Date().toISOString().split('T')[0]
+    };
+    setPlanRequests(prev => [newRequest, ...prev]);
+    addToast('Solicitud de plan enviada. Esperando verificación del administrador.', 'success');
+    addAdminNotification(
+      'plan_purchased',
+      'Nueva Solicitud de Membresía',
+      `El productor "${req.producerName}" ha solicitado el plan "${req.planName}" con comprobante ID "${req.transactionId}".`
+    );
+    return true;
+  };
+
+  const updatePlanRequestStatus = (id: string, status: 'approved' | 'rejected') => {
+    const requestObj = planRequests.find(r => r.id === id);
+    if (!requestObj) return;
+
+    if (status === 'approved') {
+      const targetProd = verifiedProducersTask.find(p => p.id === requestObj.producerId);
+      if (targetProd && !targetProd.verified) {
+        addToast(`No se puede activar el plan: El productor "${targetProd.artistName || targetProd.name}" debe estar verificado (KYC) primero.`, 'error');
+        return;
+      }
+    }
+
+    setPlanRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
+
+    const selectedPlan = requestObj.planName.replace('Plan ', '') as 'Gratis' | 'Pro' | 'Elite';
+    const uName = requestObj.producerName;
+    const targetProd = verifiedProducersTask.find(p => p.id === requestObj.producerId);
+    const uEmail = targetProd?.email || 'productor@dcubanbeats.com';
+
+    if (status === 'approved') {
+      setVerifiedProducersTask(prods => prods.map(p => p.id === requestObj.producerId ? { ...p, plan: selectedPlan } : p));
+
+      if (user && user.id === requestObj.producerId) {
+        setUserState(prevUser => prevUser ? { ...prevUser, plan: selectedPlan } : null);
+      }
+
+      addProducerNotification(
+        'plan_assigned',
+        '¡Membresía Activada con Éxito! 💎',
+        `Se ha asignado el Plan ${selectedPlan} a tu cuenta de productor de manera manual por validación administrativa.`
+      );
+
+      addSimulatedEmail(
+        uEmail,
+        'facturacion@dcubanbeats.com',
+        `¡Felicidades! Membresía Activada: Plan ${selectedPlan} en D'Cuban Beats`,
+        `Hola ${uName}:\n\nEl equipo de facturación y soporte de D'Cuban Beats ha validado satisfactoriamente tu transferencia bancaria (Ref: ${requestObj.transactionId}) y ha asignado oficialmente el plan "${selectedPlan}" a tu cuenta.\n\nYa puedes disfrutar de todas las ventajas y privilegios.\n\n--\nFacturación, D'Cuban Beats S.A.`
+      );
+
+      addSimulatedEmail(
+        'admin@dcubanbeats.com',
+        'sistema@dcubanbeats.com',
+        `🚨 NOTIFICACIÓN: Venta de Membresía Plan ${selectedPlan} por ${uName}`,
+        `Hola Administrador:\n\nHas validado y aprobado exitosamente el pago del productor "${uName}" para el plan "${selectedPlan}".\n\nEl sistema ha procesado la asignación automáticamente.`
+      );
+
+      addToast('Membresía aprobada y activada con éxito.', 'success');
+    } else if (status === 'rejected') {
+      addProducerNotification(
+        'kyc_status',
+        'Pago de Membresía Rechazado ❌',
+        `La transferencia para el Plan ${selectedPlan} no pudo ser validada. ID de Transacción: ${requestObj.transactionId}.`
+      );
+
+      addSimulatedEmail(
+        uEmail,
+        'facturacion@dcubanbeats.com',
+        `Solicitud de Membresía Rechazada: Plan ${selectedPlan}`,
+        `Hola ${uName}:\n\nLamentamos informarte que nuestro equipo de facturación no ha podido validar la transferencia asociada al ID de transacción: ${requestObj.transactionId}.\n\nPor favor, verifica que el saldo fue enviado correctamente a nuestra cuenta y vuelve a enviar la solicitud con una captura de pantalla clara del comprobante de transferencia.\n\n--\nSoporte Administrativo, D'Cuban Beats S.A.`
+      );
+
+      addToast('Solicitud rechazada correctamente.', 'info');
+    }
+  };
+
   const addBeat = (beat: Beat) => {
     setBeats((prev) => [beat, ...prev]);
     // Increase producer beats count
@@ -1413,15 +1765,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     addToast(`Beat "${beat?.title || 'Beat'}" eliminado`, 'info');
   };
 
+  const updateUserCart = (userId: string, newCart: CartItem[]) => {
+    setUserCartsMap(prev => {
+      const next = { ...prev, [userId]: newCart };
+      try {
+        localStorage.setItem('cb_user_carts', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+  };
+
   const addToCart = (beat: Beat, licenseType: 'basic' | 'exclusive') => {
     if (!user) {
-      addToast('Debes iniciar sesión como artista o comprador para agregar beats al carrito', 'error');
-      navigateTo('/login');
+      addToast('Debes iniciar sesión para agregar elementos a tu carrito', 'info');
+      navigateTo('/auth');
       return;
     }
 
     if (user.role !== 'client') {
-      addToast('Solo las cuentas de Comprador/Artista pueden agregar beats al carrito', 'error');
+      addToast('Solo las cuentas de Comprador/Artista pueden agregar elementos al carrito', 'error');
       return;
     }
 
@@ -1434,9 +1796,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       addToast(`Servicio Restringido: Las ventas de "${producerObj.artistName || producerObj.name}" han sido suspendidas temporalmente por vencimiento de plan de pago (periodo de gracia agotado).`, 'error');
       return;
     }
+
+    const userCart = userCartsMap[user.id] || [];
     
-    if (cart.some((item) => item.id === id)) {
-      addToast('Este beat ya está en tu carrito', 'info');
+    if (userCart.some((item) => item.id === id)) {
+      addToast('Este elemento ya está en tu carrito', 'info');
       return;
     }
 
@@ -1450,20 +1814,44 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       id,
       beat,
       licenseType,
-      price
+      price,
+      addedAt: new Date().toISOString(),
+      selected: true
     };
 
-    setCart((prev) => [...prev, newItem]);
-    addToast(`"${beat.title}" (${licenseType === 'basic' ? 'Básica' : 'Exclusiva'}) añadido al carrito`, 'success');
+    updateUserCart(user.id, [...userCart, newItem]);
+    addToast(`"${beat.title}" (${beat.isSoundLibrary ? 'Librería' : 'Exclusiva'}) añadido al carrito`, 'success');
   };
 
   const removeFromCart = (cartItemId: string) => {
-    setCart((prev) => prev.filter((item) => item.id !== cartItemId));
-    addToast('Beat eliminado del carrito', 'info');
+    if (!user) return;
+    const userCart = userCartsMap[user.id] || [];
+    updateUserCart(user.id, userCart.filter((item) => item.id !== cartItemId));
+    addToast('Elemento eliminado del carrito', 'info');
   };
 
   const clearCart = () => {
-    setCart([]);
+    if (!user) return;
+    updateUserCart(user.id, []);
+  };
+
+  const toggleCartItemSelection = (cartItemId: string) => {
+    if (!user) return;
+    const userCart = userCartsMap[user.id] || [];
+    const updated = userCart.map(item => {
+      if (item.id === cartItemId) {
+        return { ...item, selected: item.selected === false ? true : false };
+      }
+      return item;
+    });
+    updateUserCart(user.id, updated);
+  };
+
+  const toggleAllCartItems = (selected: boolean) => {
+    if (!user) return;
+    const userCart = userCartsMap[user.id] || [];
+    const updated = userCart.map(item => ({ ...item, selected }));
+    updateUserCart(user.id, updated);
   };
 
   const playBeat = (beat: Beat) => {
@@ -1492,28 +1880,84 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setIsPlaying(!isPlaying);
   };
 
-  const createOrder = (order: Order) => {
-    setOrders((prev) => [order, ...prev]);
-    // Update the beat status if it's an exclusive license
-    const cartItem = cart.find(c => c.id.startsWith(order.beatId));
-    if (cartItem && cartItem.licenseType === 'exclusive') {
-      setBeats((prev) => prev.map((b) => b.id === order.beatId ? { ...b, status: 'sold' } : b));
+  const createOrder = (order: Order): boolean => {
+    if (!order.transactionId || !isTransactionIdUnique(order.transactionId)) {
+      addToast(`Error de seguridad: El ID de transacción "${order.transactionId}" ya fue procesado o registrado anteriormente en la plataforma.`, 'error');
+      return false;
     }
-    addToast('Comprobante enviado. Tu pago está bajo verificación.', 'success');
+
+    const rateUsed = order.exchangeRateUsed || (order.currency === 'CUP' ? (exchangeRates.CUP || 330) : (order.currency === 'MLC' || order.currency === 'CLASICA' ? (exchangeRates.MLC || 1.15) : 1));
+    const usdVal = order.amountUSD || order.amount;
+    const localVal = order.amountConverted || order.amount;
+    const frozenAt = order.rateFrozenAt || new Date().toISOString();
+
+    const fullOrder: Order = {
+      ...order,
+      exchangeRateUsed: rateUsed,
+      amountUSD: usdVal,
+      amountConverted: localVal,
+      rateFrozenAt: frozenAt,
+      createdAt: order.createdAt || new Date().toISOString(),
+      downloadAttempts: order.downloadAttempts || 0,
+      hasSuccessfulDownload: order.hasSuccessfulDownload || false,
+      downloadWindowHours: order.downloadWindowHours || 24,
+      status: 'pending'
+    };
+    setOrders((prev) => [fullOrder, ...prev]);
+    addToast('Comprobante enviado. Tu pago está reportado y en verificación por el productor.', 'success');
     addAdminNotification(
       'beat_sold',
-      '¡Nueva Venta de Beat!',
-      `Se ha realizado una solicitud de compra para "${order.beatTitle}" por parte de "${order.buyerName}" por $${order.amount} ${order.currency === 'USDT' ? 'USDT' : 'CUP'}.`
+      '¡Nueva Venta Reportada!',
+      `Se ha realizado un reporte de pago para "${order.beatTitle}" por parte de "${order.buyerName}" por $${order.amount} ${order.currency}.`
     );
+    return true;
   };
 
-  const updateOrder = (orderId: string, status: 'approved' | 'rejected' | 'verified', verificationSMS?: string, downloadUrl?: string) => {
+  const recordDownloadAttempt = (orderId: string, success: boolean) => {
+    setOrders(prev => prev.map(ord => {
+      if (ord.id === orderId) {
+        const attempts = (ord.downloadAttempts || 0) + 1;
+        const hasSuccess = ord.hasSuccessfulDownload || success;
+        return {
+          ...ord,
+          downloadAttempts: attempts,
+          hasSuccessfulDownload: hasSuccess
+        };
+      }
+      return ord;
+    }));
+  };
+
+  const selectFreePlanBeats = (beatIds: string[]) => {
+    const limitedIds = beatIds.slice(0, 2);
+    if (user) {
+      setUserState(prev => prev ? {
+        ...prev,
+        selectedFreeBeatIds: limitedIds,
+        planStatus: 'plan_vencido_seleccionar_beats'
+      } : null);
+    }
+    setBeats(prev => prev.map(b => {
+      if (user && (b.producerId === user.id || b.producerName === (user.artistName || user.name))) {
+        if (b.isSoundLibrary) {
+          return { ...b, isBlockedByPlan: true };
+        }
+        const isKept = limitedIds.includes(b.id);
+        return { ...b, isBlockedByPlan: !isKept, keepInFreePlan: isKept };
+      }
+      return b;
+    }));
+    addToast('Has seleccionado tus 2 beats activos para la tienda.', 'success');
+  };
+
+  const updateOrder = (orderId: string, status: 'approved' | 'rejected' | 'verified' | 'disputed', verificationSMS?: string, downloadUrl?: string) => {
     setOrders((prev) => prev.map((ord) => {
       if (ord.id === orderId) {
-        // Find beat and mark sold if approved and exclusive
         return { 
           ...ord, 
           status, 
+          approvedAt: status === 'approved' ? (ord.approvedAt || new Date().toISOString()) : ord.approvedAt,
+          downloadWindowHours: status === 'approved' ? 24 : ord.downloadWindowHours,
           ...(verificationSMS ? { verificationSMS } : {}), 
           ...(downloadUrl ? { downloadUrl } : {}) 
         };
@@ -1528,6 +1972,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const producerName = orderObj.producerName || 'Productor';
 
       if (status === 'approved') {
+        // Mark beat as sold if it's a beat (sound libraries stay available indefinitely)
+        setBeats(prevBeats => prevBeats.map(b => {
+          if (b.id === orderObj.beatId && !b.isSoundLibrary) {
+            return { ...b, status: 'sold' };
+          }
+          return b;
+        }));
+
         if (user && user.id === orderObj.producerId) {
           setUserState(prev => prev ? { 
             ...prev, 
@@ -1535,24 +1987,89 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             totalEarningsCUP: (prev.totalEarningsCUP || 0) + orderObj.amount
           } : null);
         }
-        addToast(`Pedido ${orderId} aprobado con éxito`, 'success');
+        addToast(`Pedido ${orderId} aprobado de forma inmediata. Se ha liberado la descarga.`, 'success');
 
         // 1. Notify artist in-app
         addArtistNotification(
           'payment_status',
-          '¡Pago Aprobado y Enlaces Listos! 🎉',
-          `El productor "${producerName}" verificó tu pago para "${orderObj.beatTitle}". Tus archivos de alta calidad y licencias en PDF están listos para la descarga.`,
+          '¡Pago Aprobado y Licencia Emitida! 🎉',
+          `El productor "${producerName}" verificó tu pago para "${orderObj.beatTitle}". La licencia oficial fue emitida. Tienes 24 horas de descarga activa de tu WAV máster en "Beats Adquiridos".`,
           orderObj.producerId,
           producerName
         );
 
-        // 2. Add simulated email to active mailbox
+        // 2. Add simulated email
         addSimulatedEmail(
           buyerEmail,
           'ventas@dcubanbeats.com',
-          `Enlace de Descarga de D'Cuban Beats: ${orderObj.beatTitle}`,
-          `Hola ${orderObj.buyerName}:\n\n¡Un placer saludarte!\n\nTu transferencia de $${orderObj.amount} ${orderObj.currency || 'CUP'} para el beat instrumental "${orderObj.beatTitle}" ha sido aprobada de manera exitosa por el productor "${producerName}".\n\nAquí tienes tus archivos oficiales comprimidos de alta definición (pistas separadas en formato STEMS, archivo de mezcla WAV masterizada, archivos MIDI y contrato de licencia firmado):\n\n📥 Link de Descarga directa: https://files.dcubanbeats.com/secure/get-stems-${orderObj.id}.zip\n\nEste enlace de descarga y confirmación también ha sido transmitido con éxito a tus canales preferidos registrados (WhatsApp, Telegram e in-app).\n\n¡Muchas gracias por apoyar nuestra música y talento de productores cubanos!\n\n--\nEl Equipo de Ventas Automáticas de D'Cuban Beats`
+          `Licencia Comercial y Descarga Activa: ${orderObj.beatTitle}`,
+          `Hola ${orderObj.buyerName}:\n\nEl productor "${producerName}" ha aprobado tu pago de $${orderObj.amount} ${orderObj.currency}.\n\nTu archivo WAV máster (reconstruido desde FLAC) y tu licencia comercial ya están activos en tu sección de "Beats Adquiridos" con una ventana de descarga activa por 24 horas.\n\n--\nD'Cuban Beats`
         );
+        // 3. Add simulated official license email
+        const beatObj = beats.find(b => b.id === orderObj.beatId || b.title === orderObj.beatTitle);
+        const customTerms = beatObj?.customLicenseClause || 
+          `• Concesión de licencia de uso no exclusiva para grabación y distribución comercial limitada a 50,000 reproducciones. El artista retiene derechos de composición sobre sus letras registradas y el productor mantiene derechos sobre la composición instrumental original.`;
+        
+        const licenseEmailBody = `======================================================================
+           CONTRATO DE LICENCIA OFICIAL - D'CUBAN BEATS
+======================================================================
+ID DE LICENCIA: ${orderObj.id}
+FECHA DE EMISIÓN: ${orderObj.date || new Date().toLocaleDateString()}
+ESTATUS: VERIFICADO Y CERTIFICADO POR LA PLATAFORMA
+
+Estimado/a ${orderObj.buyerName}:
+
+¡Felicidades! El productor "${producerName}" ha aprobado tu pago de $${orderObj.amount} ${orderObj.currency || 'CUP'}. Tu contrato de licencia comercial oficial e intransferible ha sido generado con éxito y registrado bajo las regulaciones nacionales de propiedad intelectual.
+
+A continuación te detallamos los términos del contrato de tu nueva instrumental "${orderObj.beatTitle}":
+
+----------------------------------------------------------------------
+[LOGO] D'CUBAN BEATS (REGISTRO OFICIAL DE LICENCIAMIENTO DE BEATS)
+----------------------------------------------------------------------
+
+I. DATOS DE LA ORDEN DE PAGO:
+- ID del Pedido: ${orderObj.id}
+- Instrumental: ${orderObj.beatTitle}
+- Licenciatario (Artista): ${orderObj.buyerName} (${buyerEmail})
+- Licenciante (Productor): ${producerName}
+- Monto Verificado: $${orderObj.amount} ${orderObj.currency || 'CUP'}
+- Método de Pago: ${orderObj.method}
+- ID Referencia Bancaria: ${orderObj.transactionId || 'N/D'}
+- Fecha de Liquidación: ${orderObj.date}
+
+II. TÉRMINOS Y CONDICIONES ESPECIFICADOS POR EL PRODUCTOR:
+${customTerms}
+
+III. TÉRMINOS Y CONDICIONES DE LA PLATAFORMA D'CUBAN BEATS:
+1. D'Cuban Beats actúa como intermediario tecnológico oficial, certificando que los fondos han sido debidamente transferidos al productor de conformidad con las políticas operativas internas de la plataforma.
+2. Esta licencia otorga al artista la facultad legal de sincronizar voces con la base musical instrumental, crear obras derivadas y comercializarlas en redes sociales o plataformas de streaming (Spotify, YouTube, etc.) sujeto a los límites acordados.
+3. El licenciatario se compromete a acreditar al productor autor ("Prod. ${producerName}") en todo tipo de distribución o promoción de la obra musical resultante.
+4. Cualquier alteración a este documento o distribución no autorizada anula la validez legal del contrato.
+
+======================================================================
+📥 DESCARGA TU LICENCIA OFICIAL EN FORMATO PDF EN LA PLATAFORMA
+======================================================================
+Deberás acceder a tu panel de artista en D'Cuban Beats y abrir tu Buzón de Correos. Desde allí podrás visualizar la versión en alta definición vectorial de este contrato y presionar el botón "Descargar Licencia en PDF" para imprimirlo o guardarlo de manera formal en tu dispositivo.
+
+ID de Certificación Servidor: PLATFORM_STAMP_${orderObj.id}
+D'Cuban Beats, S.A. Cuba, La Habana.
+======================================================================`;
+
+        addSimulatedEmail(
+          buyerEmail,
+          'licencias@dcubanbeats.com',
+          `📄 Tu Licencia Comercial Firmada: "${orderObj.beatTitle}" (Pedido ${orderObj.id})`,
+          licenseEmailBody
+        );
+      } else if (status === 'disputed') {
+        addArtistNotification(
+          'payment_status',
+          '⚠️ Pago en Disputa (24h transcurridas)',
+          `Han pasado 24 horas sin que el productor "${producerName}" confirme el pago del pedido ${orderObj.id}. Contacta al productor directamente para resolver la aprobación.`,
+          orderObj.producerId,
+          producerName
+        );
+
       } else if (status === 'verified') {
         addToast(`Pedido ${orderId} marcado como VERIFICADO`, 'success');
 
@@ -1563,6 +2080,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           `El productor "${producerName}" ha verificado los fondos de tu pago para "${orderObj.beatTitle}". El pedido ahora está VERIFICADO y en proceso de generación de archivos de descarga.`,
           orderObj.producerId,
           producerName
+        );
+
+        // 2. Add simulated official license email upon clicking "Verificar Fondos"
+        const beatObj = beats.find(b => b.id === orderObj.beatId || b.title === orderObj.beatTitle);
+        const customTerms = beatObj?.customLicenseClause || 
+          `• Concesión de licencia de uso no exclusiva para grabación y distribución comercial limitada a 50,000 reproducciones. El artista retiene derechos de composición sobre sus letras registradas y el productor mantiene derechos sobre la composición instrumental original.`;
+        
+        const licenseEmailBody = `======================================================================
+           CONTRATO DE LICENCIA OFICIAL - D'CUBAN BEATS
+======================================================================
+ID DE LICENCIA: ${orderObj.id}
+FECHA DE EMISIÓN: ${orderObj.date || new Date().toLocaleDateString()}
+ESTATUS: VERIFICADO Y CERTIFICADO POR LA PLATAFORMA
+
+Estimado/a ${orderObj.buyerName}:
+
+¡Felicidades! El productor "${producerName}" ha verificado con éxito los fondos de tu pago de $${orderObj.amount} ${orderObj.currency || 'CUP'}. Tu contrato de licencia comercial oficial e intransferible ha sido generado con éxito y registrado bajo las regulaciones nacionales de propiedad intelectual.
+
+A continuación te detallamos los términos del contrato de tu nueva instrumental "${orderObj.beatTitle}":
+
+----------------------------------------------------------------------
+[LOGO] D'CUBAN BEATS (REGISTRO OFICIAL DE LICENCIAMIENTO DE BEATS)
+----------------------------------------------------------------------
+
+I. DATOS DE LA ORDEN DE PAGO:
+- ID del Pedido: ${orderObj.id}
+- Instrumental: ${orderObj.beatTitle}
+- Licenciatario (Artista): ${orderObj.buyerName} (${buyerEmail})
+- Licenciante (Productor): ${producerName}
+- Monto Verificado: $${orderObj.amount} ${orderObj.currency || 'CUP'}
+- Método de Pago: ${orderObj.method}
+- ID Referencia Bancaria: ${orderObj.transactionId || 'N/D'}
+- Fecha de Liquidación: ${orderObj.date}
+
+II. TÉRMINOS Y CONDICIONES ESPECIFICADOS POR EL PRODUCTOR:
+${customTerms}
+
+III. TÉRMINOS Y CONDICIONES DE LA PLATAFORMA D'CUBAN BEATS:
+1. D'Cuban Beats actúa como intermediario tecnológico oficial, certificando que los fondos han sido debidamente transferidos al productor de conformidad con las políticas operativas internas de la plataforma.
+2. Esta licencia otorga al artista la facultad legal de sincronizar voces con la base musical instrumental, crear obras derivadas y comercializarlas en redes sociales o plataformas de streaming (Spotify, YouTube, etc.) sujeto a los límites acordados.
+3. El licenciatario se compromete a acreditar al productor autor ("Prod. ${producerName}") en todo tipo de distribución o promoción de la obra musical resultante.
+4. Cualquier alteración a este documento o distribución no autorizada anula la validez legal del contrato.
+
+======================================================================
+📥 DESCARGA TU LICENCIA OFICIAL EN FORMATO PDF EN LA PLATAFORMA
+======================================================================
+Deberás acceder a tu panel de artista en D'Cuban Beats y abrir tu Buzón de Correos. Desde allí podrás visualizar la versión en alta definición vectorial de este contrato y presionar el botón "Descargar Licencia en PDF" para imprimirlo o guardarlo de manera formal en tu dispositivo.
+
+ID de Certificación Servidor: PLATFORM_STAMP_${orderObj.id}
+D'Cuban Beats, S.A. Cuba, La Habana.
+======================================================================`;
+
+        addSimulatedEmail(
+          buyerEmail,
+          'licencias@dcubanbeats.com',
+          `📄 Tu Licencia Comercial Firmada: "${orderObj.beatTitle}" (Pedido ${orderObj.id})`,
+          licenseEmailBody
         );
       } else {
         addToast(`Pedido ${orderId} rechazado`, 'info');
@@ -1649,6 +2223,73 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const deleteUser = (userId: string) => {
     setVerifiedProducersTask(prev => prev.filter(p => p.id !== userId));
     addToast('Usuario eliminado del sistema', 'success');
+  };
+
+  const addAdminCollaborator = (collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => {
+    const is2fa = collab.twoFactorEnabled !== undefined ? collab.twoFactorEnabled : true;
+    const newCollab: User = {
+      id: `admin_collab_${Date.now()}`,
+      name: collab.name,
+      lastName: collab.lastName,
+      email: collab.email,
+      role: 'admin',
+      position: collab.position || 'Moderador Colaborador',
+      verified: true,
+      plan: 'Elite',
+      isCollaborator: true,
+      avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop',
+      username: collab.username,
+      password: collab.password,
+      twoFactorEnabled: is2fa,
+      twoFactorSecret: is2fa ? `DCUBAN-BEATS-2FAS-COLLAB-${Date.now()}-SECRET` : undefined
+    };
+    setVerifiedProducersTask(prev => [newCollab, ...prev]);
+    addToast('Colaborador administrativo agregado con éxito', 'success');
+  };
+
+  const updateAdminCollaborator = (id: string, collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => {
+    setVerifiedProducersTask(prev => prev.map(p => p.id === id ? {
+      ...p,
+      name: collab.name,
+      lastName: collab.lastName,
+      email: collab.email,
+      position: collab.position,
+      username: collab.username,
+      password: collab.password,
+      ...(collab.twoFactorEnabled !== undefined ? { 
+        twoFactorEnabled: collab.twoFactorEnabled,
+        twoFactorSecret: collab.twoFactorEnabled ? (p.twoFactorSecret || `DCUBAN-BEATS-2FAS-${id.toUpperCase()}-SECRET`) : p.twoFactorSecret
+      } : {})
+    } : p));
+    addToast('Colaborador administrativo actualizado con éxito', 'success');
+  };
+
+  const toggleUser2FA = (userId: string, enabled?: boolean) => {
+    setVerifiedProducersTask(prev => prev.map(p => {
+      if (p.id === userId) {
+        const nextState = enabled !== undefined ? enabled : !p.twoFactorEnabled;
+        return {
+          ...p,
+          twoFactorEnabled: nextState,
+          twoFactorSecret: nextState ? (p.twoFactorSecret || `DCUBAN-BEATS-2FAS-${userId.toUpperCase()}-SECRET`) : p.twoFactorSecret
+        };
+      }
+      return p;
+    }));
+    
+    if (user && user.id === userId) {
+      const nextState = enabled !== undefined ? enabled : !user.twoFactorEnabled;
+      setUser({
+        ...user,
+        twoFactorEnabled: nextState,
+        twoFactorSecret: nextState ? (user.twoFactorSecret || `DCUBAN-BEATS-2FAS-${userId.toUpperCase()}-SECRET`) : user.twoFactorSecret
+      });
+    }
+  };
+
+  const deleteAdminCollaborator = (id: string) => {
+    setVerifiedProducersTask(prev => prev.filter(p => p.id !== id));
+    addToast('Colaborador administrativo eliminado del sistema', 'success');
   };
 
   const warnUser = (userId: string) => {
@@ -1900,6 +2541,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         paymentGateways,
         plans,
         currentPath,
+        isMaintenanceMode,
+        setMaintenanceMode,
         selectedBeatId,
         selectedProducerId,
         isKycVerified,
@@ -1921,6 +2564,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         addToCart,
         removeFromCart,
         clearCart,
+        toggleCartItemSelection,
+        toggleAllCartItems,
         playBeat,
         closePlayer,
         togglePlay,
@@ -1929,6 +2574,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setPlaybackTime,
         createOrder,
         updateOrder,
+        recordDownloadAttempt,
+        selectFreePlanBeats,
         updateGateways,
         navigateTo,
         updateUserProfile,
@@ -1936,6 +2583,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         approveProducer,
         rejectProducer,
         deleteUser,
+        addAdminCollaborator,
+        updateAdminCollaborator,
+        deleteAdminCollaborator,
+        toggleUser2FA,
         warnUser,
         blockUser,
         toggleSalesRestriction,
@@ -1969,6 +2620,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         markMessagesAsRead,
         clearDirectMessages,
 
+        // Support System
+        supportMessages,
+        sendSupportMessage,
+        markSupportAsReadBySupport,
+        markSupportAsReadByUser,
+        deleteSupportChat,
+
         // Currency support
         displayCurrency,
         exchangeRates,
@@ -1979,7 +2637,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Producer payment methods
         producerPaymentMethods,
         setProducerPaymentMethods,
-        getProducerPaymentMethods
+        getProducerPaymentMethods,
+
+        // Admin payment methods
+        adminPaymentMethods,
+        setAdminPaymentMethods,
+
+        // Transaction ID verification & rate snapshot
+        isTransactionIdUnique,
+
+        // Plan Requests
+        planRequests,
+        createPlanRequest,
+        updatePlanRequestStatus
       }}
     >
       {children}

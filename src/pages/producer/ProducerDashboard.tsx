@@ -8,18 +8,29 @@ import {
   DollarSign, Music, Play, AlertOctagon, ArrowUpRight, 
   Sparkles, CheckCircle2, TrendingUp, Inbox, Users, 
   Trophy, Calendar, RefreshCw, Landmark, Wallet, Search, SlidersHorizontal,
-  Eye, Send, MessageSquare
+  Eye, Send, MessageSquare, Lock, Clock
 } from 'lucide-react';
 
 export const ProducerDashboard: React.FC = () => {
   const { 
-    user, beats, orders, navigateTo, addToast,
+    user, beats, orders, navigateTo, addToast, selectFreePlanBeats,
     producerNotifications = [], markProducerNotificationRead, markAllProducerNotificationsRead, clearProducerNotifications,
     verifiedProducersTask = [],
     simulatedEmails = [], markSimulatedEmailRead, clearSimulatedEmails,
     directMessages = [], sendDirectMessage, markMessagesAsRead,
-    exchangeRates
+    exchangeRates, plans
   } = useApp();
+
+  const activePlan = useMemo(() => {
+    const planName = user?.plan || 'Gratis';
+    return plans.find(p => p.name.toLowerCase() === planName.toLowerCase()) || plans[0];
+  }, [user, plans]);
+
+  const isMessagingBlocked = useMemo(() => {
+    if (!activePlan) return true;
+    const dmValue = activePlan.directMessaging || '';
+    return dmValue.toLowerCase().includes('bloqueada') || dmValue.toLowerCase().includes('blocked') || dmValue.toLowerCase().includes('❌');
+  }, [activePlan]);
   const [isLoading, setIsLoading] = useState(true);
   const [earningsCurrency, setEarningsCurrency] = useState<'CUP' | 'MLC' | 'SQP' | 'CLASICA'>('CUP');
   const [selectedArtist, setSelectedArtist] = useState<any>(null);
@@ -169,185 +180,25 @@ export const ProducerDashboard: React.FC = () => {
     const lives = myOrders.filter(o => o.status === 'approved');
     const now = Date.now();
  
-    // High-fidelity historical seeds for both beats and libraries
-    const historic = [
-      {
-        id: 'CB-HIST-41',
-        beatTitle: 'Malecón Sunset',
-        buyerName: 'Yomil Oficial',
-        buyerEmail: 'yomil.reparto@yahoo.com',
-        buyerPhone: '+53 5 289 4012',
-        amount: 4500,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '12 Jun 2026',
-        hour: '16:45',
-        timestamp: now - 8 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Exclusiva',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8389',
-        beatTitle: 'Flow Repartero Vol. 2',
-        buyerName: 'Yoandri García',
-        buyerEmail: 'yoandrig7@gmail.com',
-        buyerPhone: '+53 5 331 9904',
-        amount: 1500,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '20 Jun 2026',
-        hour: '12:15',
-        timestamp: now - 3 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-40',
-        beatTitle: 'Dembow King',
-        buyerName: 'Chacal de Cuba',
-        buyerEmail: 'chacalito.beats@nauta.cu',
-        buyerPhone: '+53 5 440 1289',
-        amount: 6500,
-        currency: 'CUP' as const,
-        method: 'QvaPay',
-        date: '08 Jun 2026',
-        hour: '21:05',
-        timestamp: now - 12 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Exclusiva',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-39',
-        beatTitle: 'Callejera Flow',
-        buyerName: 'El Micha Oficial',
-        buyerEmail: 'el_micha_flow@reparto.com',
-        buyerPhone: '+53 5 125 3840',
-        amount: 750,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '05 Jun 2026',
-        hour: '10:30',
-        timestamp: now - 15 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Básica',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8342',
-        beatTitle: 'Varadero Blue Loop Kit',
-        buyerName: 'Christian Delgado',
-        buyerEmail: 'chris.delgado99@nauta.cu',
-        buyerPhone: '+53 5 889 0281',
-        amount: 800,
-        currency: 'CUP' as const,
-        method: 'EnZona',
-        date: '01 Jun 2026',
-        hour: '14:20',
-        timestamp: now - 19 * 24 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-38',
-        beatTitle: 'Urban Soul',
-        buyerName: 'Danay Suárez',
-        buyerEmail: 'danay_suarez_oficial@gmail.com',
-        buyerPhone: '+53 5 512 8094',
-        amount: 3800,
-        currency: 'CUP' as const,
-        method: 'EnZona',
-        date: '28 May 2026',
-        hour: '19:12',
-        timestamp: now - 23 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Básica',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1511379938547-c1f69419868d?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8316',
-        beatTitle: 'Sublows & Reparto Drums Toolkit Vol. 4',
-        buyerName: 'Estudio La Aldea',
-        buyerEmail: 'la.aldea.studios@gmail.com',
-        buyerPhone: '+53 5 918 3045',
-        amount: 1800,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '29 May 2026',
-        hour: '15:40',
-        timestamp: now - 22 * 24 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1487180142328-054b783fc471?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'CB-HIST-37',
-        beatTitle: 'Callejera Flow',
-        buyerName: 'Alex Duvall',
-        buyerEmail: 'duvall_alex@gmail.com',
-        buyerPhone: '+53 5 339 1221',
-        amount: 5000,
-        currency: 'CUP' as const,
-        method: 'Transfermóvil',
-        date: '24 May 2026',
-        hour: '11:00',
-        timestamp: now - 27 * 24 * 60 * 60 * 1000,
-        licenceType: 'Licencia Exclusiva',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?q=80&w=400&auto=format&fit=crop'
-      },
-      {
-        id: 'TX-8119',
-        beatTitle: 'Havana Golden Strings Loops',
-        buyerName: 'Maikel Almira',
-        buyerEmail: 'maikel_almira94@nauta.cu',
-        buyerPhone: '+53 5 831 9284',
-        amount: 950,
-        currency: 'CUP' as const,
-        method: 'EnZona',
-        date: '11 May 2026',
-        hour: '18:15',
-        timestamp: now - 40 * 24 * 60 * 60 * 1000,
-        licenceType: 'Librería de Sonido',
-        type: 'sound_library' as const,
-        productImage: 'https://images.unsplash.com/photo-1465847899084-5161dfdc397c?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1621416894569-0f39ed31d247?q=80&w=400&auto=format&fit=crop'
-      }
-    ];
- 
-    // Merge live approved orders on top of history log
-    const merged = [
-      ...lives.map(o => ({
-        id: o.id,
-        beatTitle: o.beatTitle,
-        buyerName: o.buyerName || 'Cantante D\'Cuban Beats',
-        buyerEmail: 'cantante.activo@dcubanbeats.com',
-        buyerPhone: '+53 5 448 9121',
-        amount: o.amount,
-        currency: o.currency,
-        method: o.method,
-        date: o.date || 'Reciente',
-        hour: '14:20',
-        timestamp: now,
-        licenceType: o.amount >= 3000 ? 'Licencia Exclusiva' : 'Licencia Básica',
-        type: 'beat' as const,
-        productImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=200&auto=format&fit=crop',
-        receiptImage: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
-      })),
-      ...historic
-    ];
- 
+    // Real transactions derived exclusively from live approved orders
+    const merged = lives.map(o => ({
+      id: o.id,
+      beatTitle: o.beatTitle,
+      buyerName: o.buyerName || 'Cliente Comprador',
+      buyerEmail: o.buyerEmail || 'cliente@dcubanbeats.com',
+      buyerPhone: '+53 5 448 9121',
+      amount: o.amount,
+      currency: o.currency,
+      method: o.method,
+      date: o.date || 'Reciente',
+      hour: '14:20',
+      timestamp: o.approvedAt ? new Date(o.approvedAt).getTime() : now,
+      licenceType: o.beatTitle.toLowerCase().includes('librería') ? 'Librería de Sonido' : (o.amount >= 3000 ? 'Licencia Exclusiva' : 'Licencia Básica'),
+      type: o.beatTitle.toLowerCase().includes('librería') ? ('sound_library' as const) : ('beat' as const),
+      productImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=80&w=200&auto=format&fit=crop',
+      receiptImage: o.receiptUrl || 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=400&auto=format&fit=crop'
+    }));
+
     return merged.sort((a, b) => b.timestamp - a.timestamp);
   }, [myOrders]);
 
@@ -635,6 +486,92 @@ export const ProducerDashboard: React.FC = () => {
             </div>
           )}
 
+          {/* 3. PLAN STATUS & GRACE PERIOD ALERT */}
+          {user?.planStatus && user.planStatus !== 'activo' && (
+            <div className={`border rounded-2xl p-5 space-y-4 ${
+              user.planStatus === 'gracia' 
+                ? 'bg-amber-950/30 border-amber-500/30 text-amber-200' 
+                : user.planStatus === 'vencido'
+                  ? 'bg-indigo-950/30 border-indigo-500/30 text-indigo-200'
+                  : 'bg-red-950/30 border-red-500/30 text-red-200'
+            }`}>
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div className="flex gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0">
+                    <Clock size={20} />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                      {user.planStatus === 'gracia' && `⚠️ Plan Vencido — Periodo de Gracia Activo (${user.planGraceDaysRemaining ?? 15} Días Hábiles Restantes)`}
+                      {user.planStatus === 'vencido' && `⚠️ Plan Vencido (30 días transcurridos) — Selecciona tus 2 Beats Gratuitos`}
+                      {user.planStatus === 'expirado' && `🚨 Plan Expirado — Contenido eliminado del almacenamiento`}
+                    </h4>
+                    <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                      {user.planStatus === 'gracia' && `Tus beats adicionales y librerías de sonidos están bloqueados temporalmente pero NO han sido eliminados del servidor. Si realizas el pago antes de que finalicen los ${user.planGraceDaysRemaining ?? 15} días hábiles de gracia, todo tu catálogo se reactivará automáticamente sin necesidad de re-subir archivos.`}
+                      {user.planStatus === 'vencido' && `Han transcurrido 30 días sin renovar tu suscripción. Selecciona exactamente los 2 beats que se mantendrán activos en el Plan Gratis.`}
+                      {user.planStatus === 'expirado' && `El plazo de gracia de 15 días hábiles ha vencido. Los archivos máster de los beats bloqueados y librerías de sonido han sido removidos del almacenamiento temporal.`}
+                    </p>
+                  </div>
+                </div>
+
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => navigateTo('/producer/plans')}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                >
+                  Renovar Plan Ahora →
+                </Button>
+              </div>
+
+              {/* Free Beat Selection interface */}
+              {(user.planStatus === 'vencido' || user.planStatus === 'gracia') && (
+                <div className="pt-3 border-t border-white/10 space-y-2">
+                  <span className="text-xs font-bold text-white block">
+                    Selección de 2 Beats Activos para el Plan Gratis (Pistas elegidas: {user.selectedFreeBeatIds?.length || 0} / 2)
+                  </span>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                    {myBeats.map(beat => {
+                      const isSelected = (user.selectedFreeBeatIds || []).includes(beat.id);
+                      return (
+                        <button
+                          key={beat.id}
+                          type="button"
+                          onClick={() => {
+                            const current = user.selectedFreeBeatIds || [];
+                            if (isSelected) {
+                              selectFreePlanBeats(current.filter(id => id !== beat.id));
+                            } else {
+                              if (current.length >= 2) {
+                                addToast('El Plan Gratis solo permite seleccionar máximo 2 beats activos.', 'error');
+                                return;
+                              }
+                              selectFreePlanBeats([...current, beat.id]);
+                            }
+                          }}
+                          className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 cursor-pointer transition-all ${
+                            isSelected 
+                              ? 'bg-emerald-950/40 border-emerald-500/50 text-white' 
+                              : 'bg-white/5 border-white/10 text-slate-300 hover:bg-white/10'
+                          }`}
+                        >
+                          <img src={beat.coverUrl} alt="" className="w-8 h-8 rounded-lg object-cover flex-shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <span className="text-xs font-bold block truncate">{beat.title}</span>
+                            <span className="text-[10px] text-slate-400 font-mono block">{beat.genre} • {beat.bpm} BPM</span>
+                          </div>
+                          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isSelected ? 'bg-emerald-500 text-black' : 'bg-white/10 text-slate-400'}`}>
+                            {isSelected ? 'Mantener ✓' : 'Bloquear'}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
 
 
           {/* 3. KEY METRICS STATS BLOCKS (Elegant glow and fully dark themed) */}
@@ -835,7 +772,51 @@ export const ProducerDashboard: React.FC = () => {
         </div>
       )}
 
-      {activeTab === 'chat' && (
+      {activeTab === 'chat' && isMessagingBlocked && (
+        <div className="space-y-6 animate-in fade-in duration-200">
+          <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/45 space-y-5 text-left">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/60 pb-4">
+              <div className="text-left">
+                <span className="text-[9px] uppercase tracking-wider font-extrabold text-[#7F77DD] block">Comunicación Directa</span>
+                <h3 className="text-base font-bold text-white flex items-center gap-2 mt-0.5">
+                  <Lock size={16} className="text-amber-400 animate-pulse" /> Bandeja de Mensajería Directa Bloqueada
+                </h3>
+              </div>
+              <p className="text-xs text-gray-400 self-start sm:self-auto">
+                Chatea con tus clientes, acuerda modificaciones y envía enlaces de audios o detalles.
+              </p>
+            </div>
+
+            <div className="relative p-8 md:p-12 rounded-2xl border border-brand-border/30 bg-[#0F0F1A]/50 overflow-hidden flex flex-col items-center justify-center text-center max-w-2xl mx-auto my-6 shadow-md">
+              <div className="absolute inset-0 bg-gradient-to-b from-[#534AB7]/5 via-transparent to-transparent opacity-50"></div>
+              
+              <div className="relative z-10 w-16 h-16 rounded-full bg-[#534AB7]/10 border border-[#534AB7]/20 flex items-center justify-center mb-5 text-[#7F77DD] shadow animate-pulse">
+                <Lock size={28} className="text-[#7F77DD]" />
+              </div>
+
+              <h3 className="relative z-10 text-lg font-extrabold tracking-tight text-white max-w-md leading-snug">
+                Mensajería Directa Bloqueada para el Plan {activePlan?.name || 'Gratis'} 🔒
+              </h3>
+              
+              <p className="relative z-10 text-xs text-gray-400 mt-2 max-w-lg leading-relaxed">
+                Tu plan de suscripción actual no incluye soporte para mensajería directa con artistas y clientes. Actualiza a los planes de pago superiores para desbloquear comunicación fluida ilimitada por chat, retener compradores y cerrar más ofertas.
+              </p>
+
+              <div className="relative z-10 flex gap-3 mt-8 w-full justify-center">
+                <Button
+                  variant="primary"
+                  onClick={() => navigateTo('/producer/plans')}
+                  className="text-xs font-black tracking-wide uppercase px-5 py-2.5 shadow gap-1.5"
+                >
+                  Ver Planes <ArrowUpRight size={13} />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'chat' && !isMessagingBlocked && (
         <div className="space-y-6 animate-in fade-in duration-200">
           {/* 5. DIRECT CHATS WITH ARTISTS PANEL (PRODUCER SIDE) */}
           <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/45 space-y-5 text-left">

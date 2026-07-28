@@ -7,7 +7,7 @@ import {
   Users, UserMinus, ShieldAlert, Check, Search, MoreVertical,
   AlertTriangle, Trash2, ShieldOff, Mail, X, AlertCircle,
   FileText, Camera, Globe, Phone, MapPin, CreditCard, Award, Activity,
-  Lock, Unlock, Clock
+  Lock, Unlock
 } from 'lucide-react';
 
 const DEFAULT_TEMPLATES = {
@@ -79,12 +79,30 @@ export const AdminUsers: React.FC = () => {
     warnUser, 
     blockUser,
     toggleSalesRestriction,
-    warnExpirationEmail,
-    advanceTimeOneDay,
     beats,
     orders,
-    addToast
+    approveProducer,
+    addToast,
+    addAdminCollaborator,
+    updateAdminCollaborator,
+    deleteAdminCollaborator,
+    toggleUser2FA,
+    user
   } = useApp();
+
+  const [activeTab, setActiveTab] = useState<'users' | 'collaborators'>('users');
+  const [collabModalOpen, setCollabModalOpen] = useState(false);
+  const [editingCollab, setEditingCollab] = useState<User | null>(null);
+  const [collabToDelete, setCollabToDelete] = useState<User | null>(null);
+  const [collabForm, setCollabForm] = useState({
+    name: '',
+    lastName: '',
+    email: '',
+    position: 'Moderador Colaborador',
+    username: '',
+    password: '',
+    twoFactorEnabled: true
+  });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<'all' | 'verified' | 'unverified' | 'blocked'>('all');
@@ -129,6 +147,7 @@ export const AdminUsers: React.FC = () => {
   // Filter list
   const filteredUsers = useMemo(() => {
     return verifiedProducersTask.filter((user) => {
+      if (user.role === 'admin') return false;
       const matchesSearch = 
         user.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
         user.artistName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -194,27 +213,30 @@ export const AdminUsers: React.FC = () => {
           </h2>
           <p className="text-xs text-gray-400 mt-1">Supervisa las cuentas registradas en D'Cuban Beats. Advierte de malas conductas, bloquea infractores o elimina perfiles de forma definitiva.</p>
         </div>
-        
-        {/* Automated Expiration Cron Sim block */}
-        <div className="bg-[#1C1C2E]/60 border border-brand-border/40 p-2.5 rounded-xl flex items-center gap-3">
-          <div className="flex flex-col text-left">
-            <span className="text-[10px] font-bold text-[#7F77DD] uppercase tracking-wider">Simulación de Servidor</span>
-            <span className="text-[9px] text-gray-400 leading-tight">Cron de expiración premium (30 días)</span>
-          </div>
-          <button
-            onClick={() => {
-              advanceTimeOneDay();
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#534AB7] hover:bg-[#6359C7] text-white text-[11px] font-bold cursor-pointer transition-all active:scale-[0.98]"
-          >
-            <Clock size={12} className="animate-spin-slow animate-pulse" />
-            Avanzar 1 Día
-          </button>
-        </div>
       </div>
 
-      {/* Toolbar filters */}
-      <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
+      {/* Pestañas de Navegación de Administración */}
+      <div className="flex border-b border-brand-border/20">
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`py-2 px-4 font-bold text-xs cursor-pointer transition-all border-b-2 -mb-[2px] ${activeTab === 'users' ? 'border-[#7F77DD] text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+        >
+          Productores y Clientes
+        </button>
+        {!user?.isCollaborator && (
+          <button
+            onClick={() => setActiveTab('collaborators')}
+            className={`py-2 px-4 font-bold text-xs cursor-pointer transition-all border-b-2 -mb-[2px] ${activeTab === 'collaborators' ? 'border-[#7F77DD] text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+          >
+            Administradores Colaboradores
+          </button>
+        )}
+      </div>
+
+      {activeTab === 'users' ? (
+        <>
+          {/* Toolbar filters */}
+          <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
         
         {/* Search */}
         <div className="relative w-full sm:max-w-xs">
@@ -285,8 +307,10 @@ export const AdminUsers: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredUsers.map((item) => (
-                  <tr key={item.id} className="hover:bg-brand-card/25 transition-colors">
+                filteredUsers.map((item, index) => {
+                  const isNearBottom = index >= filteredUsers.length - 2 && filteredUsers.length > 2;
+                  return (
+                    <tr key={item.id} className="hover:bg-brand-card/25 transition-colors">
                     <td className="py-3.5 px-4 font-bold">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-lg bg-[#534AB7]/25 text-[#7F77DD] font-bold flex items-center justify-center text-xs overflow-hidden">
@@ -315,6 +339,11 @@ export const AdminUsers: React.FC = () => {
                     <td className="py-3.5 px-4 text-center font-semibold">
                       <div className="flex flex-col items-center gap-1 justify-center">
                         <Badge variant="purple" className="bg-[#534AB7]/20 text-[#7F77DD]">{item.plan}</Badge>
+                        {item.role === 'producer' && item.plan !== 'Gratis' && !item.verified && (
+                          <span className="text-[9px] text-rose-400 font-extrabold bg-rose-500/10 px-1.5 py-0.5 rounded border border-rose-500/20 uppercase tracking-wide block mt-1 animate-pulse">
+                            ¡Sin KYC Aprobado!
+                          </span>
+                        )}
                         {item.role === 'producer' && item.plan !== 'Gratis' && (
                           <span className="text-[10px] font-mono mt-1 block">
                             {(() => {
@@ -413,7 +442,11 @@ export const AdminUsers: React.FC = () => {
                               className="fixed inset-0 z-30" 
                               onClick={() => setActiveDropdownUserId(null)}
                             />
-                            <div className="absolute right-0 top-9 w-48 bg-brand-surface border border-brand-border/40 rounded-xl shadow-lg py-1.5 z-40 animate-in fade-in slide-in-from-top-1 text-left">
+                            <div className={`absolute right-0 w-48 bg-brand-surface border border-brand-border/40 rounded-xl shadow-lg py-1.5 z-40 animate-in fade-in text-left ${
+                              isNearBottom 
+                                ? 'bottom-full mb-1.5 slide-in-from-bottom-1' 
+                                : 'top-9 slide-in-from-top-1'
+                            }`}>
                               <div className="px-3 py-1 border-b border-brand-border/20 text-[9px] text-gray-400 font-bold uppercase tracking-wider">
                                 Acciones de Moderación
                               </div>
@@ -432,6 +465,19 @@ export const AdminUsers: React.FC = () => {
                               {item.role === 'producer' && (
                                 <>
                                   <div className="border-t border-brand-border/20 my-1" />
+                                  {!item.verified && (
+                                    <button
+                                      onClick={() => {
+                                        approveProducer(item.id);
+                                        setActiveDropdownUserId(null);
+                                      }}
+                                      className="w-full px-3 py-2 text-xs flex items-center gap-2 hover:bg-emerald-500/10 text-emerald-400 font-bold cursor-pointer text-left transition-colors"
+                                    >
+                                      <Check size={14} className="text-emerald-400" />
+                                      Aprobar KYC (Verificar)
+                                    </button>
+                                  )}
+
                                   <button
                                     onClick={() => {
                                       toggleSalesRestriction(item.id);
@@ -446,19 +492,6 @@ export const AdminUsers: React.FC = () => {
                                     {item.salesRestricted ? <Unlock size={14} className="text-emerald-400" /> : <Lock size={14} className="text-red-400" />}
                                     {item.salesRestricted ? 'Habilitar Ventas' : 'Restringir Ventas'}
                                   </button>
-
-                                  {item.plan !== 'Gratis' && (
-                                    <button
-                                      onClick={() => {
-                                        warnExpirationEmail(item.id);
-                                        setActiveDropdownUserId(null);
-                                      }}
-                                      className="w-full px-3 py-2 text-xs flex items-center gap-2 hover:bg-amber-500/10 text-amber-500 font-bold cursor-pointer text-left transition-colors"
-                                    >
-                                      <Mail size={14} className="text-amber-500" />
-                                      Avisar Expiración
-                                    </button>
-                                  )}
                                 </>
                               )}
 
@@ -504,12 +537,362 @@ export const AdminUsers: React.FC = () => {
                       </div>
                     </td>
                   </tr>
-                ))
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
+        </>
+      ) : (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
+            <div>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white">Equipo de Administradores Colaboradores</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Estos perfiles tienen acceso para supervisar catálogos, moderar usuarios y administrar planes, pero sin acceso a métodos de pago ni transacciones.</p>
+            </div>
+            <button
+              onClick={() => {
+                setEditingCollab(null);
+                setCollabForm({ name: '', lastName: '', email: '', position: 'Moderador Colaborador', username: '', password: '', twoFactorEnabled: true });
+                setCollabModalOpen(true);
+              }}
+              className="px-4 py-2 bg-gradient-to-r from-[#534AB7] to-[#7F77DD] hover:opacity-95 text-white font-bold text-xs rounded-xl cursor-pointer shadow-md inline-flex items-center gap-1.5"
+            >
+              <Users size={14} />
+              Agregar Colaborador
+            </button>
+          </div>
+
+          <div className="bg-brand-surface rounded-2xl border border-brand-border/40 overflow-hidden shadow-sm">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-xs text-left">
+                <thead>
+                  <tr className="bg-[#1C1C2E]/40 border-b border-brand-border/20 text-gray-400 font-bold uppercase select-none">
+                    <th className="py-3 px-4">Administrador</th>
+                    <th className="py-3 px-4">Correo Electrónico</th>
+                    <th className="py-3 px-4">Cargo / Función</th>
+                    <th className="py-3 px-4 text-center">Nivel de Acceso</th>
+                    <th className="py-3 px-4 text-center">Verificación 2FA</th>
+                    <th className="py-3 px-4 text-right">Acción</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-brand-border/10 text-gray-300">
+                  {verifiedProducersTask.filter(u => u.role === 'admin' && u.isCollaborator).length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-10 text-center text-gray-500">
+                        No hay otros administradores colaboradores registrados en el sistema.
+                      </td>
+                    </tr>
+                  ) : (
+                    verifiedProducersTask.filter(u => u.role === 'admin' && u.isCollaborator).map((collab) => (
+                      <tr key={collab.id} className="hover:bg-brand-card/10 transition-colors">
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-3">
+                            {collab.avatarUrl ? (
+                              <img src={collab.avatarUrl} className="w-9 h-9 rounded-xl object-cover border border-[#534AB7]/30" alt="" />
+                            ) : (
+                              <div className="w-9 h-9 rounded-xl bg-[#534AB7]/20 flex items-center justify-center text-[#7F77DD] font-bold">
+                                {collab.name[0]}
+                              </div>
+                            )}
+                            <div>
+                              <span className="font-bold text-white block">{collab.name} {collab.lastName}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 font-mono text-gray-400">
+                          <div>{collab.email}</div>
+                          {collab.username && (
+                            <div className="text-[10px] text-indigo-400 font-sans font-medium mt-0.5">
+                              Usuario: {collab.username}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <Badge variant="purple" className="text-[10px] bg-brand-bg/50 text-[#7F77DD] font-semibold border border-[#534AB7]/20">
+                            {collab.position || 'Moderador Colaborador'}
+                          </Badge>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <Badge variant="red" className="text-[10px] bg-brand-accent-red/10 text-brand-accent-red font-bold">
+                            Sin Acceso a Métodos de Pago
+                          </Badge>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <div className="inline-flex items-center gap-2">
+                            <span className={`text-[10px] font-extrabold uppercase ${collab.twoFactorEnabled !== false ? 'text-emerald-400' : 'text-gray-400'}`}>
+                              {collab.twoFactorEnabled !== false ? 'Activa' : 'Inactiva'}
+                            </span>
+                            <button
+                              type="button"
+                              role="switch"
+                              aria-checked={collab.twoFactorEnabled !== false}
+                              onClick={() => {
+                                const nextState = collab.twoFactorEnabled === false;
+                                toggleUser2FA(collab.id, nextState);
+                                addToast(`Verificación 2FA ${nextState ? 'activada' : 'desactivada'} para ${collab.name}`, 'info');
+                              }}
+                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                collab.twoFactorEnabled !== false ? 'bg-[#534AB7]' : 'bg-gray-700'
+                              }`}
+                              title={collab.twoFactorEnabled !== false ? 'Desactivar 2FA' : 'Activar 2FA'}
+                            >
+                              <span
+                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                                  collab.twoFactorEnabled !== false ? 'translate-x-4' : 'translate-x-0'
+                                }`}
+                              />
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          <div className="inline-flex items-center gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingCollab(collab);
+                                setCollabForm({
+                                  name: collab.name,
+                                  lastName: collab.lastName || '',
+                                  email: collab.email,
+                                  position: collab.position || 'Moderador Colaborador',
+                                  username: collab.username || '',
+                                  password: collab.password || '',
+                                  twoFactorEnabled: collab.twoFactorEnabled !== false
+                                });
+                                setCollabModalOpen(true);
+                              }}
+                              className="inline-flex items-center justify-center gap-1 px-3 h-8 bg-[#534AB7]/20 text-[#7F77DD] rounded-xl font-bold hover:bg-[#534AB7]/30 transition-all cursor-pointer border border-[#534AB7]/20 hover:border-[#534AB7]/40 text-[11px]"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => {
+                                setCollabToDelete(collab);
+                              }}
+                              className="inline-flex items-center justify-center gap-1 px-3 h-8 bg-brand-accent-red/20 text-brand-accent-red rounded-xl font-bold hover:bg-brand-accent-red/30 transition-all cursor-pointer border border-brand-accent-red/20 hover:border-brand-accent-red/40 text-[11px]"
+                              title="Eliminar Colaborador"
+                            >
+                              <Trash2 size={12} className="text-brand-accent-red" />
+                              Borrar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE CONFIRMACIÓN PARA ELIMINAR COLABORADOR */}
+      {collabToDelete && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-brand-surface border border-brand-border/40 rounded-2xl w-full max-w-sm overflow-hidden shadow-xl animate-in zoom-in-95 duration-200 text-left">
+            <div className="p-5 border-b border-brand-border/20 flex justify-between items-center bg-[#1C1C2E]/40">
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-brand-accent-red flex items-center gap-2">
+                <Trash2 size={16} /> Confirmar Eliminación
+              </h3>
+              <button 
+                onClick={() => setCollabToDelete(null)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-gray-300 leading-relaxed">
+                ¿Está seguro de que desea eliminar al administrador colaborador <strong className="text-white">"{collabToDelete.name} {collabToDelete.lastName || ''}"</strong> del sistema?
+              </p>
+              <p className="text-[11px] text-brand-accent-red font-semibold bg-brand-accent-red/10 p-2.5 rounded-xl border border-brand-accent-red/20">
+                ⚠️ Esta acción es irreversible y retirará de forma permanente todos sus privilegios de acceso y moderación.
+              </p>
+            </div>
+
+            <div className="p-4 bg-[#13131F]/40 border-t border-brand-border/15 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setCollabToDelete(null)}
+                className="px-4 py-2 bg-transparent text-gray-400 hover:text-white rounded-xl text-xs font-bold transition-colors cursor-pointer"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  deleteAdminCollaborator(collabToDelete.id);
+                  setCollabToDelete(null);
+                }}
+                className="px-4 py-2 bg-brand-accent-red text-white hover:bg-brand-accent-red/90 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-lg shadow-brand-accent-red/10"
+              >
+                Confirmar y Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL PARA AGREGAR / EDITAR COLABORADOR */}
+      {collabModalOpen && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-brand-surface border border-brand-border/40 rounded-2xl w-full max-w-md overflow-hidden shadow-xl animate-in zoom-in-95 duration-200 text-left">
+            <div className="p-5 border-b border-brand-border/20 flex justify-between items-center bg-[#1C1C2E]/40">
+              <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
+                {editingCollab ? 'Editar Administrador Colaborador' : 'Agregar Administrador Colaborador'}
+              </h3>
+              <button 
+                onClick={() => setCollabModalOpen(false)}
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              if (!collabForm.name || !collabForm.email) {
+                addToast('Nombre y Correo Electrónico son obligatorios', 'error');
+                return;
+              }
+              if (editingCollab) {
+                updateAdminCollaborator(editingCollab.id, collabForm);
+              } else {
+                addAdminCollaborator(collabForm);
+              }
+              setCollabModalOpen(false);
+            }} className="p-5 space-y-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Nombre</label>
+                  <input
+                    type="text"
+                    required
+                    value={collabForm.name}
+                    onChange={(e) => setCollabForm({ ...collabForm, name: e.target.value })}
+                    className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                    placeholder="Roberto"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Apellidos</label>
+                  <input
+                    type="text"
+                    value={collabForm.lastName}
+                    onChange={(e) => setCollabForm({ ...collabForm, lastName: e.target.value })}
+                    className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                    placeholder="Gómez"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Correo Electrónico</label>
+                <input
+                  type="email"
+                  required
+                  value={collabForm.email}
+                  onChange={(e) => setCollabForm({ ...collabForm, email: e.target.value })}
+                  className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                  placeholder="ejemplo@dcubanbeats.com"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Nombre de Usuario</label>
+                  <input
+                    type="text"
+                    required
+                    value={collabForm.username}
+                    onChange={(e) => setCollabForm({ ...collabForm, username: e.target.value })}
+                    className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                    placeholder="roberto.admin"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Contraseña</label>
+                  <input
+                    type="password"
+                    required
+                    value={collabForm.password}
+                    onChange={(e) => setCollabForm({ ...collabForm, password: e.target.value })}
+                    className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Cargo Administrativo</label>
+                <select
+                  value={collabForm.position}
+                  onChange={(e) => setCollabForm({ ...collabForm, position: e.target.value })}
+                  className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                >
+                  <option value="Moderador Colaborador">Moderador Colaborador</option>
+                  <option value="Gestor de Soporte">Gestor de Soporte</option>
+                </select>
+              </div>
+
+              {/* 2FA Toggle Switch for Collaborator */}
+              <div className="flex items-center justify-between p-3.5 bg-[#1C1C2E] rounded-xl border border-brand-border/40 select-none">
+                <div>
+                  <span className="text-xs font-bold text-white block">Verificación en dos pasos (2FA)</span>
+                  <span className="text-[10px] text-gray-400 block mt-0.5">Exigir autenticación con 2FAS al colaborador</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-[10px] font-extrabold uppercase ${collabForm.twoFactorEnabled ? 'text-emerald-400' : 'text-gray-400'}`}>
+                    {collabForm.twoFactorEnabled ? 'Habilitada' : 'Deshabilitada'}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={collabForm.twoFactorEnabled}
+                    onClick={() => setCollabForm(prev => ({ ...prev, twoFactorEnabled: !prev.twoFactorEnabled }))}
+                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                      collabForm.twoFactorEnabled ? 'bg-[#534AB7]' : 'bg-gray-700'
+                    }`}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
+                        collabForm.twoFactorEnabled ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-[#FF5C5C]/5 border border-[#FF5C5C]/15 rounded-xl p-3 text-center space-y-1">
+                <span className="text-[10px] font-bold text-brand-accent-red uppercase tracking-wider block">RESTRICCIÓN DE SEGURIDAD</span>
+                <p className="text-[10px] text-gray-400 leading-relaxed">
+                  Por seguridad, los perfiles de colaboradores no tienen privilegios para consultar o modificar cuentas bancarias del admin, pasarelas de pago o ver listados de facturación.
+                </p>
+              </div>
+
+              <div className="flex gap-2 justify-end pt-3 border-t border-brand-border/20">
+                <button
+                  type="button"
+                  onClick={() => setCollabModalOpen(false)}
+                  className="px-4 py-2 border border-brand-border/40 text-gray-300 hover:bg-white/5 text-xs font-bold rounded-xl cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-gradient-to-r from-[#534AB7] to-[#7F77DD] hover:opacity-90 text-white text-xs font-bold rounded-xl cursor-pointer shadow-md"
+                >
+                  {editingCollab ? 'Guardar Cambios' : 'Crear Colaborador'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* CORE MODAL FOR PRE-DETERMINED CORREO */}
       {modal.isOpen && modal.user && modal.actionType && (

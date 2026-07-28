@@ -8,23 +8,10 @@ import {
   Radio, Settings, Sparkles, Check, RefreshCw, Plus, Trash2, 
   Edit, CreditCard, Landmark, Wallet, QrCode, Camera, Info, X, ShieldCheck, AlertCircle
 } from 'lucide-react';
-import { Plan } from '../../types';
-
-interface AdminPaymentMethod {
-  id: string;
-  type: 'transfermovil' | 'qvapay';
-  cardNumber?: string;
-  currencyType?: 'CUP' | 'MLC' | 'Clasica';
-  phoneConfirm?: string;
-  qrScreenshot?: string;
-  qvapayEmail?: string;
-  qvapayUser?: string;
-  qrQvapayScreenshot?: string;
-  active: boolean;
-}
+import { Plan, AdminPaymentMethod } from '../../types';
 
 export const AdminPlans: React.FC = () => {
-  const { plans, updatePlans, addToast, convertPrice } = useApp();
+  const { plans, updatePlans, addToast, convertPrice, adminPaymentMethods, setAdminPaymentMethods } = useApp();
 
   // Load local state variables for plans
   const [plansList, setPlansList] = useState<Plan[]>(plans);
@@ -34,42 +21,9 @@ export const AdminPlans: React.FC = () => {
     setPlansList(plans);
   }, [plans]);
 
-  // Load and persist Admin Payment Methods
-  const [adminMethods, setAdminMethods] = useState<AdminPaymentMethod[]>(() => {
-    const cached = localStorage.getItem('cb_admin_payment_methods');
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    // Default system admin methods
-    return [
-      {
-        id: 'adm_meth_1',
-        type: 'transfermovil',
-        cardNumber: '9211 4483 1290 8378',
-        currencyType: 'CUP',
-        phoneConfirm: '+53 52930211',
-        qrScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
-        active: true
-      },
-      {
-        id: 'adm_meth_2',
-        type: 'qvapay',
-        qvapayEmail: 'cobros.admin@dcubanbeats.com',
-        qvapayUser: 'admin_dcubanbeats',
-        qrQvapayScreenshot: 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
-        active: true
-      }
-    ];
-  });
-
-  // Save admin methods to localStorage
+  const adminMethods = adminPaymentMethods;
   const saveAdminMethods = (newMethods: AdminPaymentMethod[]) => {
-    setAdminMethods(newMethods);
-    localStorage.setItem('cb_admin_payment_methods', JSON.stringify(newMethods));
+    setAdminPaymentMethods(newMethods);
   };
 
   // --- PLAN FORM MODAL STATES ---
@@ -83,8 +37,18 @@ export const AdminPlans: React.FC = () => {
   const [pLimit, setPLimit] = useState(10);
   const [pCommission, setPCommission] = useState(0);
   const [pMaxSoundLibrarySize, setPMaxSoundLibrarySize] = useState<number>(5);
-  const [pSupport, setPSupport] = useState<'Soporte Estándar' | 'Soporte Prioritario' | 'Soporte Prioritario 24/7' | 'Sin Soporte'>('Soporte Estándar');
+  const [pSupport, setPSupport] = useState<string>('Soporte Estándar');
   const [pFeatured, setPFeatured] = useState(false);
+  
+  // New comparative restrictions states
+  const [pLimitLibrariesCount, setPLimitLibrariesCount] = useState<number>(0);
+  const [pMaxLibrarySizeEach, setPMaxLibrarySizeEach] = useState<number>(0);
+  const [pDirectMessaging, setPDirectMessaging] = useState<string>('blocked');
+  const [pAnalyticsAccess, setPAnalyticsAccess] = useState<boolean>(false);
+  const [pBadgeType, setPBadgeType] = useState<string>('none');
+  const [pOnPlanExpiryAction, setPOnPlanExpiryAction] = useState<string>('Bloqueo total de venta hasta actualizar de plan');
+  const [pStemsAllowed, setPStemsAllowed] = useState<boolean>(false);
+  const [pAllowedFormats, setPAllowedFormats] = useState<string>('MP3');
   
   // Benefits point list builder
   const [benefitsList, setBenefitsList] = useState<string[]>([]);
@@ -96,13 +60,17 @@ export const AdminPlans: React.FC = () => {
 
   // --- ADMIN PAYMENT METHOD MODAL STATES ---
   const [isPayModalOpen, setIsPayModalOpen] = useState(false);
-  const [payType, setPayType] = useState<'transfermovil' | 'qvapay'>('transfermovil');
+  const [payType, setPayType] = useState<'bancos' | 'qvapay'>('bancos');
   
-  // Transfermóvil form states
+  // Bancos form states
+  const [tmBankName, setTmBankName] = useState('BANDEC');
+  const [tmCardHolder, setTmCardHolder] = useState("D'Cuban Beats S.A.");
   const [tmCardNumber, setTmCardNumber] = useState('');
   const [tmCurrency, setTmCurrency] = useState<'CUP' | 'MLC' | 'Clasica'>('CUP');
   const [tmPhone, setTmPhone] = useState('');
   const [tmQrUrl, setTmQrUrl] = useState('');
+  const [tmAcceptsTransfermovil, setTmAcceptsTransfermovil] = useState(true);
+  const [tmAcceptsEnzona, setTmAcceptsEnzona] = useState(true);
 
   // QvaPay form states
   const [qpEmail, setQpEmail] = useState('');
@@ -126,6 +94,16 @@ export const AdminPlans: React.FC = () => {
     setNewBenefitInput('');
     setAllowTransfermovil(true);
     setAllowQvapay(true);
+    
+    // reset new states
+    setPLimitLibrariesCount(0);
+    setPMaxLibrarySizeEach(0);
+    setPDirectMessaging('blocked');
+    setPAnalyticsAccess(false);
+    setPBadgeType('none');
+    setPOnPlanExpiryAction('Bloqueo total de venta hasta actualizar de plan');
+    setPStemsAllowed(false);
+    setPAllowedFormats('MP3');
 
     setIsPlanModalOpen(true);
   };
@@ -148,6 +126,16 @@ export const AdminPlans: React.FC = () => {
     const allowed = plan.allowedPaymentMethods || ['transfermovil', 'qvapay'];
     setAllowTransfermovil(allowed.includes('transfermovil'));
     setAllowQvapay(allowed.includes('qvapay'));
+
+    // load new states
+    setPLimitLibrariesCount(plan.limitLibrariesCount || 0);
+    setPMaxLibrarySizeEach(plan.maxLibrarySizeEach || 0);
+    setPDirectMessaging(plan.directMessaging || 'blocked');
+    setPAnalyticsAccess(plan.analyticsAccess || false);
+    setPBadgeType(plan.badgeType || 'none');
+    setPOnPlanExpiryAction(plan.onPlanExpiryAction || 'Bloqueo total de venta hasta actualizar de plan');
+    setPStemsAllowed(plan.stemsAllowed ?? false);
+    setPAllowedFormats(plan.allowedFormats || 'MP3');
 
     setIsPlanModalOpen(true);
   };
@@ -188,7 +176,15 @@ export const AdminPlans: React.FC = () => {
       featured: pFeatured,
       benefits: benefitsList,
       allowedPaymentMethods: payloadMethods,
-      maxSoundLibrarySize: isFreePlan ? undefined : pMaxSoundLibrarySize
+      maxSoundLibrarySize: isFreePlan ? undefined : pMaxSoundLibrarySize,
+      limitLibrariesCount: pLimitLibrariesCount,
+      maxLibrarySizeEach: pMaxLibrarySizeEach,
+      directMessaging: pDirectMessaging,
+      analyticsAccess: pAnalyticsAccess,
+      badgeType: pBadgeType,
+      onPlanExpiryAction: pOnPlanExpiryAction,
+      stemsAllowed: pStemsAllowed,
+      allowedFormats: pAllowedFormats
     };
 
     let nextPlans: Plan[];
@@ -227,10 +223,14 @@ export const AdminPlans: React.FC = () => {
 
   // --- HANDLERS FOR ADMIN PAYMENTS ---
   const handleOpenAddPay = () => {
+    setTmBankName('BANDEC');
+    setTmCardHolder("D'Cuban Beats S.A.");
     setTmCardNumber('');
     setTmCurrency('CUP');
     setTmPhone('');
     setTmQrUrl('');
+    setTmAcceptsTransfermovil(true);
+    setTmAcceptsEnzona(true);
     setQpEmail('');
     setQpUser('');
     setQpQrUrl('');
@@ -251,17 +251,21 @@ export const AdminPlans: React.FC = () => {
     e.preventDefault();
     let newMethod: AdminPaymentMethod;
 
-    if (payType === 'transfermovil') {
+    if (payType === 'bancos' || (payType as string) === 'transfermovil') {
       if (!tmCardNumber.trim() || !tmPhone.trim()) {
-        addToast('Completa los campos obligatorios de Transfermóvil', 'error');
+        addToast('Completa los campos obligatorios de la cuenta bancaria', 'error');
         return;
       }
       newMethod = {
         id: `adm_meth_${Date.now()}`,
-        type: 'transfermovil',
+        type: 'bancos',
+        bankName: tmBankName.trim() || 'BANCO',
+        cardHolder: tmCardHolder.trim() || "D'Cuban Beats S.A.",
         cardNumber: tmCardNumber.trim(),
         currencyType: tmCurrency,
         phoneConfirm: tmPhone.trim(),
+        acceptsTransfermovil: tmAcceptsTransfermovil,
+        acceptsEnzona: tmAcceptsEnzona,
         qrScreenshot: tmQrUrl || 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
         active: true
       };
@@ -442,21 +446,45 @@ export const AdminPlans: React.FC = () => {
 
                   {/* Properties table parameters bento layout */}
                   <div className="space-y-2 text-xs text-gray-300 bg-[#1C1C2E]/30 p-4 rounded-xl border border-white/5">
-                    {plan.name !== 'Gratis' && plan.price > 0 && (
-                      <div className="flex justify-between pb-1.5 border-b border-white/5">
-                        <span className="text-white/50 text-[11px]">Librería de Sonidos:</span>
-                        <strong className="text-emerald-400 font-mono font-bold">{plan.maxSoundLibrarySize || 1000} MB máx.</strong>
-                      </div>
-                    )}
                     <div className="flex justify-between pb-1.5 border-b border-white/5">
-                      <span className="text-white/50 text-[11px]">Límite de audio activo:</span>
-                      <strong className="text-white text-[11px]">
-                        {plan.limit === 999 ? (
-                          <span className="text-[#8D84F7] font-bold uppercase tracking-wider text-[10px]">Ilimitado</span>
-                        ) : (
-                          `${plan.limit} Beats Máx`
-                        )}
+                      <span className="text-white/50 text-[11px]">Insignia de Perfil:</span>
+                      <strong className="text-[#8D84F7] font-semibold text-[11px]">
+                        {plan.badgeType && plan.badgeType !== 'Ninguno' ? `Badge "${plan.badgeType}"` : 'Ninguna'}
                       </strong>
+                    </div>
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Límite Beats Publicados:</span>
+                      <strong className="text-white text-[11px]">{plan.limit} beats</strong>
+                    </div>
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Acción al Vencer Vigencia:</span>
+                      <strong className="text-amber-400 text-[10px] text-right max-w-[130px] leading-tight font-medium" title={plan.onPlanExpiryAction || 'Bloqueo total'}>
+                        {plan.onPlanExpiryAction || 'Bloqueo de venta'}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Librerías de Sonido:</span>
+                      <strong className="text-emerald-400 text-[11px]">
+                        {plan.limitLibrariesCount && plan.limitLibrariesCount > 0 
+                          ? `${plan.limitLibrariesCount} (${plan.maxLibrarySizeEach} MB c/u)`
+                          : '❌ No puede subir'}
+                      </strong>
+                    </div>
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Mensajería Directa:</span>
+                      <strong className="text-white text-[11px]">{plan.directMessaging || '❌ Bloqueada'}</strong>
+                    </div>
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Soporte de Stems:</span>
+                      <strong className="text-white text-[11px]">{plan.stemsAllowed ? '✅ Permitido (Sí)' : '❌ No permitido'}</strong>
+                    </div>
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Formatos Permitidos:</span>
+                      <strong className="text-emerald-400 font-mono text-[11px]">{plan.allowedFormats || 'MP3'}</strong>
+                    </div>
+                    <div className="flex justify-between pb-1.5 border-b border-white/5">
+                      <span className="text-white/50 text-[11px]">Analytics / Estadísticas:</span>
+                      <strong className="text-white text-[11px]">{plan.analyticsAccess ? '✅ Acceso Completo' : '❌ Sin Acceso'}</strong>
                     </div>
                     <div className="flex justify-between pt-0.5">
                       <span className="text-white/50 text-[11px]">Soporte Técnico:</span>
@@ -484,19 +512,6 @@ export const AdminPlans: React.FC = () => {
                         </span>
                       )}
                     </div>
-                  </div>
-
-                  {/* Benefits Item list block */}
-                  <div className="space-y-2 border-t border-white/5 pt-4">
-                    <span className="text-[9px] text-white/40 uppercase tracking-widest font-black block">Beneficios Integrados:</span>
-                    <ul className="space-y-1.5 text-[11px] text-gray-400">
-                      {plan.benefits.map((benefit, bIdx) => (
-                        <li key={bIdx} className="flex items-start gap-2 leading-tight">
-                          <Check size={11} className="text-emerald-400 mt-0.5 flex-shrink-0" />
-                          <span className="text-gray-300 truncate" title={benefit}>{benefit}</span>
-                        </li>
-                      ))}
-                    </ul>
                   </div>
 
                 </div>
@@ -631,7 +646,7 @@ export const AdminPlans: React.FC = () => {
                             <strong className="text-indigo-400 font-bold uppercase mt-0.5 text-xs">{meth.currencyType}</strong>
                           </div>
                           <div className="flex flex-col justify-center bg-[#07070F]/50 p-2 rounded-lg border border-white/5">
-                            <span className="text-gray-450 text-[9px]">Móvil Confirmación SMS</span>
+                            <span className="text-gray-450 text-[9px]">Móvil de Confirmación</span>
                             <strong className="font-mono text-white mt-0.5 text-[11px] truncate">{meth.phoneConfirm}</strong>
                           </div>
                         </div>
@@ -706,219 +721,297 @@ export const AdminPlans: React.FC = () => {
         onClose={() => setIsPlanModalOpen(false)}
         title={editingPlan ? `Editar Plan de Membresía` : `Crear Nuevo Plan de Membresía`}
         themeMode="dark"
-        maxWidth="max-w-md"
+        maxWidth="max-w-5xl"
       >
-        <form onSubmit={handlePlanFormSubmit} className="space-y-4 pt-2 text-white">
-          
-          <Input 
-            label="Nombre del Plan de Membresía"
-            placeholder="Ej. Pro Plus, Elite Flow, Platinum"
-            value={pName}
-            onChange={(e) => setPName(e.target.value)}
-            themeMode="dark"
-            required
-          />
-
-          <div className="space-y-1 text-left">
-            <label className="text-[11px] font-bold uppercase text-gray-450 tracking-wider">Ciclo de Facturación Admitido</label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                type="button"
-                onClick={() => setPBillingCycle('monthly')}
-                className={`py-2 px-3 border rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
-                  pBillingCycle === 'monthly'
-                    ? 'border-[#7F77DD] bg-[#534AB7]/20 text-[#8D84F7]'
-                    : 'border-brand-border/30 bg-[#1C1C2E] text-gray-400 hover:bg-brand-card'
-                }`}
-              >
-                Solo Mensual
-              </button>
-              <button
-                type="button"
-                onClick={() => setPBillingCycle('yearly')}
-                className={`py-2 px-3 border rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
-                  pBillingCycle === 'yearly'
-                    ? 'border-[#7F77DD] bg-[#534AB7]/20 text-[#8D84F7]'
-                    : 'border-brand-border/30 bg-[#1C1C2E] text-gray-400 hover:bg-brand-card'
-                }`}
-              >
-                Solo Anual
-              </button>
-              <button
-                type="button"
-                onClick={() => setPBillingCycle('both')}
-                className={`py-2 px-3 border rounded-xl text-xs font-bold transition-all text-center cursor-pointer ${
-                  pBillingCycle === 'both'
-                    ? 'border-[#7F77DD] bg-[#534AB7]/20 text-[#8D84F7]'
-                    : 'border-brand-border/30 bg-[#1C1C2E] text-gray-400 hover:bg-brand-card'
-                }`}
-              >
-                Ambos Ciclos
-              </button>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3.5">
-            {/* Show monthly input if monthly or both */}
-            {(pBillingCycle === 'monthly' || pBillingCycle === 'both') ? (
-              <Input 
-                label="Precio por Mes ($ CUP)"
-                type="number"
-                min="0"
-                value={pPrice}
-                onChange={(e) => setPPrice(Number(e.target.value))}
-                themeMode="dark"
-                required
-              />
-            ) : <div className="hidden" />}
-
-            {/* Show yearly input if yearly or both */}
-            {(pBillingCycle === 'yearly' || pBillingCycle === 'both') ? (
-              <Input 
-                label="Precio Total al Año ($ CUP)"
-                type="number"
-                min="0"
-                value={pPriceYearly}
-                onChange={(e) => setPPriceYearly(Number(e.target.value))}
-                themeMode="dark"
-                required
-              />
-            ) : <div className="hidden" />}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3.5">
-            {pName.toLowerCase() !== 'gratis' && pPrice > 0 ? (
-              <Input 
-                label="Límite Librería de Sonidos (MB)"
-                type="number"
-                min="1"
-                value={pMaxSoundLibrarySize}
-                onChange={(e) => setPMaxSoundLibrarySize(Number(e.target.value))}
-                themeMode="dark"
-                required
-              />
-            ) : (
-              <div className="flex flex-col justify-end pb-1 text-left">
-                <span className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Librerías de Sonido</span>
-                <span className="text-xs text-gray-405 italic leading-[24px]">No disponible en Plan Gratis</span>
-              </div>
-            )}
-
-            <Input 
-              label="Límite beats (999 = Ilimitados)"
-              type="number"
-              min="1"
-              value={pLimit}
-              onChange={(e) => setPLimit(Number(e.target.value))}
-              themeMode="dark"
-              required
-            />
-          </div>
-
-          <div className="space-y-1 text-left">
-            <label className="text-[11px] font-bold uppercase text-gray-455 tracking-wider block">Servicio de Soporte</label>
-            <select
-              value={pSupport}
-              onChange={(e) => setPSupport(e.target.value as any)}
-              className="w-full px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD]"
-            >
-              <option value="Sin Soporte">Sin Soporte</option>
-              <option value="Soporte Estándar">Soporte Estándar</option>
-              <option value="Soporte Prioritario">Soporte Prioritario</option>
-              <option value="Soporte Prioritario 24/7">Soporte Prioritario 24/7</option>
-            </select>
-          </div>
-
-          {/* Payment Methods Checkbox Allowances */}
-          <div className="space-y-1.5 p-3.5 bg-[#1C1C2E]/40 rounded-xl border border-brand-border/20 text-left">
-            <label className="text-[11px] font-bold uppercase text-gray-450 tracking-wider block">Canales de Pago Habilitados para Adquirir este Plan</label>
-            <div className="flex gap-4 mt-1">
-              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={allowTransfermovil}
-                  onChange={(e) => setAllowTransfermovil(e.target.checked)}
-                  className="rounded text-[#534AB7] focus:ring-[#7F77DD] w-4 h-4"
-                />
-                Transfermóvil CUP/MLC
-              </label>
-
-              <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={allowQvapay}
-                  onChange={(e) => setAllowQvapay(e.target.checked)}
-                  className="rounded text-[#534AB7] focus:ring-[#7F77DD] w-4 h-4"
-                />
-                QvaPay
-              </label>
-            </div>
-          </div>
-
-          {/* Dynamic Benefits Bullet Builder */}
-          <div className="space-y-2 text-left">
-            <label className="text-[11px] font-bold uppercase text-gray-450 tracking-wider block">Beneficios / Atributos del Plan (Por Puntos)</label>
+        <form onSubmit={handlePlanFormSubmit} className="space-y-6 pt-2 text-white">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             
-            {/* Array Items display */}
-            <div className="flex flex-wrap gap-1.5 min-h-[40px] p-2 border border-brand-border/40 rounded-xl bg-[#1C1C2E]/40">
-              {benefitsList.length === 0 ? (
-                <span className="text-[10px] text-gray-500 italic m-auto">No hay beneficios cargados. Agrega uno abajo.</span>
-              ) : (
-                benefitsList.map((benefit, idx) => (
-                  <span 
-                    key={idx}
-                    className="flex items-center gap-1 text-[10px] font-semibold bg-[#534AB7]/25 text-[#8D84F7] border border-[#534AB7]/30 rounded-lg px-2 py-0.5"
+            {/* Left Column: Identity & Billing */}
+            <div className="space-y-5 pr-1">
+              <h3 className="text-xs font-bold uppercase text-[#8D84F7] tracking-wider border-b border-white/10 pb-2 flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7F77DD]"></span>
+                Identidad y Facturación
+              </h3>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input 
+                  label="Nombre del Plan"
+                  placeholder="Ej. Gratis, Pro, Elite"
+                  value={pName}
+                  onChange={(e) => setPName(e.target.value)}
+                  themeMode="dark"
+                  required
+                />
+
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Insignia de Perfil</label>
+                  <select
+                    value={pBadgeType}
+                    onChange={(e) => setPBadgeType(e.target.value)}
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD] transition-all"
                   >
-                    <span>{idx + 1}. {benefit}</span>
-                    <button 
-                      type="button"
-                      onClick={() => handleRemoveBenefit(idx)}
-                      className="text-gray-400 hover:text-white cursor-pointer bg-transparent border-none p-0 flex items-center justify-center leading-none"
-                    >
-                      <X size={10} className="stroke-[3]" />
-                    </button>
-                  </span>
-                ))
-              )}
+                    <option value="Ninguno">Ninguno</option>
+                    <option value="Pro">Badge "Pro"</option>
+                    <option value="Elite">Badge "Elite"</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 text-left">
+                <label className="text-[11px] font-bold uppercase text-gray-405 tracking-wider block">Ciclo de Facturación Admitido</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPBillingCycle('monthly')}
+                    className={`py-2 px-1 border rounded-xl text-[11px] font-bold transition-all text-center cursor-pointer ${
+                      pBillingCycle === 'monthly'
+                        ? 'border-[#7F77DD] bg-[#534AB7]/20 text-[#8D84F7]'
+                        : 'border-brand-border/30 bg-[#1C1C2E] text-gray-400 hover:bg-brand-card'
+                    }`}
+                  >
+                    Solo Mensual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPBillingCycle('yearly')}
+                    className={`py-2 px-1 border rounded-xl text-[11px] font-bold transition-all text-center cursor-pointer ${
+                      pBillingCycle === 'yearly'
+                        ? 'border-[#7F77DD] bg-[#534AB7]/20 text-[#8D84F7]'
+                        : 'border-brand-border/30 bg-[#1C1C2E] text-gray-400 hover:bg-brand-card'
+                    }`}
+                  >
+                    Solo Anual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPBillingCycle('both')}
+                    className={`py-2 px-1 border rounded-xl text-[11px] font-bold transition-all text-center cursor-pointer ${
+                      pBillingCycle === 'both'
+                        ? 'border-[#7F77DD] bg-[#534AB7]/20 text-[#8D84F7]'
+                        : 'border-brand-border/30 bg-[#1C1C2E] text-gray-400 hover:bg-brand-card'
+                    }`}
+                  >
+                    Ambos Ciclos
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                {/* Show monthly input if monthly or both */}
+                {(pBillingCycle === 'monthly' || pBillingCycle === 'both') ? (
+                  <Input 
+                    label="Precio por Mes ($)"
+                    type="number"
+                    min="0"
+                    value={pPrice}
+                    onChange={(e) => setPPrice(Number(e.target.value))}
+                    themeMode="dark"
+                    required
+                  />
+                ) : <div className="hidden" />}
+
+                {/* Show yearly input if yearly or both */}
+                {(pBillingCycle === 'yearly' || pBillingCycle === 'both') ? (
+                  <Input 
+                    label="Precio al Año ($)"
+                    type="number"
+                    min="0"
+                    value={pPriceYearly}
+                    onChange={(e) => setPPriceYearly(Number(e.target.value))}
+                    themeMode="dark"
+                    required
+                  />
+                ) : <div className="hidden" />}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input 
+                  label="Límite Beats Publicados"
+                  type="number"
+                  min="1"
+                  value={pLimit}
+                  onChange={(e) => setPLimit(Number(e.target.value))}
+                  themeMode="dark"
+                  required
+                />
+
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Comisión sobre ventas (%)</label>
+                  <input
+                    type="number"
+                    value={0}
+                    disabled
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/20 bg-[#1C1C2E]/50 text-gray-500 text-xs rounded-xl cursor-not-allowed"
+                  />
+                  <span className="text-[9px] text-emerald-400 block font-medium mt-0.5">0% de comisión garantizada</span>
+                </div>
+              </div>
+
+              <div className="space-y-1 text-left">
+                <Input 
+                  label="Acción al Vencer la Vigencia del Plan"
+                  placeholder="Ej. Bloqueo total de venta hasta renovar o actualizar de plan"
+                  value={pOnPlanExpiryAction}
+                  onChange={(e) => setPOnPlanExpiryAction(e.target.value)}
+                  themeMode="dark"
+                  required
+                />
+              </div>
+
+              {/* Payment Methods Checkbox Allowances */}
+              <div className="space-y-2 p-4 bg-[#1C1C2E]/40 rounded-xl border border-brand-border/25 text-left">
+                <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Canales de Pago Habilitados</label>
+                <div className="flex gap-6 mt-1.5">
+                  <label className="flex items-center gap-2.5 text-xs font-semibold cursor-pointer select-none text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={allowTransfermovil}
+                      onChange={(e) => setAllowTransfermovil(e.target.checked)}
+                      className="rounded text-[#534AB7] focus:ring-[#7F77DD] w-4.5 h-4.5 bg-[#1C1C2E] border-brand-border/40"
+                    />
+                    Transfermóvil
+                  </label>
+
+                  <label className="flex items-center gap-2.5 text-xs font-semibold cursor-pointer select-none text-gray-300">
+                    <input
+                      type="checkbox"
+                      checked={allowQvapay}
+                      onChange={(e) => setAllowQvapay(e.target.checked)}
+                      className="rounded text-[#534AB7] focus:ring-[#7F77DD] w-4.5 h-4.5 bg-[#1C1C2E] border-brand-border/40"
+                    />
+                    QvaPay
+                  </label>
+                </div>
+              </div>
             </div>
 
-            {/* Add bullet inline control */}
-            <div className="flex gap-1.5">
-              <Input 
-                placeholder="Ej. Descargas ilimitadas o Acceso VIP..."
-                value={newBenefitInput}
-                onChange={(e) => setNewBenefitInput(e.target.value)}
-                themeMode="dark"
-                className="flex-grow"
-              />
-              <button
-                type="button"
-                onClick={handleAddBenefit}
-                className="px-3 bg-[#534AB7] text-white rounded-xl hover:bg-[#534AB7]/90 transition-colors flex items-center justify-center h-[38px] mt-0.5 shadow-sm text-xs font-bold gap-1 cursor-pointer"
-              >
-                <Plus size={14} />
-                Agregar
-              </button>
+            {/* Right Column: Limits & Advanced Settings */}
+            <div className="space-y-5 pl-1">
+              <h3 className="text-xs font-bold uppercase text-[#8D84F7] tracking-wider border-b border-white/10 pb-2 flex items-center gap-1.5 mb-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7F77DD]"></span>
+                Restricciones y Entrega
+              </h3>
+
+              {/* Stems & Allowed Formats row */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">¿Permitir Stems (Tracks)?</label>
+                  <select
+                    value={pStemsAllowed ? 'true' : 'false'}
+                    onChange={(e) => setPStemsAllowed(e.target.value === 'true')}
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD] transition-all"
+                  >
+                    <option value="false">❌ No permitido</option>
+                    <option value="true">✅ Permitido (Sí)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Formatos Permitidos</label>
+                  <select
+                    value={pAllowedFormats}
+                    onChange={(e) => setPAllowedFormats(e.target.value)}
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD] transition-all"
+                  >
+                    <option value="MP3">MP3</option>
+                    <option value="WAV">WAV</option>
+                    <option value="WAV + MP3">WAV + MP3</option>
+                    <option value="Todos (WAV, MP3, Stems)">Todos (WAV, MP3, Stems)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input 
+                  label="Librerías Permitidas (Cant.)"
+                  type="number"
+                  min="0"
+                  value={pLimitLibrariesCount}
+                  onChange={(e) => setPLimitLibrariesCount(Number(e.target.value))}
+                  themeMode="dark"
+                  required
+                />
+
+                <Input 
+                  label="Tamaño máx de c/u (MB)"
+                  type="number"
+                  min="0"
+                  value={pMaxLibrarySizeEach}
+                  onChange={(e) => setPMaxLibrarySizeEach(Number(e.target.value))}
+                  themeMode="dark"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Mensajería Directa</label>
+                  <select
+                    value={pDirectMessaging}
+                    onChange={(e) => setPDirectMessaging(e.target.value)}
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD] transition-all"
+                  >
+                    <option value="❌ Bloqueada">❌ Bloqueada</option>
+                    <option value="✅ Ilimitada">✅ Ilimitada</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Estadísticas / Analytics</label>
+                  <select
+                    value={pAnalyticsAccess ? 'true' : 'false'}
+                    onChange={(e) => setPAnalyticsAccess(e.target.value === 'true')}
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD] transition-all"
+                  >
+                    <option value="false">❌ Sin acceso</option>
+                    <option value="true">✅ Acceso completo</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Destacado en Landing Page</label>
+                  <select
+                    value={pFeatured ? 'true' : 'false'}
+                    onChange={(e) => setPFeatured(e.target.value === 'true')}
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD] transition-all"
+                  >
+                    <option value="false">❌ No destacado</option>
+                    <option value="true">⭐ Destacado (Sí)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1 text-left">
+                  <label className="text-[11px] font-bold uppercase text-gray-400 tracking-wider block">Servicio de Soporte</label>
+                  <select
+                    value={pSupport}
+                    onChange={(e) => setPSupport(e.target.value)}
+                    className="w-full h-[38px] px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD] transition-all"
+                  >
+                    <option value="Soporte Estándar">Soporte Estándar</option>
+                    <option value="Soporte Prioritario">Soporte Prioritario</option>
+                    <option value="Soporte 24/7">Soporte 24/7</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-4 bg-[#534AB7]/5 border border-[#534AB7]/10 rounded-xl space-y-2 mt-4 text-left">
+                <h4 className="text-[11px] font-bold uppercase text-[#8D84F7] tracking-wider">Acerca del Plan de Membresía</h4>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  Las restricciones y accesos configurados arriba se aplicarán automáticamente a los productores suscritos a este plan de manera inmediata.
+                </p>
+              </div>
             </div>
+
           </div>
 
-          {/* Regular Featured Boolean Toggle */}
-          <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer select-none text-gray-300 p-1 text-left">
-            <input 
-              type="checkbox"
-              checked={pFeatured}
-              onChange={(e) => setPFeatured(e.target.checked)}
-              className="rounded text-[#534AB7] focus:ring-[#7F77DD] w-4 h-4"
-            />
-            Destacar este plan en la portada (Borde de color y fijado como destacado)
-          </label>
-
-          <div className="flex justify-end gap-2 pt-3 border-t border-brand-border/20">
+          <div className="flex justify-end gap-2 pt-4 border-t border-brand-border/20">
             <Button variant="ghost" size="sm" type="button" onClick={() => setIsPlanModalOpen(false)}>
               Descartar
             </Button>
             <Button variant="primary" size="sm" type="submit">
-              {editingPlan ? 'Aplicar Modificaciones' : 'Crear de Forma Activa'}
+              {editingPlan ? 'Guardar Cambios' : 'Crear Plan de Membresía'}
             </Button>
           </div>
 
@@ -936,20 +1029,20 @@ export const AdminPlans: React.FC = () => {
         <form onSubmit={handleAddPaySubmit} className="space-y-4 pt-2 text-white">
           
           {/* Selected billing type */}
-          <div className="space-y-1 text-left">
-            <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider">Tipo de Canal de Cobro</label>
+          <div className="space-y-1.5 text-left">
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Tipo de Canal de Cobro</label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setPayType('transfermovil')}
+                onClick={() => setPayType('bancos')}
                 className={`py-2.5 px-3 border rounded-xl text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
-                  payType === 'transfermovil'
+                  payType === 'bancos' || (payType as string) === 'transfermovil'
                     ? 'border-[#7F77DD] bg-[#534AB7]/20 text-[#8D84F7]'
                     : 'border-brand-border/30 bg-[#1C1C2E] text-gray-400 hover:bg-brand-card'
                 }`}
               >
                 <Landmark size={15} />
-                Transfermóvil CUP/MLC
+                Bancos (TM / EnZona)
               </button>
 
               <button
@@ -968,10 +1061,29 @@ export const AdminPlans: React.FC = () => {
           </div>
 
           {/* DYNAMIC FORMS ACCORDING TO TYPE */}
-          {payType === 'transfermovil' ? (
+          {payType === 'bancos' || (payType as string) === 'transfermovil' ? (
             <div className="space-y-3.5 animate-in fade-in duration-150 text-left">
+              <div className="grid grid-cols-2 gap-3.5">
+                <Input
+                  label="Banco de Emisión"
+                  placeholder="ej. BANDEC, BPA, BANMET"
+                  value={tmBankName}
+                  onChange={(e) => setTmBankName(e.target.value)}
+                  themeMode="dark"
+                  required
+                />
+                <Input
+                  label="Nombre del Titular"
+                  placeholder="ej. D'Cuban Beats S.A."
+                  value={tmCardHolder}
+                  onChange={(e) => setTmCardHolder(e.target.value)}
+                  themeMode="dark"
+                  required
+                />
+              </div>
+
               <Input
-                label="Número de Cuenta / Tarjeta Administrador BCC/BPA (16 dígitos)"
+                label="Número de Cuenta / Tarjeta Administrador (16 dígitos)"
                 placeholder="9224 5501 ...."
                 value={tmCardNumber}
                 onChange={(e) => setTmCardNumber(e.target.value)}
@@ -979,22 +1091,22 @@ export const AdminPlans: React.FC = () => {
                 required
               />
 
-              <div className="grid grid-cols-2 gap-3.5">
-                <div className="space-y-1 text-left">
-                  <label className="text-[11px] font-bold uppercase text-gray-505 tracking-wider">Tipo de Moneda</label>
+              <div className="grid grid-cols-2 gap-3.5 items-end">
+                <div className="w-full text-left">
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Tipo de Moneda</label>
                   <select
                     value={tmCurrency}
                     onChange={(e) => setTmCurrency(e.target.value as any)}
-                    className="w-full px-3 py-2 border border-brand-border/40 bg-[#1C1C2E] text-white text-xs rounded-xl outline-none focus:border-[#7F77DD]"
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(127,119,221,0.2)] bg-[#1C1C2E] text-white text-sm outline-none focus:border-[#7F77DD] focus:ring-1 focus:ring-[#7F77DD]/35 transition-all duration-200 h-[42px]"
                   >
-                    <option value="CUP">CUP (Pesos Cubanos)</option>
-                    <option value="MLC">MLC (Moneda Libre Conv.)</option>
-                    <option value="Clasica">Clásica (Internacional)</option>
+                    <option value="CUP" className="bg-[#1C1C2E]">CUP</option>
+                    <option value="MLC" className="bg-[#1C1C2E]">MLC</option>
+                    <option value="Clasica" className="bg-[#1C1C2E]">Clasica</option>
                   </select>
                 </div>
 
                 <Input
-                  label="Teléfono Móvil de Recepción SMS"
+                  label="Teléfono Móvil a Confirmar"
                   placeholder="+53 52930211"
                   value={tmPhone}
                   onChange={(e) => setTmPhone(e.target.value)}
@@ -1003,10 +1115,37 @@ export const AdminPlans: React.FC = () => {
                 />
               </div>
 
+              {/* Gateway Checkboxes: Transfermovil & EnZona */}
+              <div className="space-y-1.5 p-3 bg-[#11111E] rounded-xl border border-white/5">
+                <label className="block text-xs font-semibold uppercase tracking-wider text-white/60">
+                  Pasarelas Autorizadas para esta Tarjeta:
+                </label>
+                <div className="flex gap-4 pt-1">
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={tmAcceptsTransfermovil}
+                      onChange={(e) => setTmAcceptsTransfermovil(e.target.checked)}
+                      className="w-4 h-4 rounded text-blue-500 bg-[#1C1C2E] border-white/20 accent-blue-500 cursor-pointer"
+                    />
+                    <span className="font-semibold text-blue-400">Transfermóvil</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs text-gray-200">
+                    <input
+                      type="checkbox"
+                      checked={tmAcceptsEnzona}
+                      onChange={(e) => setTmAcceptsEnzona(e.target.checked)}
+                      className="w-4 h-4 rounded text-emerald-500 bg-[#1C1C2E] border-white/20 accent-emerald-500 cursor-pointer"
+                    />
+                    <span className="font-semibold text-emerald-400">EnZona</span>
+                  </label>
+                </div>
+              </div>
+
               {/* QR Upload Section */}
               <div className="space-y-1.5 text-left">
-                <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Código QR de Cobro Escor (URL o Archivo)</label>
-                <div className="flex gap-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Código QR de Cobro (URL o Archivo)</label>
+                <div className="flex gap-2 items-center">
                   <div className="flex-grow">
                     <Input
                       placeholder="Dirección URL de la captura si ya la tienes..."
@@ -1015,7 +1154,7 @@ export const AdminPlans: React.FC = () => {
                       themeMode="dark"
                     />
                   </div>
-                  <div>
+                  <div className="flex-shrink-0">
                     <input
                       type="file"
                       accept="image/*"
@@ -1025,16 +1164,17 @@ export const AdminPlans: React.FC = () => {
                     />
                     <label
                       htmlFor="adm-tm-qr-picker"
-                      className="px-3 bg-[#534AB7]/20 text-[#7F77DD] border border-[#534AB7]/30 hover:bg-brand-card rounded-xl flex items-center justify-center cursor-pointer h-[38px] mt-0.5 shadow-sm"
+                      className="h-[42px] px-3.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/35 text-[#8D84F7] border border-[#534AB7]/40 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer text-xs font-bold transition-all shadow-sm flex-shrink-0 whitespace-nowrap"
                     >
-                      <Camera size={14} />
+                      <Camera size={15} />
+                      <span>Subir QR</span>
                     </label>
                   </div>
                 </div>
                 {tmQrUrl && (
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-2 flex items-center gap-2">
                     <span className="text-[10px] text-emerald-400 font-bold">✓ Captura cargada:</span>
-                    <img src={tmQrUrl} alt="TM Admin QR preview" referrerPolicy="no-referrer" className="w-8 h-8 object-cover rounded border border-brand-border/30" />
+                    <img src={tmQrUrl} alt="TM Admin QR preview" referrerPolicy="no-referrer" className="w-8 h-8 object-cover rounded-lg border border-white/10" />
                   </div>
                 )}
               </div>
@@ -1063,8 +1203,8 @@ export const AdminPlans: React.FC = () => {
 
               {/* QR Upload Section for QvaPay */}
               <div className="space-y-1.5 text-left">
-                <label className="text-[11px] font-bold uppercase text-gray-500 tracking-wider block">Código QR QvaPay (Opcional)</label>
-                <div className="flex gap-2">
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Código QR QvaPay (Opcional)</label>
+                <div className="flex gap-2 items-center">
                   <div className="flex-grow">
                     <Input
                       placeholder="Dirección URL de la captura si ya la tienes..."
@@ -1073,7 +1213,7 @@ export const AdminPlans: React.FC = () => {
                       themeMode="dark"
                     />
                   </div>
-                  <div>
+                  <div className="flex-shrink-0">
                     <input
                       type="file"
                       accept="image/*"
@@ -1083,16 +1223,17 @@ export const AdminPlans: React.FC = () => {
                     />
                     <label
                       htmlFor="adm-qp-qr-picker"
-                      className="px-3 bg-[#534AB7]/20 text-[#7F77DD] border border-[#534AB7]/30 hover:bg-brand-card rounded-xl flex items-center justify-center cursor-pointer h-[38px] mt-0.5 shadow-sm"
+                      className="h-[42px] px-3.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/35 text-[#8D84F7] border border-[#534AB7]/40 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer text-xs font-bold transition-all shadow-sm flex-shrink-0 whitespace-nowrap"
                     >
-                      <Camera size={14} />
+                      <Camera size={15} />
+                      <span>Subir QR</span>
                     </label>
                   </div>
                 </div>
                 {qpQrUrl && (
-                  <div className="mt-1 flex items-center gap-2">
+                  <div className="mt-2 flex items-center gap-2">
                     <span className="text-[10px] text-emerald-400 font-bold">✓ Captura cargada:</span>
-                    <img src={qpQrUrl} alt="QP Admin QR preview" referrerPolicy="no-referrer" className="w-8 h-8 object-cover rounded border border-brand-border/30" />
+                    <img src={qpQrUrl} alt="QP Admin QR preview" referrerPolicy="no-referrer" className="w-8 h-8 object-cover rounded-lg border border-white/10" />
                   </div>
                 )}
               </div>

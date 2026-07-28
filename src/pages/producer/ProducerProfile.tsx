@@ -3,6 +3,7 @@ import { useApp } from '../../store/AppContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { SecuritySettings } from '../../components/profile/SecuritySettings';
 import { 
   User, CheckCircle, Mail, Camera, FileText, Globe, 
   ExternalLink, Eye, Phone, MapPin, Upload, ShieldCheck, Lock, Check, ShieldAlert, AlertCircle
@@ -44,6 +45,7 @@ export const ProducerProfile: React.FC = () => {
   const [bio, setBio] = useState(user?.bio || 'Especialista en ritmos latinos y fusión caribeña.');
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [activeTab, setActiveTab] = useState<'profile' | 'security'>('profile');
 
   const handleProfileSave = (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,16 +110,17 @@ export const ProducerProfile: React.FC = () => {
   // KYC stepper simulation helpers
   const handleSimulateUpload = (field: 'frontImage' | 'backImage' | 'selfieImage') => {
     setUploadProgress(25);
+    let currentProgress = 25;
     const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setKycImage(field, 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg==');
-          addToast('Comprobante de documento de identidad cargado correctamente', 'success');
-          return 0;
-        }
-        return prev + 25;
-      });
+      currentProgress += 25;
+      if (currentProgress >= 100) {
+        clearInterval(interval);
+        setUploadProgress(0);
+        setKycImage(field, 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg==');
+        addToast('Comprobante de documento de identidad cargado correctamente', 'success');
+      } else {
+        setUploadProgress(currentProgress);
+      }
     }, 150);
   };
 
@@ -168,7 +171,24 @@ export const ProducerProfile: React.FC = () => {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      {/* Tabs */}
+      <div className="flex border-b border-brand-border/20 -mt-4 mb-2">
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`py-2 px-4 font-bold text-xs cursor-pointer transition-all border-b-2 -mb-[1px] ${activeTab === 'profile' ? 'border-[#7F77DD] text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+        >
+          Editar Perfil
+        </button>
+        <button
+          onClick={() => setActiveTab('security')}
+          className={`py-2 px-4 font-bold text-xs cursor-pointer transition-all border-b-2 -mb-[1px] ${activeTab === 'security' ? 'border-[#7F77DD] text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+        >
+          Seguridad
+        </button>
+      </div>
+
+      {activeTab === 'profile' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Left col: Editing forms */}
         <div className="lg:col-span-8 space-y-8">
@@ -691,6 +711,11 @@ export const ProducerProfile: React.FC = () => {
         </div>
 
       </div>
+      ) : (
+        <div className="bg-[#13131F]/20 p-1 rounded-2xl animate-in fade-in duration-200">
+          <SecuritySettings />
+        </div>
+      )}
 
     </div>
   );

@@ -3,12 +3,14 @@ import { useApp } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
+import { SecuritySettings } from '../../components/profile/SecuritySettings';
+import { LicensePDFView } from '../../components/beats/LicensePDFView';
 import { 
   User, CheckCircle, Music, Heart, Camera, FileText, 
   ShieldCheck, Upload, Download, Trash2, LayoutDashboard, 
   SlidersHorizontal, Check, Play, Pause, ShoppingCart, AlertCircle,
   Mail, Phone, Lock, MapPin, Globe, FileImage, LogOut,
-  Eye, Calendar, CreditCard, X, ExternalLink, Send
+  Eye, Calendar, CreditCard, X, ExternalLink, Send, Bell, Clock, MessageSquare
 } from 'lucide-react';
 
 // List of Cuban provinces for analytical geolocation stats mapping
@@ -55,10 +57,12 @@ export const ArtistDashboard: React.FC = () => {
     return verifiedProducersTask.filter(u => u.role === 'producer' && followedProducerIds.includes(u.id));
   }, [verifiedProducersTask, followedProducerIds]);
 
-  const [activeTab, setActiveTab] = useState<'desktop' | 'acquired' | 'favorites' | 'following' | 'profile'>('desktop');
+  const [activeTab, setActiveTab] = useState<'desktop' | 'acquired' | 'favorites' | 'following' | 'profile' | 'notifications'>('desktop');
+  const [profileSubTab, setProfileSubTab] = useState<'profile' | 'security'>('profile');
   const [selectedFollowingProducerId, setSelectedFollowingProducerId] = useState<string | null>(null);
   const [chatInputText, setChatInputText] = useState('');
   const [followingViewMode, setFollowingViewMode] = useState<'profile' | 'chat'>('profile');
+  const [selectedLicenseOrder, setSelectedLicenseOrder] = useState<any | null>(null);
 
   const activeFollowingProducer = useMemo(() => {
     if (followedProducers.length === 0) return null;
@@ -69,9 +73,14 @@ export const ArtistDashboard: React.FC = () => {
   // Mark messages from active following producer as read when chat is open
   useEffect(() => {
     if (activeTab === 'following' && followingViewMode === 'chat' && activeFollowingProducer && user) {
-      markMessagesAsRead(activeFollowingProducer.id, user.id);
+      const hasUnread = directMessages.some(
+        m => m.senderId === activeFollowingProducer.id && m.receiverId === user.id && !m.read
+      );
+      if (hasUnread) {
+        markMessagesAsRead(activeFollowingProducer.id, user.id);
+      }
     }
-  }, [activeTab, followingViewMode, activeFollowingProducer, user?.id, directMessages.length, markMessagesAsRead]);
+  }, [activeTab, followingViewMode, activeFollowingProducer?.id, user?.id, directMessages, markMessagesAsRead]);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -169,19 +178,36 @@ export const ArtistDashboard: React.FC = () => {
     return activeBeat?.id === beatId && isPlaying;
   };
 
+  // Download handler for acquired beats with active 24h window
+  const handleDownloadItem = (item: any) => {
+    const fileName = `${item.beat.title.replace(/\s+/g, '_')}_master.mp3`;
+    const targetUrl = item.beat.audioUrl || 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3';
+    
+    const link = document.createElement('a');
+    link.href = targetUrl;
+    link.download = fileName;
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    addToast(`Iniciando descarga de "${item.beat.title}"... Puedes realizar múltiples intentos durante las 24h activas.`, 'success');
+  };
+
   // Mock document uploading helper
   const handleSimulateUpload = (field: 'frontImage' | 'backImage' | 'selfieImage') => {
     setUploadProgress(25);
+    let currentProgress = 25;
     const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setKycImage(field, 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg==');
-          addToast('Comprobante de documento subido correctamente', 'success');
-          return 0;
-        }
-        return prev + 25;
-      });
+      currentProgress += 25;
+      if (currentProgress >= 100) {
+        clearInterval(interval);
+        setUploadProgress(0);
+        setKycImage(field, 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg==');
+        addToast('Comprobante de documento subido correctamente', 'success');
+      } else {
+        setUploadProgress(currentProgress);
+      }
     }, 150);
   };
 
@@ -391,6 +417,18 @@ export const ArtistDashboard: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('notifications')}
+          className={`px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer border-b-2 transition-all flex items-center gap-2 ${
+            activeTab === 'notifications' 
+              ? 'border-brand-primary text-white bg-white/5 rounded-t-xl' 
+              : 'border-transparent text-slate-400 hover:text-white hover:bg-white/2'
+          }`}
+        >
+          <Bell size={14} />
+          Notificaciones ({artistNotifications.filter(n => !n.read).length})
+        </button>
+
+        <button
           onClick={() => setActiveTab('profile')}
           className={`px-4 py-3 text-xs font-bold uppercase tracking-wider whitespace-nowrap cursor-pointer border-b-2 transition-all flex items-center gap-2 ${
             activeTab === 'profile' 
@@ -527,12 +565,12 @@ export const ArtistDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 2: ACQUIRED BEATS (WITH AUDIO ACTIONS) */}
+        {/* TAB 2: ACQUIRED BEATS (WITH AUDIO ACTIONS & 24H DOWNLOAD WINDOW) */}
         {activeTab === 'acquired' && (
           <div className="space-y-4 animate-in fade-in duration-200">
             <div className="border-b border-white/5 pb-2">
-              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Mis Beats Adquiridos</h3>
-              <p className="text-xs text-slate-400">Escucha tus instrumentales adquiridas oficialmente y revisa sus detalles.</p>
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">Mis Beats y Librerías Adquiridos</h3>
+              <p className="text-xs text-slate-400">Escucha tus instrumentales y descarga los archivos máster durante el plazo activo de 24 horas.</p>
             </div>
 
             {acquiredBeatsWithDetails.length === 0 ? (
@@ -545,43 +583,130 @@ export const ArtistDashboard: React.FC = () => {
                 </Button>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 {acquiredBeatsWithDetails.map((item, idx) => {
                   const playing = isCurrentPlaying(item.beat.id);
+                  const isLibrary = item.category === 'Librería de Sonidos';
+
+                  // Calculate 24-hour download window from approval timestamp
+                  const approvedAtTime = item.order.approvedAt 
+                    ? new Date(item.order.approvedAt).getTime() 
+                    : (item.order.date === 'Hace un momento' ? Date.now() : new Date(item.order.date).getTime() || Date.now());
+
+                  const now = Date.now();
+                  const hours24Ms = 24 * 60 * 60 * 1000;
+                  const timeRemainingMs = (approvedAtTime + hours24Ms) - now;
+                  const isDownloadAvailable = timeRemainingMs > 0;
+
+                  const hoursRemaining = Math.max(0, Math.floor(timeRemainingMs / (1000 * 60 * 60)));
+                  const minsRemaining = Math.max(0, Math.floor((timeRemainingMs % (1000 * 60 * 60)) / (1000 * 60)));
+
                   return (
                     <div 
                       key={idx} 
-                      className="bg-[#13131F] border border-brand-border/30 p-4 rounded-2xl flex items-center gap-4 hover:border-brand-primary/30 transition-all text-left"
+                      className="bg-[#13131F] border border-brand-border/30 p-4.5 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 hover:border-brand-primary/30 transition-all text-left"
                     >
-                      {/* Image art layout */}
-                      <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 group/cover">
-                        <img 
-                          src={item.beat.coverUrl} 
-                          alt="cover" 
-                          referrerPolicy="no-referrer"
-                          className="w-full h-full object-cover" 
-                        />
-                        <button
-                          onClick={() => playBeat(item.beat as any)}
-                          className="absolute inset-0 bg-black/45 flex items-center justify-center text-white transition-opacity duration-200 cursor-pointer"
-                        >
-                          {playing ? <Pause size={18} fill="currentColor" /> : <Play size={18} fill="currentColor" className="ml-0.5" />}
-                        </button>
+                      {/* Left: Cover Art & Metadata */}
+                      <div className="flex items-center gap-4 min-w-0 flex-1">
+                        <div className="relative w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 group/cover border border-white/10">
+                          <img 
+                            src={item.beat.coverUrl} 
+                            alt="cover" 
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover" 
+                          />
+                          <button
+                            type="button"
+                            onClick={() => playBeat(item.beat as any)}
+                            className="absolute inset-0 bg-black/50 hover:bg-black/60 flex items-center justify-center text-white transition-opacity duration-200 cursor-pointer"
+                            title={playing ? "Pausar previsualización" : "Escuchar previsualización de audio"}
+                          >
+                            {playing ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-0.5" />}
+                          </button>
+                        </div>
+
+                        <div className="flex-grow min-w-0 pr-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h4 className="text-sm font-bold text-white truncate max-w-[280px]">{item.beat.title}</h4>
+                            <span className={`text-[9px] uppercase font-bold px-1.5 py-0.5 rounded ${
+                              isLibrary
+                                ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
+                                : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'
+                            }`}>
+                              {item.category}
+                            </span>
+                          </div>
+                          
+                          <span className="text-xs text-slate-400 block mt-0.5">Productor: <strong className="text-slate-200">{item.beat.producerName}</strong></span>
+                          
+                          <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                            {item.beat.key && (
+                              <span className="text-[9px] font-mono text-indigo-400 px-1.5 py-0.5 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-md">
+                                {item.beat.key}
+                              </span>
+                            )}
+                            {item.beat.bpm && (
+                              <span className="text-[9px] font-mono text-amber-500 px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md">
+                                {item.beat.bpm} BPM
+                              </span>
+                            )}
+                            <span className="text-[9.5px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md">
+                              Pedido: {item.order.id}
+                            </span>
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Detail metadata block */}
-                      <div className="flex-grow min-w-0 pr-2">
-                        <span className="text-xs font-bold text-white block truncate">{item.beat.title}</span>
-                        <span className="text-[10px] text-slate-400 block mt-0.5">Prod: {item.beat.producerName}</span>
-                        
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="text-[9px] font-mono text-indigo-400 px-1.5 py-0.5 bg-[#534AB7]/10 border border-[#534AB7]/20 rounded-md">
-                            {item.beat.key}
-                          </span>
-                          <span className="text-[9px] font-mono text-amber-500 px-1.5 py-0.5 bg-amber-500/10 border border-amber-500/20 rounded-md">
-                            {item.beat.bpm} BPM
-                          </span>
-                        </div>
+                      {/* Right: Download Actions with 24h / 39h Window logic */}
+                      <div className="flex flex-col items-start md:items-end justify-center gap-2 border-t md:border-t-0 border-white/5 pt-3 md:pt-0 min-w-[240px]">
+                        {isDownloadAvailable ? (
+                          <>
+                            <div className="flex items-center gap-1.5 text-[10px] text-amber-300 font-mono font-bold bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-lg">
+                              <Clock size={12} className="text-amber-400 flex-shrink-0" />
+                              <span>Descarga activa: {hoursRemaining}h {minsRemaining}m restantes</span>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDownloadItem(item)}
+                              className="w-full md:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl cursor-pointer transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                            >
+                              <Download size={14} />
+                              <span>Descargar Máster Original (WAV)</span>
+                            </button>
+                            
+                            <span className="text-[9.5px] text-slate-400 italic">Múltiples intentos permitidos en {item.order.downloadWindowHours || 24}h</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="flex items-center gap-1.5 text-[10px] font-mono font-medium bg-red-500/10 border border-red-500/20 px-2.5 py-1 rounded-lg text-red-300">
+                              <AlertCircle size={12} className="text-red-400 flex-shrink-0" />
+                              <span>Plazo de descarga finalizado (Removido del storage)</span>
+                            </div>
+
+                            <p className="text-[10px] text-slate-400 text-left md:text-right max-w-[220px]">
+                              {item.order.hasSuccessfulDownload 
+                                ? 'El archivo máster WAV fue entregado y removido del almacenamiento. La previsualización en MP3 se mantiene disponible permanentemente.'
+                                : 'El plazo automático expiró. Contacta directamente a tu productor para recibir el archivo manualmente (WhatsApp/Telegram/Drive).'}
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const phone = item.beat.producerPhone || '+53 5 289 4012';
+                                const telegram = item.beat.producerTelegram || '@productor_dcubanbeats';
+                                const msg = `Hola ${item.beat.producerName}, compré el beat "${item.beat.title}" (Pedido ${item.order.id}) y requiero la entrega manual del archivo máster.`;
+                                window.open(`https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+                              }}
+                              className="w-full md:w-auto px-3.5 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white text-xs font-bold rounded-xl cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                            >
+                              <MessageSquare size={13} />
+                              <span>Contactar al Productor</span>
+                            </button>
+
+                            <span className="text-[9.5px] text-slate-400">Previsualización MP3 disponible permanentemente</span>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -687,191 +812,119 @@ export const ArtistDashboard: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 3.5: NOTIFICATION AND EMAIL AUDITING HUB (DEACTIVATED) */}
-        {false && activeTab === 'notifications' && (
-          <div className="space-y-6 animate-in fade-in duration-200">
-            {/* Split layout: left column for platform alerts, right column for simulated email/message routing */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              
-              {/* Left Side: Platform Notifications (12cols under md, 5cols on lg) */}
-              <div className="lg:col-span-5 bg-[#13131F] border border-brand-border/30 rounded-2xl p-5 text-left space-y-4 shadow-xl">
-                <div className="flex justify-between items-center pb-3 border-b border-white/5">
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <svg className="w-4 h-4 text-[#7F77DD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.02 6.02 0 00-1.65-3.6H14.1a1 1 0 00-1 1v.008a1 1 0 001 1v.39c0 .72-.51 1.4-1.25 1.4H11.5M15 17v1a3 3 0 11-6 0v-1m6 0H9" />
-                      </svg>
-                      Alertas de Plataforma
-                    </h3>
-                    <p className="text-[10.5px] text-slate-400 mt-0.5">Notificaciones recibidas en tiempo real</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {artistNotifications.some(n => !n.read) && (
-                      <button
-                        onClick={() => {
-                          markAllArtistNotificationsRead();
-                          addToast('Todas las alertas de artista han sido leídas', 'success');
-                        }}
-                        className="text-[9.5px] bg-[#534AB7]/10 hover:bg-[#534AB7]/20 text-[#7F77DD] border border-[#534AB7]/25 px-2 py-0.5 rounded-lg font-bold transition-all cursor-pointer"
-                      >
-                        Marcar leídas
-                      </button>
-                    )}
+        {/* TAB 3.5: NOTIFICATION HUB (ACTIVATED) */}
+        {activeTab === 'notifications' && (
+          <div className="space-y-6 animate-in fade-in duration-200 max-w-3xl mx-auto">
+            {/* Platform Notifications list */}
+            <div className="bg-[#13131F] border border-brand-border/30 rounded-2xl p-6 text-left space-y-4 shadow-xl">
+              <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-3 border-b border-white/5 gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Bell className="w-4 h-4 text-[#7F77DD]" />
+                    Notificaciones de Plataforma
+                  </h3>
+                  <p className="text-[10.5px] text-slate-400 mt-0.5">Alertas recibidas en tiempo real sobre tus compras, cuenta y lanzamientos</p>
+                </div>
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                  {artistNotifications.some(n => !n.read) && (
                     <button
                       onClick={() => {
-                        clearArtistNotifications();
-                        addToast('Historial vaciado correctamente', 'info');
+                        markAllArtistNotificationsRead();
+                        addToast('Todas las alertas de artista han sido leídas', 'success');
                       }}
-                      className="text-[9.5px] text-slate-400 hover:text-red-400 transition-colors bg-transparent border-none cursor-pointer"
+                      className="text-[9.5px] bg-[#534AB7]/10 hover:bg-[#534AB7]/20 text-[#7F77DD] border border-[#534AB7]/25 px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer"
                     >
-                      Limpiar
+                      Marcar todas como leídas
                     </button>
-                  </div>
-                </div>
-
-                {artistNotifications.length === 0 ? (
-                  <div className="py-12 text-center text-slate-400 space-y-2">
-                    <svg className="mx-auto text-slate-600 h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0a2 2 0 01-2 2H6a2 2 0 01-2-2m16 0V9a2 2 0 00-2-2H6a2 2 0 00-2 2v2.5M10 13a4 4 0 008 0M10 13a4 4 0 00-8 0" />
-                    </svg>
-                    <p className="text-xs">No tienes notificaciones por el momento.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2.5 max-h-[500px] overflow-y-auto pr-1">
-                    {artistNotifications.map((notif) => (
-                      <div
-                        key={notif.id}
-                        onClick={() => markArtistNotificationRead(notif.id)}
-                        className={`p-3 rounded-xl border transition-all cursor-pointer flex items-start gap-2.5 ${
-                          notif.read
-                            ? 'bg-[#181829]/30 border-white/5 opacity-70 hover:opacity-100 hover:bg-[#181829]/50'
-                            : 'bg-[#534AB7]/5 border-[#534AB7]/20 hover:border-[#7F77DD]/35 ring-1 ring-[#534AB7]/5'
-                        }`}
-                      >
-                        <div className={`p-1.5 rounded-lg flex-shrink-0 mt-0.5 ${
-                          notif.type === 'kyc_status'
-                            ? notif.title.includes('bloquea') || notif.title.includes('Suspendida') || notif.title.includes('Infracción')
-                              ? 'bg-red-500/10 text-red-400'
-                              : 'bg-teal-500/10 text-teal-400'
-                            : notif.type === 'new_release'
-                              ? 'bg-indigo-500/10 text-[#7F77DD]'
-                              : 'bg-emerald-500/10 text-emerald-400'
-                        }`}>
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                        <div className="flex-grow min-w-0 space-y-0.5">
-                          <div className="flex justify-between items-center gap-1">
-                            <span className="text-xs font-bold text-white truncate block">{notif.title}</span>
-                            <span className="text-[8.5px] text-slate-500 font-mono whitespace-nowrap">{notif.timestamp}</span>
-                          </div>
-                          <p className="text-[10.5px] text-slate-300 leading-relaxed">{notif.description}</p>
-                          {notif.senderName && (
-                            <span className="text-[9px] text-[#7F77DD]/80 font-semibold block mt-1">
-                              De: {notif.senderName} ({notif.senderRole === 'producer' ? 'Productor' : 'Administración'})
-                            </span>
-                          )}
-                        </div>
-                        {!notif.read && (
-                          <span className="w-1.5 h-1.5 bg-[#7F77DD] rounded-full self-center animate-pulse" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Right Side: Simulated Email Client & Dispatch Audit */}
-              <div className="lg:col-span-7 bg-[#13131F] border border-brand-border/30 rounded-2xl p-5 text-left space-y-4 shadow-xl">
-                <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-3 border-b border-white/5 gap-2">
-                  <div>
-                    <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                      <svg className="w-4 h-4 text-[#7F77DD]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                      </svg>
-                      Bandeja de Correo Electrónico Simulado
-                    </h3>
-                    <p className="text-[10.5px] text-slate-400 mt-0.5">Comprobante y auditoría de notificaciones externas mandadas por email</p>
-                  </div>
+                  )}
                   <button
                     onClick={() => {
-                      clearSimulatedEmails();
-                      addToast('Bandeja de emails vaciada', 'info');
+                      clearArtistNotifications();
+                      addToast('Historial vaciado correctamente', 'info');
                     }}
-                    className="text-[9.5px] text-slate-400 hover:text-red-400 self-start sm:self-center transition-colors bg-transparent border-none cursor-pointer"
+                    className="text-[9.5px] text-slate-400 hover:text-red-400 transition-colors bg-transparent border-none cursor-pointer"
                   >
-                    Vaciar Buzón
+                    Limpiar Historial
                   </button>
                 </div>
-
-                {/* Filter Settings for simulated emails */}
-                <div className="p-3 bg-[#0C0C14] border border-white/5 rounded-xl space-y-2 text-xs flex flex-col justify-between">
-                  <div className="flex items-center gap-2 text-slate-300">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
-                    <strong>Filtrado por Artista:</strong> <span className="text-indigo-300 font-mono text-[10px]">{user?.email}</span>
-                  </div>
-                  <p className="text-[10px] text-slate-400 leading-normal">
-                    Aquí se visualizan los correos electrónicos entregados simulando la conexión oficial. No requiere conexión a servidores SMTP reales (ideal para pruebas).
-                  </p>
-                </div>
-
-                {/* Simulated emails list renderer */}
-                {simulatedEmails.filter(e => e.to === (user?.email || '')).length === 0 ? (
-                  <div className="py-12 text-center text-slate-400 space-y-2">
-                    <svg className="mx-auto text-slate-600 h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M3 19v-8.93a2 2 0 01.89-1.664l8-5.333a2 2 0 012.22 0l8 5.333A2 2 0 0121 11.07V19M3 19a2 2 0 002 2h14a2 2 0 002-2M3 19l6.75-4.5M21 19l-6.75-4.5M3 10l6.75 4.5M21 10l-6.75 4.5m0 0l-2.22-1.48a2 2 0 00-2.22 0L9.75 14.5" />
-                    </svg>
-                    <p className="text-xs">No hay correos correspondientes a tu dirección en este momento.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-1">
-                    {simulatedEmails
-                      .filter(e => e.to === (user?.email || ''))
-                      .map((mail) => (
-                        <div
-                          key={mail.id}
-                          onClick={() => {
-                            if (!mail.read) {
-                              markSimulatedEmailRead(mail.id);
-                            }
-                          }}
-                          className={`p-4 rounded-xl border text-left transition-all ${
-                            mail.read
-                              ? 'bg-black/20 border-white/5 opacity-85 hover:opacity-100'
-                              : 'bg-indigo-950/20 border-indigo-500/20 ring-1 ring-indigo-500/10'
-                          }`}
-                        >
-                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-white/5 pb-2 mb-2 gap-1.5">
-                            <div>
-                              <span className="text-[10px] text-slate-450 uppercase font-mono tracking-wider block">De: D'Cuban Beats (Notificaciones Automáticas)</span>
-                              <span className="text-[10px] text-slate-400 font-sans block">Para: <strong className="text-indigo-300 font-mono">{mail.to}</strong></span>
-                            </div>
-                            <span className="text-[8.5px] text-slate-500 font-mono bg-black/40 px-2 py-0.5 rounded-lg">{mail.timestamp}</span>
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <h4 className="text-xs font-bold text-white flex items-center gap-1.5">
-                              {!mail.read && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}
-                              {mail.subject}
-                            </h4>
-                            <p className="text-[11px] text-slate-300 whitespace-pre-wrap leading-relaxed bg-[#0A0A10] p-3 rounded-xl border border-white/5 font-mono">
-                              {mail.body}
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                )}
               </div>
 
+              {artistNotifications.length === 0 ? (
+                <div className="py-16 text-center text-slate-400 space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center mx-auto text-slate-600">
+                    <Bell size={24} />
+                  </div>
+                  <p className="text-xs">No tienes notificaciones por el momento.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5 max-h-[550px] overflow-y-auto pr-1">
+                  {artistNotifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      onClick={() => markArtistNotificationRead(notif.id)}
+                      className={`p-4 rounded-xl border transition-all cursor-pointer flex items-start gap-3.5 ${
+                        notif.read
+                          ? 'bg-[#181829]/30 border-white/5 opacity-70 hover:opacity-100 hover:bg-[#181829]/50'
+                          : 'bg-[#534AB7]/5 border-[#534AB7]/20 hover:border-[#7F77DD]/35 ring-1 ring-[#534AB7]/5'
+                      }`}
+                    >
+                      <div className={`p-2 rounded-lg flex-shrink-0 mt-0.5 ${
+                        notif.type === 'kyc_status'
+                          ? notif.title.includes('bloquea') || notif.title.includes('Suspendida') || notif.title.includes('Infracción')
+                            ? 'bg-red-500/10 text-red-400'
+                            : 'bg-teal-500/10 text-teal-400'
+                          : notif.type === 'new_release'
+                            ? 'bg-indigo-500/10 text-[#7F77DD]'
+                            : 'bg-emerald-500/10 text-emerald-400'
+                      }`}>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                      <div className="flex-grow min-w-0 space-y-1">
+                        <div className="flex justify-between items-center gap-1.5">
+                          <span className="text-xs font-bold text-white truncate block">{notif.title}</span>
+                          <span className="text-[9px] text-slate-500 font-mono whitespace-nowrap">{notif.timestamp}</span>
+                        </div>
+                        <p className="text-[11px] text-slate-300 leading-relaxed">{notif.description}</p>
+                        {notif.senderName && (
+                          <span className="text-[9px] text-[#7F77DD]/85 font-semibold block mt-1.5 font-sans">
+                            De: {notif.senderName} ({notif.senderRole === 'producer' ? 'Productor' : 'Administración'})
+                          </span>
+                        )}
+                      </div>
+                      {!notif.read && (
+                        <span className="w-1.5 h-1.5 bg-[#7F77DD] rounded-full self-center animate-pulse flex-shrink-0" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* TAB 4: PROFILE SETTINGS & KYC */}
         {activeTab === 'profile' && (
-          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start animate-in fade-in duration-200">
+          <div className="space-y-6">
+            {/* Sub-tabs for profile */}
+            <div className="flex border-b border-brand-border/20 mb-2">
+              <button
+                onClick={() => setProfileSubTab('profile')}
+                className={`py-2 px-4 font-bold text-xs cursor-pointer transition-all border-b-2 -mb-[1px] ${profileSubTab === 'profile' ? 'border-[#7F77DD] text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+              >
+                Ajustes de Perfil
+              </button>
+              <button
+                onClick={() => setProfileSubTab('security')}
+                className={`py-2 px-4 font-bold text-xs cursor-pointer transition-all border-b-2 -mb-[1px] ${profileSubTab === 'security' ? 'border-[#7F77DD] text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
+              >
+                Seguridad
+              </button>
+            </div>
+
+            {profileSubTab === 'profile' ? (
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start animate-in fade-in duration-200">
             {/* Left Column: Profile Settings Form */}
             <form 
               onSubmit={handleSaveProfile} 
@@ -1326,7 +1379,13 @@ export const ArtistDashboard: React.FC = () => {
               )}
             </div>
           </div>
-        )}
+          ) : (
+            <div className="bg-[#13131F]/20 p-1 rounded-2xl animate-in fade-in duration-200">
+              <SecuritySettings />
+            </div>
+          )}
+        </div>
+      )}
 
         {/* TAB 5: LIST OF FOLLOWED PRODUCERS (SIGUIENDO) */}
         {activeTab === 'following' && (
@@ -1878,59 +1937,13 @@ export const ArtistDashboard: React.FC = () => {
                   variant="primary" 
                   size="xs" 
                   onClick={() => {
-                    const beat = beats.find(b => b.id === order.beatId) || beats.find(b => b.title === order.beatTitle);
-                    
-                    const customLicense = beat?.customLicenseClause || `PARTE 1: LICENCIA DEL PRODUCTOR
-- El productor otorga una licencia de uso para grabar voces e interpretar sobre esta instrumental.
-- Se autoriza la distribución digital de la obra resultante bajo los créditos indicados (Prod. ${order.producerName || 'Productor D\'Cuban Beats'}).`;
-
-                    const platformLicense = `PARTE 2: TÉRMINOS Y CONDICIONES DE LA PLATAFORMA (NO MODIFICABLES)
-D'Cuban Beats actúa como intermediario legal y certifica la validez de esta transacción. La plataforma garantiza el derecho de uso legítimo de la maqueta descargada y se reserva el derecho de auditar el origen lícito de la transacción en caso de controversias de propiedad intelectual. Esta licencia incluye la firma digital de la plataforma y se emite de forma definitiva con los datos del comprobante de pago verificado por la administración.`;
-
-                    const paymentDetails = `PARTE 3: COMPROBANTE Y VERIFICACIÓN DE PAGO (RECIBO DE TRANSACCIÓN)
-- ID del Pedido / Licencia: ${order.id}
-- Instrumental Adquirida: ${order.beatTitle}
-- Nombre del Artista (Comprador): ${order.buyerName}
-- Nombre del Productor: ${order.producerName}
-- Monto Verificado: ${order.amount.toLocaleString()} ${order.currency}
-- Pasarela de Pago: ${order.method}
-- ID de Referencia Externa: ${order.transactionId || 'N/D'}
-- Fecha de Liquidación: ${order.date}
-- Estatus del Pago: VERIFICADO Y APROBADO POR ADMINISTRACIÓN`;
-
-                    const textContent = `======================================================================
-                   LICENCIA DE USO OFICIAL - D'CUBAN BEATS
-======================================================================
-
-${customLicense}
-
-----------------------------------------------------------------------
-${platformLicense}
-
-----------------------------------------------------------------------
-${paymentDetails}
-
-======================================================================
-© ${new Date().getFullYear()} D'Cuban Beats. Todos los derechos reservados.
-Firma Digital del Servidor: SECURE_HASH_${order.id}_VERIFIED
-======================================================================`;
-
-                    const blob = new Blob([textContent], { type: 'text/plain;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `Licencia_DCubanBeats_${order.beatTitle.replace(/\s+/g, '_')}.txt`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-
-                    addToast(`¡Descargando certificado de licencia oficial para "${order.beatTitle}"!`, 'success');
+                    setSelectedLicenseOrder(order);
+                    setSelectedTransactionDetails(null);
                   }}
                   className="bg-[#534AB7] hover:bg-[#685FCD] text-white flex items-center gap-1.5"
                 >
                   <Download size={13} />
-                  Descargar Licencia & PDF
+                  Ver / Descargar Licencia (PDF)
                 </Button>
               </div>
 
@@ -1938,6 +1951,19 @@ Firma Digital del Servidor: SECURE_HASH_${order.id}_VERIFIED
           </div>
         );
       })()}
+
+      {/* Printable License Modal Overlay */}
+      {selectedLicenseOrder && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 no-print animate-in fade-in duration-200">
+          <div className="w-full max-w-4xl max-h-[90vh] overflow-hidden rounded-3xl">
+            <LicensePDFView
+              order={selectedLicenseOrder}
+              beat={beats.find(b => b.id === selectedLicenseOrder.beatId)}
+              onClose={() => setSelectedLicenseOrder(null)}
+            />
+          </div>
+        </div>
+      )}
 
     </div>
   );

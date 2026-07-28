@@ -14,16 +14,17 @@ export const KycPage: React.FC = () => {
   // Helper mock upload
   const simulateUpload = (field: 'frontImage' | 'backImage' | 'selfieImage') => {
     setUploadProgress(20);
+    let currentProgress = 20;
     const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
-          setKycImage(field, 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg==');
-          addToast('Documento subido correctamente', 'success');
-          return 0;
-        }
-        return prev + 20;
-      });
+      currentProgress += 20;
+      if (currentProgress >= 100) {
+        clearInterval(interval);
+        setUploadProgress(0);
+        setKycImage(field, 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg==');
+        addToast('Documento subido correctamente', 'success');
+      } else {
+        setUploadProgress(currentProgress);
+      }
     }, 150);
   };
 

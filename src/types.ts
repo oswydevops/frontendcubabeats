@@ -12,6 +12,9 @@ export interface Beat {
   coverUrl: string;
   audioUrl: string;
   audioFileName?: string;
+  wavFileName?: string;
+  masterFlacUrl?: string;
+  previewMp3Url?: string;
   status: 'available' | 'sold';
   plays: number;
   downloads: number;
@@ -25,6 +28,12 @@ export interface Beat {
   customLicenseClause?: string;
   stemsUrl?: string;
   stemsFileName?: string;
+  isSoundLibrary?: boolean;
+  fileCount?: number;
+  librarySizeMB?: number;
+  libraryFileName?: string;
+  isBlockedByPlan?: boolean;
+  keepInFreePlan?: boolean;
 }
 
 export interface User {
@@ -55,6 +64,14 @@ export interface User {
   lastActive?: string;
   salesRestricted?: boolean;
   planDaysElapsed?: number;
+  planStatus?: 'plan_activo' | 'plan_vencido_seleccionar_beats' | 'plan_en_gracia' | 'plan_expirado_sin_contenido';
+  planGraceDaysRemaining?: number;
+  selectedFreeBeatIds?: string[];
+  isCollaborator?: boolean;
+  username?: string;
+  password?: string;
+  twoFactorEnabled?: boolean;
+  twoFactorSecret?: string;
 }
 
 export interface CartItem {
@@ -62,6 +79,8 @@ export interface CartItem {
   beat: Beat;
   licenseType: 'basic' | 'exclusive';
   price: number;
+  addedAt?: string;
+  selected?: boolean;
 }
 
 export interface Order {
@@ -69,17 +88,30 @@ export interface Order {
   beatId: string;
   beatTitle: string;
   buyerName: string;
+  buyerEmail?: string;
   producerId: string;
   producerName: string;
+  producerPhone?: string;
+  producerTelegram?: string;
   amount: number;
-  currency: 'CUP' | 'MLC' | 'USDT';
+  currency: 'CUP' | 'MLC' | 'CLASICA' | 'USD' | 'USDT';
   method: 'Transfermovil' | 'EnZona' | 'Tarjeta Clásica' | 'QvaPay';
-  status: 'pending' | 'verified' | 'approved' | 'rejected';
+  status: 'pending' | 'verified' | 'approved' | 'rejected' | 'disputed';
   date: string;
-  transactionId?: string;
-  verificationSMS?: string;
-  receiptUrl?: string;
+  createdAt?: string;
+  approvedAt?: string;
+  downloadAttempts?: number;
+  hasSuccessfulDownload?: boolean;
+  downloadWindowHours?: number; // 24 or 39
+  transactionId: string; // Mandatory ID
+  verificationSMS?: string; // Optional SMS content
+  receiptUrl: string; // Mandatory screenshot/voucher
   downloadUrl?: string;
+  // Immutable exchange rate snapshot
+  exchangeRateUsed: number;
+  amountUSD: number;
+  amountConverted: number;
+  rateFrozenAt: string;
 }
 
 export interface PaymentGatewayConfig {
@@ -93,6 +125,23 @@ export interface PaymentGatewayConfig {
   appId?: string;
 }
 
+export interface AdminPaymentMethod {
+  id: string;
+  type: 'transfermovil' | 'qvapay' | 'bancos';
+  cardNumber?: string;
+  currencyType?: 'CUP' | 'MLC' | 'Clasica' | 'USD';
+  bankName?: string;
+  cardHolder?: string;
+  phoneConfirm?: string;
+  qrScreenshot?: string;
+  qvapayEmail?: string;
+  qvapayUser?: string;
+  qrQvapayScreenshot?: string;
+  acceptsTransfermovil?: boolean;
+  acceptsEnzona?: boolean;
+  active: boolean;
+}
+
 export interface Plan {
   id: string;
   name: string;
@@ -101,11 +150,19 @@ export interface Plan {
   billingCycleType?: 'monthly' | 'yearly' | 'both';
   limit: number; // beat count limit
   commission?: number; // percentage
-  support: 'Soporte Estándar' | 'Soporte Prioritario' | 'Soporte Prioritario 24/7' | 'Sin Soporte';
+  support: string;
   featured: boolean;
   benefits: string[];
   allowedPaymentMethods?: string[]; // methods like 'transfermovil', 'qvapay'
-  maxSoundLibrarySize?: number; // max size of sound libraries in MB
+  maxSoundLibrarySize?: number; // max size of sound libraries in MB (legacy)
+  limitLibrariesCount?: number; // 0, 2, 5
+  maxLibrarySizeEach?: number; // in MB, e.g. 150, 200
+  directMessaging?: string; // 'blocked', 'unlimited', etc.
+  analyticsAccess?: boolean; // access to stats
+  badgeType?: string; // 'none', 'Pro', 'Elite'
+  onPlanExpiryAction?: string; // Action when plan validity expires
+  stemsAllowed?: boolean; // stems support (true/false)
+  allowedFormats?: string; // allowed formats description, e.g. 'MP3', 'WAV'
 }
 
 export interface ExchangeRates {
@@ -171,5 +228,56 @@ export interface DirectMessage {
   text: string;
   timestamp: string;
   read: boolean;
+}
+
+export interface PlanRequest {
+  id: string;
+  producerId: string;
+  producerName: string;
+  planId: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  transactionId: string;
+  receiptUrl: string;
+  status: 'pending' | 'approved' | 'rejected';
+  date: string;
+  // Immutable exchange rate snapshot
+  exchangeRateUsed?: number;
+  amountUSD?: number;
+  amountConverted?: number;
+  rateFrozenAt?: string;
+  paymentMethodType?: 'transfermovil' | 'enzona' | 'qvapay' | string;
+  verificationSMS?: string;
+}
+
+export interface ProducerPaymentMethod {
+  id: string;
+  type: 'transfermovil' | 'qvapay' | 'enzona';
+  cardNumber?: string;
+  currencyType?: 'Clasica' | 'CUP' | 'MLC';
+  titularName?: string;
+  phoneConfirm?: string;
+  qrScreenshot?: string;
+  qvapayEmail?: string;
+  qvapayUser?: string;
+  qrQvapayScreenshot?: string;
+  enzonaUser?: string;
+  active: boolean;
+  producerId?: string;
+  acceptsTransfermovil?: boolean;
+  acceptsEnzona?: boolean;
+}
+
+export interface SupportMessage {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: 'client' | 'producer';
+  senderType: 'user' | 'support';
+  text: string;
+  timestamp: string;
+  readBySupport: boolean;
+  readByUser: boolean;
 }
 

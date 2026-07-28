@@ -8,69 +8,51 @@ import {
   CreditCard, Landmark, Wallet, Check, Settings, ShieldCheck, 
   Trash2, Plus, QrCode, Camera, Info, HelpCircle
 } from 'lucide-react';
-
-interface PaymentMethodItem {
-  id: string;
-  type: 'transfermovil' | 'qvapay' | 'enzona';
-  // transfermovil fields
-  cardNumber?: string;
-  currencyType?: 'Clasica' | 'CUP' | 'MLC';
-  phoneConfirm?: string;
-  qrScreenshot?: string;
-  // qvapay fields
-  qvapayEmail?: string;
-  qvapayUser?: string;
-  qrQvapayScreenshot?: string;
-  // enzona fields
-  enzonaUser?: string;
-  titularName?: string;
-  active: boolean;
-  producerId?: string;
-}
+import { ProducerPaymentMethod } from '../../types';
 
 export const ProducerPaymentMethods: React.FC = () => {
   const { addToast, producerPaymentMethods, setProducerPaymentMethods, user } = useApp();
 
-  const producerId = user?.id || 'carlos_producer';
+  const isAdmin = user?.role === 'admin';
+  const producerId = user?.id || (isAdmin ? 'admin' : 'carlos_producer');
   const methods = producerPaymentMethods.filter(m => m.producerId === producerId);
 
-  const setMethods = (newMethods: PaymentMethodItem[]) => {
+  const setMethods = (newMethods: ProducerPaymentMethod[]) => {
     const otherMethods = producerPaymentMethods.filter(m => m.producerId !== producerId);
     setProducerPaymentMethods([...otherMethods, ...newMethods]);
   };
 
   // Modal control states
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedType, setSelectedType] = useState<'transfermovil' | 'qvapay' | 'enzona'>('transfermovil');
+  const [selectedGateway, setSelectedGateway] = useState<'bancos' | 'qvapay'>('bancos');
 
-  // Form states for Transfermovil
-  const [tmCardNumber, setTmCardNumber] = useState('');
-  const [tmCurrencyType, setTmCurrencyType] = useState<'Clasica' | 'CUP' | 'MLC'>('CUP');
-  const [tmPhoneConfirm, setTmPhoneConfirm] = useState('');
-  const [tmQrUrl, setTmQrUrl] = useState('');
+  // Form states for Bancos
+  const [acceptsTransfermovil, setAcceptsTransfermovil] = useState(true);
+  const [acceptsEnzona, setAcceptsEnzona] = useState(true);
+  const [bankCardNumber, setBankCardNumber] = useState('');
+  const [bankCurrencyType, setBankCurrencyType] = useState<'Clasica' | 'CUP' | 'MLC'>('CUP');
+  const [bankPhoneConfirm, setBankPhoneConfirm] = useState('');
+  const [bankTitularName, setBankTitularName] = useState('');
+  const [bankQrUrl, setBankQrUrl] = useState('');
 
   // Form states for Qvapay
   const [qpEmail, setQpEmail] = useState('');
   const [qpUsername, setQpUsername] = useState('');
   const [qpQrUrl, setQpQrUrl] = useState('');
 
-  // Form states for EnZona
-  const [ezUsername, setEzUsername] = useState('');
-  const [ezTitularName, setEzTitularName] = useState('');
-  const [ezQrUrl, setEzQrUrl] = useState('');
-
   const handleOpenAddModal = () => {
     // Reset Form Fields
-    setTmCardNumber('');
-    setTmCurrencyType('CUP');
-    setTmPhoneConfirm('');
-    setTmQrUrl('');
+    setSelectedGateway('bancos');
+    setAcceptsTransfermovil(true);
+    setAcceptsEnzona(true);
+    setBankCardNumber('');
+    setBankCurrencyType('CUP');
+    setBankPhoneConfirm('');
+    setBankTitularName('');
+    setBankQrUrl('');
     setQpEmail('');
     setQpUsername('');
     setQpQrUrl('');
-    setEzUsername('');
-    setEzTitularName('');
-    setEzQrUrl('');
     
     setIsAddModalOpen(true);
   };
@@ -78,49 +60,40 @@ export const ProducerPaymentMethods: React.FC = () => {
   const handleAddMethodSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (selectedType === 'transfermovil') {
-      if (!tmCardNumber || !tmPhoneConfirm) {
-        addToast('Por favor, ingresa los campos requeridos para Transfermóvil', 'error');
+    if (selectedGateway === 'bancos') {
+      if (!acceptsTransfermovil && !acceptsEnzona) {
+        addToast('Debes seleccionar al menos un canal bancario (Transfermóvil o EnZona)', 'error');
         return;
       }
-      const newMethod: PaymentMethodItem = {
+      if (!bankCardNumber || !bankPhoneConfirm || !bankTitularName) {
+        addToast('Por favor, ingresa los campos requeridos de la tarjeta (Número, Titular y Teléfono)', 'error');
+        return;
+      }
+      const newMethod: ProducerPaymentMethod = {
         id: `meth_${Date.now()}`,
-        type: 'transfermovil',
-        cardNumber: tmCardNumber,
-        currencyType: tmCurrencyType,
-        phoneConfirm: tmPhoneConfirm,
-        qrScreenshot: tmQrUrl || 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
+        type: acceptsTransfermovil ? 'transfermovil' : 'enzona',
+        cardNumber: bankCardNumber,
+        currencyType: bankCurrencyType,
+        phoneConfirm: bankPhoneConfirm,
+        titularName: bankTitularName,
+        qrScreenshot: bankQrUrl || 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
+        acceptsTransfermovil,
+        acceptsEnzona,
         active: true,
         producerId
       };
       setMethods([...methods, newMethod]);
-      addToast('Método Transfermóvil agregado correctamente', 'success');
-    } else if (selectedType === 'enzona') {
-      if (!ezUsername || !ezTitularName) {
-        addToast('Por favor, ingresa los campos requeridos para EnZona', 'error');
-        return;
-      }
-      const newMethod: PaymentMethodItem = {
-        id: `meth_${Date.now()}`,
-        type: 'enzona',
-        enzonaUser: ezUsername,
-        titularName: ezTitularName,
-        qrScreenshot: ezQrUrl || 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
-        active: true,
-        producerId
-      };
-      setMethods([...methods, newMethod]);
-      addToast('Cuenta EnZona agregada correctamente', 'success');
+      addToast('Tarjeta bancaria agregada correctamente', 'success');
     } else {
       if (!qpEmail || !qpUsername) {
-        addToast('Por favor, ingresa los campos requeridos para QvaPay', 'error');
+        addToast('Por favor, ingresa los campos requeridos para QvaPay (Correo y Usuario)', 'error');
         return;
       }
-      const newMethod: PaymentMethodItem = {
+      const newMethod: ProducerPaymentMethod = {
         id: `meth_${Date.now()}`,
         type: 'qvapay',
         qvapayEmail: qpEmail,
-        qvapayUser: qpUsername,
+        qvapayUser: qpUsername.replace(/^@/, ''),
         qrQvapayScreenshot: qpQrUrl || 'https://images.unsplash.com/photo-1595079676339-1534801ad6cf?q=80&w=300&auto=format&fit=crop',
         active: true,
         producerId
@@ -134,7 +107,7 @@ export const ProducerPaymentMethods: React.FC = () => {
 
   const handleDeleteMethod = (id: string) => {
     setMethods(methods.filter(m => m.id !== id));
-    addToast('Método de pago eliminado de D\'Cuban Beats', 'info');
+    addToast('Método de pago eliminado', 'info');
   };
 
   const handleToggleActive = (id: string) => {
@@ -145,9 +118,14 @@ export const ProducerPaymentMethods: React.FC = () => {
   const handleLocalFileSelect = (e: React.ChangeEvent<HTMLInputElement>, fieldSetter: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (file) {
-      const tempUrl = URL.createObjectURL(file);
-      fieldSetter(tempUrl);
-      addToast('Captura de pantalla QR cargada temporalmente', 'success');
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          fieldSetter(event.target.result as string);
+          addToast('Captura de pantalla QR cargada correctamente', 'success');
+        }
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -158,10 +136,13 @@ export const ProducerPaymentMethods: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/40 pb-4">
         <div>
           <h2 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-            <Settings className="text-[#7F77DD] animate-spin-slow" /> Métodos de Pago Locales
+            <Settings className="text-[#7F77DD]" /> 
+            {isAdmin ? 'Métodos de Cobro Oficiales (Admin)' : 'Métodos de Pago Locales (Productor)'}
           </h2>
           <p className="text-xs text-gray-400">
-            Cuentas habilitadas de cobro directo para procesar Transfermóvil, EnZona y QvaPay.
+            {isAdmin 
+              ? 'Cuentas bancarias y QvaPay donde los productores pagarán la suscripción de sus planes.' 
+              : 'Cuentas habilitadas de cobro directo para procesar Transfermóvil, EnZona y QvaPay.'}
           </p>
         </div>
 
@@ -178,143 +159,144 @@ export const ProducerPaymentMethods: React.FC = () => {
             <CreditCard size={32} className="mx-auto text-gray-400" />
             <h4 className="font-bold text-white text-sm">No has configurado ningún método de cobro</h4>
             <p className="text-xs text-gray-400 max-w-sm mx-auto">
-              Necesitas registrar al menos una tarjeta de Transfermóvil o cuenta QvaPay para habilitar la compra de tus beats.
+              {isAdmin 
+                ? 'Registra tus tarjetas o cuenta QvaPay para recibir los pagos de suscripción de los productores.'
+                : 'Necesitas registrar al menos una tarjeta o cuenta QvaPay para habilitar la venta de tus beats.'}
             </p>
             <Button variant="ghost" size="sm" onClick={handleOpenAddModal}>
-              Configurar Mi Primer Método Now
+              Configurar Método de Cobro
             </Button>
           </div>
         ) : (
-          methods.map((meth) => (
-            <div 
-              key={meth.id}
-              className={`bg-brand-surface rounded-2xl border p-5 shadow-sm space-y-4 flex flex-col justify-between transition-all ${
-                meth.active ? 'border-brand-border/50' : 'border-brand-border/40 opacity-60'
-              }`}
-            >
-              <div className="space-y-3">
-                {/* Card Brand Row */}
-                <div className="flex justify-between items-center pb-2 border-b border-brand-border/20">
-                  <div className="flex items-center gap-2">
-                    {meth.type === 'transfermovil' ? (
-                      <>
-                        <div className="p-2 bg-[#534AB7]/20 text-[#7F77DD] rounded-xl">
-                          <Landmark size={18} />
+          methods.map((meth) => {
+            const isBank = meth.type === 'transfermovil' || meth.type === 'enzona' || !!meth.cardNumber;
+
+            return (
+              <div 
+                key={meth.id}
+                className={`bg-brand-surface rounded-2xl border p-5 shadow-sm space-y-4 flex flex-col justify-between transition-all ${
+                  meth.active ? 'border-brand-border/50' : 'border-brand-border/40 opacity-60'
+                }`}
+              >
+                <div className="space-y-3">
+                  {/* Card Brand Row */}
+                  <div className="flex justify-between items-center pb-2 border-b border-brand-border/20">
+                    <div className="flex items-center gap-2">
+                      {isBank ? (
+                        <>
+                          <div className="p-2 bg-[#534AB7]/20 text-[#7F77DD] rounded-xl">
+                            <Landmark size={18} />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-white block leading-none">Bancos</span>
+                              <div className="flex gap-1">
+                                {(meth.acceptsTransfermovil !== false) && (
+                                  <span className="text-[9px] bg-[#534AB7]/30 text-[#7F77DD] px-1.5 py-0.5 rounded font-bold">Transfermóvil</span>
+                                )}
+                                {(meth.acceptsEnzona !== false || meth.type === 'enzona') && (
+                                  <span className="text-[9px] bg-emerald-950/40 text-emerald-400 px-1.5 py-0.5 rounded font-bold">EnZona</span>
+                                )}
+                              </div>
+                            </div>
+                            <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold block mt-1">Tarjeta de Débito Cuba</span>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <div className="p-2 bg-cyan-950/20 text-cyan-400 rounded-xl">
+                            <Wallet size={18} />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-white block leading-none">QvaPay</span>
+                            <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Monedas digitales globales</span>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase select-none ${
+                      meth.active ? 'bg-emerald-950/20 text-emerald-400 border border-emerald-900/30' : 'bg-brand-card/40 text-gray-400'
+                    }`}>
+                      {meth.active ? 'Activo' : 'Pausado'}
+                    </span>
+                  </div>
+
+                  {/* Content body based on properties */}
+                  {isBank ? (
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex justify-between text-gray-400">
+                        <span>Tarjeta:</span>
+                        <strong className="font-mono text-white">{meth.cardNumber}</strong>
+                      </div>
+                      <div className="flex justify-between text-gray-400">
+                        <span>Moneda admisible:</span>
+                        <strong className="text-white font-bold uppercase">{meth.currencyType}</strong>
+                      </div>
+                      {meth.titularName && (
+                        <div className="flex justify-between text-gray-400">
+                          <span>Titular:</span>
+                          <strong className="text-white font-semibold">{meth.titularName}</strong>
                         </div>
-                        <div>
-                          <span className="text-xs font-bold text-white block leading-none">Transfermóvil</span>
-                          <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Tarjeta de Débito Cuba</span>
-                        </div>
-                      </>
-                    ) : meth.type === 'enzona' ? (
-                      <>
-                        <div className="p-2 bg-emerald-950/20 text-emerald-400 rounded-xl">
-                          <CreditCard size={18} />
-                        </div>
-                        <div>
-                          <span className="text-xs font-bold text-white block leading-none">EnZona</span>
-                          <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Transferencias EnZona CUP</span>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div className="p-2 bg-cyan-950/20 text-cyan-400 rounded-xl">
-                          <Wallet size={18} />
-                        </div>
-                        <div>
-                          <span className="text-xs font-bold text-white block leading-none">QvaPay</span>
-                          <span className="text-[9px] text-gray-400 uppercase tracking-widest font-bold">Monedas digitales globales</span>
-                        </div>
-                      </>
+                      )}
+                      <div className="flex justify-between text-gray-400">
+                        <span>Teléfono de Confirmación:</span>
+                        <strong className="font-mono text-indigo-200">{meth.phoneConfirm}</strong>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 text-xs">
+                      <div className="flex justify-between text-gray-400">
+                        <span>Correo Cuenta QvaPay:</span>
+                        <strong className="font-semibold text-white">{meth.qvapayEmail}</strong>
+                      </div>
+                      <div className="flex justify-between text-gray-400">
+                        <span>Nombre de Usuario QvaPay:</span>
+                        <strong className="font-mono text-[#7F77DD]">@{meth.qvapayUser}</strong>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cover attachment placeholder display */}
+                  <div className="flex items-center gap-2.5 p-2 bg-brand-card/40 border border-brand-border/20 rounded-xl text-left">
+                    <QrCode size={16} className="text-gray-400" />
+                    <div className="flex-grow">
+                      <span className="text-[10.5px] font-bold text-gray-200 block">Fotografía QR adjunta</span>
+                      <span className="text-[9px] text-gray-450 font-medium">Verificada para visualización directa del pagador.</span>
+                    </div>
+                    {(meth.qrScreenshot || meth.qrQvapayScreenshot) && (
+                      <img 
+                        src={meth.qrScreenshot || meth.qrQvapayScreenshot} 
+                        alt="Thumbnail mini" 
+                        referrerPolicy="no-referrer"
+                        className="w-10 h-10 object-cover rounded-md border border-brand-border/40" 
+                      />
                     )}
                   </div>
-
-                  <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase select-none ${
-                    meth.active ? 'bg-emerald-950/20 text-emerald-400 border border-emerald-900/30' : 'bg-brand-card/40 text-gray-400'
-                  }`}>
-                    {meth.active ? 'Activo' : 'Pausado'}
-                  </span>
                 </div>
 
-                {/* Content body based on properties */}
-                {meth.type === 'transfermovil' ? (
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between text-gray-400">
-                      <span>Tarjeta:</span>
-                      <strong className="font-mono text-white">{meth.cardNumber}</strong>
-                    </div>
-                    <div className="flex justify-between text-gray-400">
-                      <span>Moneda admisible:</span>
-                      <strong className="text-white font-bold uppercase">{meth.currencyType}</strong>
-                    </div>
-                    <div className="flex justify-between text-gray-400">
-                      <span>Móvil SMS Confirmación:</span>
-                      <strong className="font-mono text-indigo-200">{meth.phoneConfirm}</strong>
-                    </div>
-                  </div>
-                ) : meth.type === 'enzona' ? (
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between text-gray-400">
-                      <span>Titular Code / Nombre:</span>
-                      <strong className="font-semibold text-white">{meth.titularName}</strong>
-                    </div>
-                    <div className="flex justify-between text-gray-400">
-                      <span>ID Usuario EnZona:</span>
-                      <strong className="font-mono text-[#7F77DD]">{meth.enzonaUser}</strong>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="space-y-1.5 text-xs">
-                    <div className="flex justify-between text-gray-400">
-                      <span>Correo Cuenta QvaPay:</span>
-                      <strong className="font-semibold text-white">{meth.qvapayEmail}</strong>
-                    </div>
-                    <div className="flex justify-between text-gray-400">
-                      <span>Nombre de Usuario QvaPay:</span>
-                      <strong className="font-mono text-[#7F77DD]">@{meth.qvapayUser}</strong>
-                    </div>
-                  </div>
-                )}
+                {/* Action buttons row */}
+                <div className="flex justify-between items-center pt-3 border-t border-brand-border/20">
+                  <button
+                    onClick={() => handleToggleActive(meth.id)}
+                    className="text-xs font-semibold text-gray-400 hover:text-[#7F77DD] transition-colors bg-transparent border-none cursor-pointer"
+                  >
+                    {meth.active ? 'Desactivar cobranza' : 'Activar cobranza'}
+                  </button>
 
-                {/* Cover attachment placeholder display */}
-                <div className="flex items-center gap-2.5 p-2 bg-brand-card/40 border border-brand-border/20 rounded-xl text-left">
-                  <QrCode size={16} className="text-gray-400" />
-                  <div className="flex-grow">
-                    <span className="text-[10.5px] font-bold text-gray-200 block">Fotografía QR adjunta</span>
-                    <span className="text-[9px] text-gray-450 font-medium">Verificada para visualización directa del intérprete.</span>
-                  </div>
-                  {(meth.qrScreenshot || meth.qrQvapayScreenshot) && (
-                    <img 
-                      src={meth.qrScreenshot || meth.qrQvapayScreenshot} 
-                      alt="Thumbnail mini" 
-                      referrerPolicy="no-referrer"
-                      className="w-10 h-10 object-cover rounded-md border border-brand-border/40" 
-                    />
-                  )}
+                  <button
+                    onClick={() => handleDeleteMethod(meth.id)}
+                    className="p-1 px-2.5 text-red-400 border border-red-900/40 hover:bg-red-950/20 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px]"
+                    title="Eliminar método"
+                  >
+                    <Trash2 size={12} />
+                    Remover
+                  </button>
                 </div>
+
               </div>
-
-              {/* Action buttons row */}
-              <div className="flex justify-between items-center pt-3 border-t border-brand-border/20">
-                <button
-                  onClick={() => handleToggleActive(meth.id)}
-                  className="text-xs font-semibold text-gray-400 hover:text-[#7F77DD] transition-colors bg-transparent border-none cursor-pointer"
-                >
-                  {meth.active ? 'Desactivar cobranza' : 'Activar cobranza'}
-                </button>
-
-                <button
-                  onClick={() => handleDeleteMethod(meth.id)}
-                  className="p-1 px-2.5 text-red-400 border border-red-900/40 hover:bg-red-950/20 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 text-[11px]"
-                  title="Eliminar método"
-                >
-                  <Trash2 size={12} />
-                  Remover
-                </button>
-              </div>
-
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 
@@ -324,193 +306,164 @@ export const ProducerPaymentMethods: React.FC = () => {
         <div className="space-y-1">
           <span className="text-xs font-bold text-amber-200 block">¿Cómo funcionan los pagos directos en D'Cuban Beats?</span>
           <p className="text-[11px] text-amber-300 leading-relaxed font-sans">
-            Cuando un cantante adquiere tu beat, recibirá en su pantalla tu número de tarjeta, tipo de moneda y el código QR de cobro que configures aquí. La transferencia llega directa a tu cuenta bancaria y liberas el archivo validando el SMS de confirmación. Todo sin intermediarios.
+            {isAdmin 
+              ? 'Cuando un productor adquiere un plan de membresía, verá tu tarjeta bancaria o cuenta QvaPay. Al realizar la transferencia, subirá su comprobante e ID de transacción para tu verificación manual.'
+              : 'Cuando un cantante adquiere tu beat, recibirá en su pantalla tu tarjeta bancaria o cuenta QvaPay. La transferencia llega directa a tu cuenta y liberas el archivo validando el SMS o comprobante de pago.'}
           </p>
         </div>
       </div>
 
-      {/* ADD PAYMENT WAY MODAL */}
+      {/* ADD PAYMENT METHOD MODAL */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Configurar Nuevo Método de Cobro Local"
+        title="Configurar Nuevo Método de Cobro"
         themeMode="dark"
         maxWidth="max-w-md"
       >
         <form onSubmit={handleAddMethodSubmit} className="space-y-4 text-left pt-2 text-white bg-brand-surface">
           
-          {/* Method Selector Option Toggle */}
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase text-gray-400 tracking-wider">Tipo de Pasarela / Canal de Cobro</label>
-            <div className="grid grid-cols-3 gap-2">
+          {/* Gateway Selector Toggle - ONLY BANCOS & QVAPAY */}
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Tipo de Pasarela / Canal de Cobro</label>
+            <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
-                onClick={() => setSelectedType('transfermovil')}
-                className={`py-3 px-2 rounded-xl border font-bold text-[10px] sm:text-xs flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
-                  selectedType === 'transfermovil'
+                onClick={() => setSelectedGateway('bancos')}
+                className={`py-2.5 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
+                  selectedGateway === 'bancos'
                     ? 'border-[#534AB7] bg-[#534AB7]/20 text-[#7F77DD]'
                     : 'border-brand-border bg-brand-card text-gray-400 hover:bg-brand-surface'
                 }`}
               >
-                <Landmark size={18} />
-                Transfermóvil
+                <Landmark size={15} />
+                Bancos
               </button>
 
               <button
                 type="button"
-                onClick={() => setSelectedType('enzona')}
-                className={`py-3 px-2 rounded-xl border font-bold text-[10px] sm:text-xs flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
-                  selectedType === 'enzona'
+                onClick={() => setSelectedGateway('qvapay')}
+                className={`py-2.5 px-3 rounded-xl border font-bold text-xs flex items-center justify-center gap-1.5 transition-all text-center cursor-pointer ${
+                  selectedGateway === 'qvapay'
                     ? 'border-[#534AB7] bg-[#534AB7]/20 text-[#7F77DD]'
                     : 'border-brand-border bg-brand-card text-gray-400 hover:bg-brand-surface'
                 }`}
               >
-                <CreditCard size={18} />
-                EnZona CUP
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSelectedType('qvapay')}
-                className={`py-3 px-2 rounded-xl border font-bold text-[10px] sm:text-xs flex flex-col items-center gap-1.5 transition-all text-center cursor-pointer ${
-                  selectedType === 'qvapay'
-                    ? 'border-[#534AB7] bg-[#534AB7]/20 text-[#7F77DD]'
-                    : 'border-brand-border bg-brand-card text-gray-400 hover:bg-brand-surface'
-                }`}
-              >
-                <Wallet size={18} />
+                <Wallet size={15} />
                 QvaPay
               </button>
             </div>
           </div>
 
-          {/* DYNAMIC FORMS ACCORDING TO TYPE */}
-          {selectedType === 'transfermovil' ? (
+          {/* DYNAMIC FORMS ACCORDING TO SELECTION */}
+          {selectedGateway === 'bancos' ? (
             <div className="space-y-3.5 animate-in fade-in duration-200">
               
+              {/* Checkboxes for Transfermovil / Enzona */}
+              <div className="p-3 bg-brand-card/60 border border-brand-border/30 rounded-xl space-y-2">
+                <span className="block text-xs font-semibold uppercase tracking-wider text-white/60">Canales Habilitados para esta Tarjeta:</span>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                    <input 
+                      type="checkbox"
+                      checked={acceptsTransfermovil}
+                      onChange={(e) => setAcceptsTransfermovil(e.target.checked)}
+                      className="w-4 h-4 rounded border-brand-border accent-[#534AB7] cursor-pointer"
+                    />
+                    <span className="font-semibold text-blue-400">Transfermóvil</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs text-white cursor-pointer select-none">
+                    <input 
+                      type="checkbox"
+                      checked={acceptsEnzona}
+                      onChange={(e) => setAcceptsEnzona(e.target.checked)}
+                      className="w-4 h-4 rounded border-brand-border accent-[#534AB7] cursor-pointer"
+                    />
+                    <span className="font-semibold text-emerald-400">EnZona</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Number of Card */}
               <Input
-                label="Número de la Tarjeta de Débito (16 Dígitos)"
-                placeholder="9225 1204 ...."
-                value={tmCardNumber}
-                onChange={(e) => setTmCardNumber(e.target.value)}
+                label="Número de la Tarjeta (Válida para Bandec, Metropolitano o BPA)"
+                placeholder="ej. 9225 1204 8839 2101"
+                value={bankCardNumber}
+                onChange={(e) => setBankCardNumber(e.target.value)}
                 themeMode="dark"
                 required
               />
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1 text-left">
-                  <label className="text-xs font-semibold uppercase text-gray-400 tracking-wider">Tipo de Moneda</label>
+              <div className="grid grid-cols-2 gap-3.5 items-end">
+                {/* Currency selector */}
+                <div className="w-full text-left">
+                  <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Tipo de Moneda</label>
                   <select
-                    value={tmCurrencyType}
-                    onChange={(e) => setTmCurrencyType(e.target.value as any)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-brand-border bg-brand-card text-white focus:border-[#534AB7] focus:ring-1 focus:ring-[#534AB7]/20 text-xs outline-none"
+                    value={bankCurrencyType}
+                    onChange={(e) => setBankCurrencyType(e.target.value as any)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[rgba(127,119,221,0.2)] bg-[#1C1C2E] text-white text-sm outline-none focus:border-[#7F77DD] focus:ring-1 focus:ring-[#7F77DD]/35 transition-all duration-200 h-[42px]"
                   >
-                    <option value="CUP" className="bg-brand-surface">CUP (Pesos Cubanos)</option>
-                    <option value="MLC" className="bg-brand-surface">MLC (Moneda Libre Convert.)</option>
-                    <option value="Clasica" className="bg-brand-surface">Clásica (Internacional)</option>
+                    <option value="CUP" className="bg-brand-surface">CUP</option>
+                    <option value="MLC" className="bg-brand-surface">MLC</option>
+                    <option value="Clasica" className="bg-brand-surface">Clasica</option>
                   </select>
                 </div>
 
+                {/* Phone Confirmation */}
                 <Input
-                  label="Teléfono a Confirmar SMS"
-                  placeholder="+53 52839401"
-                  value={tmPhoneConfirm}
-                  onChange={(e) => setTmPhoneConfirm(e.target.value)}
+                  label="Teléfono Móvil a Confirmar"
+                  placeholder="ej. +53 52839401"
+                  value={bankPhoneConfirm}
+                  onChange={(e) => setBankPhoneConfirm(e.target.value)}
                   themeMode="dark"
                   required
                 />
               </div>
 
+              {/* Name and two surnames */}
+              <Input
+                label="Nombre y Dos Apellidos del Titular"
+                placeholder="ej. Carlos Juan Santana López"
+                value={bankTitularName}
+                onChange={(e) => setBankTitularName(e.target.value)}
+                themeMode="dark"
+                required
+              />
+
               {/* QR Upload Section */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase text-gray-400 tracking-wider block">Captura de Pantalla del QR de la Tarjeta (Opcional)</label>
-                <div className="flex gap-2">
+              <div className="space-y-1.5 text-left">
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Captura de Pantalla del QR de la Tarjeta</label>
+                <div className="flex gap-2 items-center">
                   <div className="flex-grow">
                     <Input
-                      placeholder="Dirección URL de la captura si ya la tienes..."
-                      value={tmQrUrl}
-                      onChange={(e) => setTmQrUrl(e.target.value)}
+                      placeholder="URL de la captura o adjunta archivo..."
+                      value={bankQrUrl}
+                      onChange={(e) => setBankQrUrl(e.target.value)}
                       themeMode="dark"
                     />
                   </div>
-                  <div>
+                  <div className="flex-shrink-0">
                     <input
                       type="file"
                       accept="image/*"
-                      id="tm-qr-file-picker"
+                      id="bank-qr-file-picker"
                       className="hidden"
-                      onChange={(e) => handleLocalFileSelect(e, setTmQrUrl)}
+                      onChange={(e) => handleLocalFileSelect(e, setBankQrUrl)}
                     />
                     <label
-                      htmlFor="tm-qr-file-picker"
-                      className="px-3.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/30 text-[#7F77DD] border border-[#534AB7]/35 rounded-xl flex items-center justify-center cursor-pointer h-[42px] mt-0.5"
+                      htmlFor="bank-qr-file-picker"
+                      className="h-[42px] px-3.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/35 text-[#8D84F7] border border-[#534AB7]/40 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold text-xs transition-all shadow-sm flex-shrink-0 whitespace-nowrap"
                     >
-                      <Camera size={14} />
+                      <Camera size={15} />
+                      <span>Subir QR</span>
                     </label>
                   </div>
                 </div>
-                {tmQrUrl && (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-[10px] text-emerald-450 font-bold">✓ Captura cargada:</span>
-                    <img src={tmQrUrl} alt="TM QR preview" referrerPolicy="no-referrer" className="w-10 h-10 object-cover rounded border border-brand-border/40" />
-                  </div>
-                )}
-              </div>
-
-            </div>
-          ) : selectedType === 'enzona' ? (
-            <div className="space-y-3.5 animate-in fade-in duration-200">
-              
-              <Input
-                label="Nombre de Usuario EnZona"
-                placeholder="ej. carlitoflow"
-                value={ezUsername}
-                onChange={(e) => setEzUsername(e.target.value)}
-                themeMode="dark"
-                required
-              />
-
-              <Input
-                label="Nombre del Titular"
-                placeholder="ej. Carlos Santana"
-                value={ezTitularName}
-                onChange={(e) => setEzTitularName(e.target.value)}
-                themeMode="dark"
-                required
-              />
-
-              {/* QR Upload Section for EnZona */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase text-gray-400 tracking-wider block">Captura de QR EnZona (Opcional)</label>
-                <div className="flex gap-2">
-                  <div className="flex-grow">
-                    <Input
-                      placeholder="Dirección URL de la captura si ya la tienes..."
-                      value={ezQrUrl}
-                      onChange={(e) => setEzQrUrl(e.target.value)}
-                      themeMode="dark"
-                    />
-                  </div>
-                  <div>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      id="ez-qr-file-picker"
-                      className="hidden"
-                      onChange={(e) => handleLocalFileSelect(e, setEzQrUrl)}
-                    />
-                    <label
-                      htmlFor="ez-qr-file-picker"
-                      className="px-3.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/30 text-[#7F77DD] border border-[#534AB7]/35 rounded-xl flex items-center justify-center cursor-pointer h-[42px] mt-0.5"
-                    >
-                      <Camera size={14} />
-                    </label>
-                  </div>
-                </div>
-                {ezQrUrl && (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-[10px] text-emerald-450 font-bold">✓ Captura cargada:</span>
-                    <img src={ezQrUrl} alt="EZ QR preview" referrerPolicy="no-referrer" className="w-10 h-10 object-cover rounded border border-brand-border/40" />
+                {bankQrUrl && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] text-emerald-400 font-bold">✓ Captura cargada:</span>
+                    <img src={bankQrUrl} alt="Bank QR preview" referrerPolicy="no-referrer" className="w-8 h-8 object-cover rounded-lg border border-brand-border/40" />
                   </div>
                 )}
               </div>
@@ -520,7 +473,7 @@ export const ProducerPaymentMethods: React.FC = () => {
             <div className="space-y-3.5 animate-in fade-in duration-200">
               
               <Input
-                label="Correo de Cuenta QvaPay"
+                label="Correo de la Cuenta QvaPay"
                 placeholder="ejemplo@qvapay.com"
                 type="email"
                 value={qpEmail}
@@ -530,7 +483,7 @@ export const ProducerPaymentMethods: React.FC = () => {
               />
 
               <Input
-                label="Usuario de la Cuenta QvaPay (Sin @)"
+                label="Nombre de Usuario de la Cuenta QvaPay"
                 placeholder="ej. carlitos_flow"
                 value={qpUsername}
                 onChange={(e) => setQpUsername(e.target.value)}
@@ -539,18 +492,18 @@ export const ProducerPaymentMethods: React.FC = () => {
               />
 
               {/* QR Upload Section for QvaPay */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-semibold uppercase text-gray-400 tracking-wider block">Captura de QR de tu Cuenta QvaPay (Opcional)</label>
-                <div className="flex gap-2">
+              <div className="space-y-1.5 text-left">
+                <label className="block text-xs font-semibold uppercase tracking-wider mb-2 text-white/60">Captura de Pantalla del QR de la Cuenta QvaPay</label>
+                <div className="flex gap-2 items-center">
                   <div className="flex-grow">
                     <Input
-                      placeholder="Dirección URL de la captura si ya la tienes..."
+                      placeholder="URL de la captura o adjunta archivo..."
                       value={qpQrUrl}
                       onChange={(e) => setQpQrUrl(e.target.value)}
                       themeMode="dark"
                     />
                   </div>
-                  <div>
+                  <div className="flex-shrink-0">
                     <input
                       type="file"
                       accept="image/*"
@@ -560,16 +513,17 @@ export const ProducerPaymentMethods: React.FC = () => {
                     />
                     <label
                       htmlFor="qp-qr-file-picker"
-                      className="px-3.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/30 text-[#7F77DD] border border-[#534AB7]/35 rounded-xl flex items-center justify-center cursor-pointer h-[42px] mt-0.5"
+                      className="h-[42px] px-3.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/35 text-[#8D84F7] border border-[#534AB7]/40 rounded-xl flex items-center justify-center gap-1.5 cursor-pointer font-bold text-xs transition-all shadow-sm flex-shrink-0 whitespace-nowrap"
                     >
-                      <Camera size={14} />
+                      <Camera size={15} />
+                      <span>Subir QR</span>
                     </label>
                   </div>
                 </div>
                 {qpQrUrl && (
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-[10px] text-emerald-450 font-bold">✓ Captura cargada:</span>
-                    <img src={qpQrUrl} alt="QP QR preview" referrerPolicy="no-referrer" className="w-10 h-10 object-cover rounded border border-brand-border/40" />
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] text-emerald-400 font-bold">✓ Captura cargada:</span>
+                    <img src={qpQrUrl} alt="QP QR preview" referrerPolicy="no-referrer" className="w-8 h-8 object-cover rounded-lg border border-brand-border/40" />
                   </div>
                 )}
               </div>

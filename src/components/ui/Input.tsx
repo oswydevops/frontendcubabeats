@@ -38,6 +38,7 @@ export const Input: React.FC<InputProps> = ({
           type={isPassword ? (showPassword ? 'text' : 'password') : type}
           className={`${baseInputStyle} ${selectedStyle} ${error ? 'border-brand-accent-red focus:border-[#E24B4A]' : ''} ${className}`}
           {...props}
+          value={props.value !== undefined ? props.value : (props.type === 'checkbox' || props.type === 'radio' ? undefined : '')}
         />
         {isPassword && (
           <button

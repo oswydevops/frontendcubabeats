@@ -35,15 +35,35 @@ export const TwoFactorPage: React.FC = () => {
       return;
     }
 
-    if (simulatedCode && fullCode !== simulatedCode) {
-      addToast('El código OTP introducido es incorrecto', 'error');
+    if (fullCode !== '123456') {
+      addToast('El código OTP introducido es incorrecto (usa 123456)', 'error');
       return;
     }
 
     set2FAUsed(true);
     addToast('Doble factor verificado con éxito', 'success');
     
-    // Auto login as Producer Carlos Santana
+    // Check if there is a pending user in sessionStorage
+    const pendingStr = sessionStorage.getItem('cb_pending_2fa_user');
+    if (pendingStr) {
+      try {
+        const pendingUser = JSON.parse(pendingStr);
+        setUser(pendingUser);
+        sessionStorage.removeItem('cb_pending_2fa_user');
+        if (pendingUser.role === 'admin') {
+          navigateTo('/admin/dashboard');
+        } else if (pendingUser.role === 'producer') {
+          navigateTo('/producer/dashboard');
+        } else {
+          navigateTo('/artist/dashboard');
+        }
+        return;
+      } catch (err) {
+        console.error('Error parsing pending 2fa user:', err);
+      }
+    }
+    
+    // Auto login as Producer Carlos Santana (fallback)
     setUser({
       id: 'carlos_producer',
       name: 'Carlos',
@@ -87,19 +107,7 @@ export const TwoFactorPage: React.FC = () => {
             <KeyRound size={22} />
           </div>
           <h2 className="text-xl font-bold tracking-tight text-white">Verificación de Doble Factor</h2>
-          <p className="text-white/40 text-xs">Hemos enviado un código SMS de 6 dígitos a tu teléfono configurado.</p>
-        </div>
-
-        {/* SMS Simulation Button */}
-        <div className="bg-indigo-950/20 border border-indigo-500/10 p-3.5 rounded-xl space-y-2 text-center">
-          <p className="text-[10px] text-white/60 font-medium">¿Evaluando la aplicación? Genera el SMS simulado:</p>
-          <button
-            type="button"
-            onClick={handleSimulateSMS}
-            className="w-full py-1.5 text-xs font-semibold bg-brand-primary hover:bg-brand-primary-light text-white rounded-lg transition-colors cursor-pointer"
-          >
-            Simular recepción de SMS OTP
-          </button>
+          <p className="text-white/40 text-xs">Introduce el código de 6 dígitos enviado a tu teléfono para verificar tu identidad (código: 123456).</p>
         </div>
 
         {/* Inputs list */}

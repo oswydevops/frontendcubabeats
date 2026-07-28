@@ -23,14 +23,20 @@ interface Transaction {
 }
 
 export const AdminTransactions: React.FC = () => {
-  const { verifiedProducersTask, orders, beats, addToast, addAdminNotification } = useApp();
+  const { verifiedProducersTask, orders, beats, addToast, addAdminNotification, planRequests } = useApp();
 
+  const [activeTab, setActiveTab] = useState<'sales' | 'plans'>('sales');
   const [selectedProducerId, setSelectedProducerId] = useState<string>('all');
   const [selectedTimeframe, setSelectedTimeframe] = useState<'recientes' | 'diarias' | 'semanales' | 'mensuales' | 'semestrales'>('recientes');
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Plan transactions search and filters
+  const [planSearchQuery, setPlanSearchQuery] = useState<string>('');
+  const [planStatusFilter, setPlanStatusFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
   
   // State for active transaction details modal
   const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [selectedPlanTx, setSelectedPlanTx] = useState<any | null>(null);
 
   // Extract all producers dynamically
   const producers = useMemo(() => {
@@ -350,6 +356,59 @@ export const AdminTransactions: React.FC = () => {
     };
   }, [filteredTransactions]);
 
+  // Plan payment metrics
+  const planMetrics = useMemo(() => {
+    let totalCUP = 0;
+    let totalUSD = 0;
+    let approvedCount = 0;
+    let pendingCount = 0;
+    let rejectedCount = 0;
+
+    planRequests.forEach(req => {
+      if (req.status === 'approved') {
+        approvedCount++;
+        if (req.currency === 'CUP') {
+          totalCUP += req.amount;
+        } else {
+          totalUSD += req.amount;
+        }
+      } else if (req.status === 'pending') {
+        pendingCount++;
+      } else if (req.status === 'rejected') {
+        rejectedCount++;
+      }
+    });
+
+    return {
+      totalCUP,
+      totalUSD,
+      approvedCount,
+      pendingCount,
+      rejectedCount,
+      totalCount: planRequests.length
+    };
+  }, [planRequests]);
+
+  // Filtered plan requests for the plans tab table
+  const filteredPlanRequests = useMemo(() => {
+    return planRequests.filter(req => {
+      if (planSearchQuery) {
+        const query = planSearchQuery.toLowerCase();
+        const matchesQuery = 
+          req.producerName.toLowerCase().includes(query) ||
+          req.planName.toLowerCase().includes(query) ||
+          req.transactionId.toLowerCase().includes(query);
+        if (!matchesQuery) return false;
+      }
+
+      if (planStatusFilter !== 'all' && req.status !== planStatusFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [planRequests, planSearchQuery, planStatusFilter]);
+
   // Simulation handler with randomly generated statuses (Approved, Pending, Rejected)
   const handleSimulateSale = () => {
     const randomProducer = producers.length > 0 
@@ -483,285 +542,549 @@ export const AdminTransactions: React.FC = () => {
           </p>
         </div>
 
-        <Button
-          variant="primary"
-          onClick={handleSimulateSale}
-          className="inline-flex items-center gap-1.5 text-xs font-bold font-sans tracking-wide self-start sm:self-center transition-all bg-gradient-to-r from-[#534AB7] to-[#7F77DD] hover:from-[#6258C7] hover:to-[#8E86E7] text-white py-2.5 px-4 rounded-xl shadow-md shadow-[#534AB7]/25 border border-white/5 active:scale-95 flex-shrink-0"
+
+      </div>
+
+      {/* TABS SELECTOR */}
+      <div className="flex border-b border-white/10 gap-6">
+        <button
+          onClick={() => setActiveTab('sales')}
+          className={`pb-3 text-sm font-bold transition-all relative cursor-pointer ${
+            activeTab === 'sales'
+              ? 'text-white font-extrabold'
+              : 'text-white/40 hover:text-white/80'
+          }`}
         >
-          <Sparkles size={14} className="animate-pulse" />
-          Simular Transacción Aleatoria
-        </Button>
-      </div>
-
-      {/* METRICS DASHBOARD GRID */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        
-        {/* Metric 1: CUP Income */}
-        <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full filter blur-xl transition-all group-hover:bg-emerald-500/10" />
-          <div className="flex justify-between items-start">
-            <div className="space-y-1 text-left">
-              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN CUP</span>
-              <h3 className="text-lg md:text-xl font-black text-emerald-400 font-mono tracking-tight">
-                ${metrics.salesCUP.toLocaleString()} CUP
-              </h3>
-            </div>
-            <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-              <DollarSign size={16} />
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-500 mt-3 font-medium">BPA/BANDEC (Aprobadas)</p>
-        </div>
-
-        {/* Metric 2: Tarjeta Clásica Income */}
-        <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full filter blur-xl transition-all group-hover:bg-indigo-500/10" />
-          <div className="flex justify-between items-start">
-            <div className="space-y-1 text-left">
-              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN CLÁSICA</span>
-              <h3 className="text-lg md:text-xl font-black text-indigo-400 font-mono tracking-tight">
-                ${metrics.salesClasica.toLocaleString()} USD
-              </h3>
-            </div>
-            <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-              <CreditCard size={16} />
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-500 mt-3 font-medium">Tarjeta Prepago (Aprobadas)</p>
-        </div>
-
-        {/* Metric 3: MLC Income */}
-        <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full filter blur-xl transition-all group-hover:bg-teal-500/10" />
-          <div className="flex justify-between items-start">
-            <div className="space-y-1 text-left">
-              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN MLC</span>
-              <h3 className="text-lg md:text-xl font-black text-teal-400 font-mono tracking-tight">
-                ${metrics.salesMLC.toLocaleString()} MLC
-              </h3>
-            </div>
-            <span className="p-2 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
-              <ShoppingBag size={16} />
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-500 mt-3 font-medium">Bancos Cubanos (Aprobadas)</p>
-        </div>
-
-        {/* Metric 4: QvaPay Income */}
-        <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full filter blur-xl transition-all group-hover:bg-blue-500/10" />
-          <div className="flex justify-between items-start">
-            <div className="space-y-1 text-left">
-              <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN QVAPAY</span>
-              <h3 className="text-lg md:text-xl font-black text-blue-400 font-mono tracking-tight">
-                ${metrics.salesQvaPay.toLocaleString()} USDT
-              </h3>
-            </div>
-            <span className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
-              <ArrowUpRight size={16} />
-            </span>
-          </div>
-          <p className="text-[10px] text-gray-500 mt-3 font-medium">Pasarela Cripto (Aprobadas)</p>
-        </div>
-
-      </div>
-
-      {/* FILTER CONTROLS BAR SECTION */}
-      <div className="bg-brand-surface/25 p-4 rounded-2xl border border-brand-border/15 space-y-4">
-        
-        {/* ROW 1: Producer search and dropdown */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex flex-1 flex-col sm:flex-row gap-3">
-            
-            {/* SEARCH BOX CONTROLLER */}
-            <div className="relative flex-1">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                <Search size={14} />
-              </span>
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Buscar por comprador, ID de transacción, producto, productor..."
-                className="w-full text-xs py-2.5 pl-9 pr-4 rounded-xl border bg-brand-surface border-brand-border/20 text-white placeholder-gray-500 focus:outline-none focus:border-[#7F77DD] font-sans"
-              />
-            </div>
-
-            {/* PRODUCER SELECTOR DROPDOWN */}
-            <div className="relative w-full sm:w-64">
-              <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
-                <Users size={14} />
-              </span>
-              <select
-                value={selectedProducerId}
-                onChange={(e) => setSelectedProducerId(e.target.value)}
-                className="w-full text-xs py-2.5 pl-9 pr-4 rounded-xl border bg-brand-surface border-brand-border/20 text-white focus:outline-none focus:border-[#7F77DD] cursor-pointer appearance-none"
-              >
-                <option value="all">Filtro: Todos los productores</option>
-                {producers.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.artistName || p.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-          </div>
-
-          <div className="text-gray-400 text-xs font-semibold pr-2 text-left self-start sm:self-auto font-mono">
-            {filteredTransactions.length} registros hallados
-          </div>
-        </div>
-
-        {/* ROW 2: Chrono tabs pills (Recientes, Diaria, Semanal, Mensual, Semestral) */}
-        <div className="border-t border-brand-border/10 pt-3 flex flex-wrap items-center justify-between gap-3 text-left">
-          <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider font-mono mr-2 flex items-center gap-1">
-              <Calendar size={12} className="text-gray-500" /> Rango de Consulta:
-            </span>
-            <div className="inline-flex p-1 bg-brand-surface rounded-xl border border-brand-border/15 flex-wrap gap-1">
-              {(['recientes', 'diarias', 'semanales', 'mensuales', 'semestrales'] as const).map((timeframe) => {
-                const isActive = selectedTimeframe === timeframe;
-                const label = timeframe === 'recientes' ? 'Todos/Recientes' : timeframe.charAt(0).toUpperCase() + timeframe.slice(1);
-                return (
-                  <button
-                    key={timeframe}
-                    onClick={() => setSelectedTimeframe(timeframe)}
-                    className={`text-[10.5px] font-bold px-3 py-1.5 rounded-lg border-0 transition-all cursor-pointer ${
-                      isActive 
-                        ? 'bg-[#534AB7] text-white shadow-sm' 
-                        : 'text-gray-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    {label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Quick Clear filters */}
-          {(searchQuery || selectedProducerId !== 'all' || selectedTimeframe !== 'recientes') && (
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedProducerId('all');
-                setSelectedTimeframe('recientes');
-                addToast('Filtros comerciales reestablecidos con éxito', 'info');
-              }}
-              className="text-[10.5px] font-bold text-red-400 hover:text-red-300 transition-colors bg-transparent border-0 cursor-pointer p-0 underline"
-            >
-              Restablecer filtros
-            </button>
+          Ventas Musicales
+          {activeTab === 'sales' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7F77DD]" />
           )}
-        </div>
-
+        </button>
+        <button
+          onClick={() => setActiveTab('plans')}
+          className={`pb-3 text-sm font-bold transition-all relative cursor-pointer ${
+            activeTab === 'plans'
+              ? 'text-white font-extrabold'
+              : 'text-white/40 hover:text-white/80'
+          }`}
+        >
+          Pagos de Planes
+          {activeTab === 'plans' && (
+            <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#7F77DD]" />
+          )}
+        </button>
       </div>
 
-      {/* TRANSACTIONAL RECORDS DATAGRID SECTION */}
-      <div className="bg-[#1C1C2E]/40 rounded-2xl border border-brand-border/15 overflow-hidden">
-        
-        {/* Title and table header overlay */}
-        <div className="p-4 bg-white/5 border-b border-brand-border/15 flex justify-between items-center text-left">
-          <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider font-mono flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#7F77DD] animate-pulse" />
-            Ventas Musicales y Acreditaciones de Pago
-          </h4>
-          <span className="text-[9px] font-mono text-gray-500">
-            D'Cuban Beats Ledger Core • CUP/USDT
-          </span>
-        </div>
+      {activeTab === 'sales' ? (
+        <>
+          {/* METRICS DASHBOARD GRID */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-300">
+            
+            {/* Metric 1: CUP Income */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full filter blur-xl transition-all group-hover:bg-emerald-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN CUP</span>
+                  <h3 className="text-lg md:text-xl font-black text-emerald-400 font-mono tracking-tight">
+                    ${metrics.salesCUP.toLocaleString()} CUP
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <DollarSign size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">BPA/BANDEC/BANMET (Aprobadas)</p>
+            </div>
 
-        {/* Real Table */}
-        {filteredTransactions.length === 0 ? (
-          <div className="p-12 text-center text-gray-500 space-y-3">
-            <AlertCircle size={32} className="mx-auto text-gray-600 opacity-60" />
-            <p className="text-xs font-semibold text-gray-300">No se encontraron transacciones registradas</p>
-            <p className="text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
-              Prueba cambiando la configuración de rango de consulta, filtrando por otro productor o haciendo clic en el botón superior para simular una nueva venta.
-            </p>
+            {/* Metric 2: Tarjeta Clásica Income */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full filter blur-xl transition-all group-hover:bg-indigo-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN CLÁSICA</span>
+                  <h3 className="text-lg md:text-xl font-black text-indigo-400 font-mono tracking-tight">
+                    ${metrics.salesClasica.toLocaleString()} USD
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <CreditCard size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">Tarjeta Prepago (Aprobadas)</p>
+            </div>
+
+            {/* Metric 3: MLC Income */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full filter blur-xl transition-all group-hover:bg-teal-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN MLC</span>
+                  <h3 className="text-lg md:text-xl font-black text-teal-400 font-mono tracking-tight">
+                    ${metrics.salesMLC.toLocaleString()} MLC
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20">
+                  <ShoppingBag size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">Bancos Cubanos (Aprobadas)</p>
+            </div>
+
+            {/* Metric 4: QvaPay Income */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full filter blur-xl transition-all group-hover:bg-blue-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN QVAPAY</span>
+                  <h3 className="text-lg md:text-xl font-black text-blue-400 font-mono tracking-tight">
+                    ${metrics.salesQvaPay.toLocaleString()} USDT
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+                  <ArrowUpRight size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">Pasarela Cripto (Aprobadas)</p>
+            </div>
+
           </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left font-mono text-[11.5px] min-w-[900px] border-collapse table-fixed">
-              <thead>
-                <tr className="bg-white/[0.02] text-gray-400 border-b border-brand-border/10 uppercase pb-2 select-none">
-                  <th className="py-4 pl-4 pr-2 text-[10px] tracking-wider font-bold text-left w-[24%]">Producto</th>
-                  <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-left w-[15%]">Productor</th>
-                  <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[10%]">Precio</th>
-                  <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[15%]">Fecha y Hora</th>
-                  <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[13%]">Estado</th>
-                  <th className="py-4 pl-2 pr-4 text-[10px] tracking-wider font-bold text-center w-[23%]">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/5 text-gray-300">
-                {filteredTransactions.map((tx) => {
-                  return (
-                    <tr key={tx.id} className="hover:bg-white/[0.04] transition-colors border-l-2 border-transparent hover:border-[#7F77DD]">
-                      
-                      {/* Producto */}
-                      <td className="py-4 pl-4 pr-2 font-sans font-bold text-white truncate" title={tx.beatTitle}>
-                        {tx.beatTitle}
-                      </td>
 
-                      {/* Productor */}
-                      <td className="py-4 px-2 font-sans truncate" title={tx.producerName}>
-                        <span className="text-gray-250 font-semibold block truncate">{tx.producerName}</span>
-                        <span className="text-[9px] text-gray-500 font-mono block truncate">ID: {tx.producerId}</span>
-                      </td>
+          {/* FILTER CONTROLS BAR SECTION */}
+          <div className="bg-brand-surface/25 p-4 rounded-2xl border border-brand-border/15 space-y-4 text-left">
+            
+            {/* ROW 1: Producer search and dropdown */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-1 flex-col sm:flex-row gap-3">
+                
+                {/* SEARCH BOX CONTROLLER */}
+                <div className="relative flex-1">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                    <Search size={14} />
+                  </span>
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Buscar por comprador, ID de transacción, producto, productor..."
+                    className="w-full text-xs py-2.5 pl-9 pr-4 rounded-xl border bg-brand-surface border-brand-border/20 text-white placeholder-gray-500 focus:outline-none focus:border-[#7F77DD] font-sans"
+                  />
+                </div>
 
-                      {/* Precio */}
-                      <td className="py-4 px-2 text-center font-mono font-extrabold text-[#53E0A3] text-xs">
-                        ${tx.amount.toLocaleString()} {tx.currency}
-                      </td>
+                {/* PRODUCER SELECTOR DROPDOWN */}
+                <div className="relative w-full sm:w-64">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                    <Users size={14} />
+                  </span>
+                  <select
+                    value={selectedProducerId}
+                    onChange={(e) => setSelectedProducerId(e.target.value)}
+                    className="w-full text-xs py-2.5 pl-9 pr-4 rounded-xl border bg-brand-surface border-brand-border/20 text-white focus:outline-none focus:border-[#7F77DD] cursor-pointer appearance-none"
+                  >
+                    <option value="all">Filtro: Todos los productores</option>
+                    {producers.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.artistName || p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-                      {/* Fecha y Hora */}
-                      <td className="py-4 px-2 text-center text-gray-400 text-[10.5px] font-mono truncate" title={tx.date}>
-                        {tx.date}
-                      </td>
+              </div>
 
-                      {/* Estado */}
-                      <td className="py-4 px-2 text-center">
-                        {tx.status === 'approved' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] font-extrabold border border-emerald-500/20 uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            Aprobado
-                          </span>
-                        )}
-                        {tx.status === 'pending' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[9px] font-extrabold border border-amber-500/20 uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            Pendiente
-                          </span>
-                        )}
-                        {tx.status === 'rejected' && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 text-[9px] font-extrabold border border-red-500/20 uppercase tracking-wider">
-                            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
-                            Rechazado
-                          </span>
-                        )}
-                      </td>
+              <div className="text-gray-400 text-xs font-semibold pr-2 text-left self-start sm:self-auto font-mono">
+                {filteredTransactions.length} registros hallados
+              </div>
+            </div>
 
-                      {/* Acciones */}
-                      <td className="py-2 pl-2 pr-1 text-center">
-                        <button
-                          onClick={() => setSelectedTx(tx)}
-                          className="inline-flex items-center gap-1 bg-[#1E1E38] hover:bg-[#2B2B4E]/80 text-[#9B94EC] hover:text-white px-2 py-1.5 rounded-xl border border-brand-border/20 text-[10px] font-bold tracking-wide transition-all cursor-pointer hover:shadow-sm"
-                        >
-                          <Eye size={12} />
-                          Ver Detalles
-                        </button>
-                      </td>
+            {/* ROW 2: Chrono tabs pills (Recientes, Diaria, Semanal, Mensual, Semestral) */}
+            <div className="border-t border-brand-border/10 pt-3 flex flex-wrap items-center justify-between gap-3 text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-gray-400 font-extrabold uppercase tracking-wider font-mono mr-2 flex items-center gap-1">
+                  <Calendar size={12} className="text-gray-500" /> Rango de Consulta:
+                </span>
+                <div className="inline-flex p-1 bg-brand-surface rounded-xl border border-brand-border/15 flex-wrap gap-1">
+                  {(['recientes', 'diarias', 'semanales', 'mensuales', 'semestrales'] as const).map((timeframe) => {
+                    const isActive = selectedTimeframe === timeframe;
+                    const label = timeframe === 'recientes' ? 'Todos/Recientes' : timeframe.charAt(0).toUpperCase() + timeframe.slice(1);
+                    return (
+                      <button
+                        key={timeframe}
+                        onClick={() => setSelectedTimeframe(timeframe)}
+                        className={`text-[10.5px] font-bold px-3 py-1.5 rounded-lg border-0 transition-all cursor-pointer ${
+                          isActive 
+                            ? 'bg-[#534AB7] text-white shadow-sm' 
+                            : 'text-gray-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
+              {/* Quick Clear filters */}
+              {(searchQuery || selectedProducerId !== 'all' || selectedTimeframe !== 'recientes') && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    setSelectedProducerId('all');
+                    setSelectedTimeframe('recientes');
+                    addToast('Filtros comerciales reestablecidos con éxito', 'info');
+                  }}
+                  className="text-[10.5px] font-bold text-red-400 hover:text-red-300 transition-colors bg-transparent border-0 cursor-pointer p-0 underline"
+                >
+                  Restablecer filtros
+                </button>
+              )}
+            </div>
+
+          </div>
+
+          {/* TRANSACTIONAL RECORDS DATAGRID SECTION */}
+          <div className="bg-[#1C1C2E]/40 rounded-2xl border border-brand-border/15 overflow-hidden">
+            
+            {/* Title and table header overlay */}
+            <div className="p-4 bg-white/5 border-b border-brand-border/15 flex justify-between items-center text-left">
+              <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider font-mono flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7F77DD] animate-pulse" />
+                Ventas Musicales y Acreditaciones de Pago
+              </h4>
+              <span className="text-[9px] font-mono text-gray-500">
+                D'Cuban Beats Ledger Core • CUP/USDT
+              </span>
+            </div>
+
+            {/* Real Table */}
+            {filteredTransactions.length === 0 ? (
+              <div className="p-12 text-center text-gray-500 space-y-3">
+                <AlertCircle size={32} className="mx-auto text-gray-600 opacity-60" />
+                <p className="text-xs font-semibold text-gray-300">No se encontraron transacciones registradas</p>
+                <p className="text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+                  Prueba cambiando la configuración de rango de consulta o filtrando por otro productor.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-mono text-[11.5px] min-w-[900px] border-collapse table-fixed">
+                  <thead>
+                    <tr className="bg-white/[0.02] text-gray-400 border-b border-brand-border/10 uppercase pb-2 select-none">
+                      <th className="py-4 pl-4 pr-2 text-[10px] tracking-wider font-bold text-left w-[24%]">Producto</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-left w-[15%]">Productor</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[10%]">Precio</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[15%]">Fecha y Hora</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[13%]">Estado</th>
+                      <th className="py-4 pl-2 pr-4 text-[10px] tracking-wider font-bold text-center w-[23%]">Acciones</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-gray-300">
+                    {filteredTransactions.map((tx) => {
+                      return (
+                        <tr key={tx.id} className="hover:bg-white/[0.04] transition-colors border-l-2 border-transparent hover:border-[#7F77DD]">
+                          
+                          {/* Producto */}
+                          <td className="py-4 pl-4 pr-2 font-sans font-bold text-white truncate" title={tx.beatTitle}>
+                            {tx.beatTitle}
+                          </td>
 
-      </div>
+                          {/* Productor */}
+                          <td className="py-4 px-2 font-sans truncate" title={tx.producerName}>
+                            <span className="text-gray-250 font-semibold block truncate">{tx.producerName}</span>
+                            <span className="text-[9px] text-gray-500 font-mono block truncate">ID: {tx.producerId}</span>
+                          </td>
+
+                          {/* Precio */}
+                          <td className="py-4 px-2 text-center font-mono font-extrabold text-[#53E0A3] text-xs">
+                            ${tx.amount.toLocaleString()} {tx.currency}
+                          </td>
+
+                          {/* Fecha y Hora */}
+                          <td className="py-4 px-2 text-center text-gray-400 text-[10.5px] font-mono truncate" title={tx.date}>
+                            {tx.date}
+                          </td>
+
+                          {/* Estado */}
+                          <td className="py-4 px-2 text-center">
+                            {tx.status === 'approved' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] font-extrabold border border-emerald-500/20 uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                Aprobado
+                              </span>
+                            )}
+                            {tx.status === 'pending' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[9px] font-extrabold border border-amber-500/20 uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                Pendiente
+                              </span>
+                            )}
+                            {tx.status === 'rejected' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 text-[9px] font-extrabold border border-red-500/20 uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                Rechazado
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Acciones */}
+                          <td className="py-2 pl-2 pr-1 text-center">
+                            <button
+                              onClick={() => setSelectedTx(tx)}
+                              className="inline-flex items-center gap-1 bg-[#1E1E38] hover:bg-[#2B2B4E]/80 text-[#9B94EC] hover:text-white px-2 py-1.5 rounded-xl border border-brand-border/20 text-[10px] font-bold tracking-wide transition-all cursor-pointer hover:shadow-sm"
+                            >
+                              <Eye size={12} />
+                              Ver Detalles
+                            </button>
+                          </td>
+
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+          </div>
+        </>
+      ) : (
+        <>
+          {/* METRICS FOR PLANS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-300">
+            {/* Metric 1: Total CUP */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full filter blur-xl transition-all group-hover:bg-emerald-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN CUP</span>
+                  <h3 className="text-lg md:text-xl font-black text-emerald-400 font-mono tracking-tight">
+                    ${planMetrics.totalCUP.toLocaleString()} CUP
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                  <DollarSign size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">Suscripciones Cobradas</p>
+            </div>
+
+            {/* Metric 2: Total USD */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full filter blur-xl transition-all group-hover:bg-indigo-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN USD</span>
+                  <h3 className="text-lg md:text-xl font-black text-indigo-400 font-mono tracking-tight">
+                    ${planMetrics.totalUSD.toLocaleString()} USD
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <CreditCard size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">Suscripciones USD / QvaPay</p>
+            </div>
+
+            {/* Metric 3: Pendientes */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full filter blur-xl transition-all group-hover:bg-amber-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">PENDIENTES</span>
+                  <h3 className="text-lg md:text-xl font-black text-amber-400 font-mono tracking-tight">
+                    {planMetrics.pendingCount} Solicitudes
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                  <Clock size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">Esperando Confirmación</p>
+            </div>
+
+            {/* Metric 4: Rechazados */}
+            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-rose-500/5 rounded-full filter blur-xl transition-all group-hover:bg-rose-500/10" />
+              <div className="flex justify-between items-start">
+                <div className="space-y-1 text-left">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">RECHAZADOS</span>
+                  <h3 className="text-lg md:text-xl font-black text-rose-400 font-mono tracking-tight">
+                    {planMetrics.rejectedCount} Solicitudes
+                  </h3>
+                </div>
+                <span className="p-2 rounded-xl bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  <Ban size={16} />
+                </span>
+              </div>
+              <p className="text-[10px] text-gray-500 mt-3 font-medium">Declinadas / Rechazadas</p>
+            </div>
+          </div>
+
+          {/* FILTER CONTROLS FOR PLANS */}
+          <div className="bg-brand-surface/25 p-4 rounded-2xl border border-brand-border/15 space-y-4 animate-in fade-in duration-300 text-left">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex flex-1 flex-col sm:flex-row gap-3">
+                {/* Search */}
+                <div className="relative flex-1">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                    <Search size={14} />
+                  </span>
+                  <input
+                    type="text"
+                    value={planSearchQuery}
+                    onChange={(e) => setPlanSearchQuery(e.target.value)}
+                    placeholder="Buscar por productor, plan o ID de referencia..."
+                    className="w-full text-xs py-2.5 pl-9 pr-4 rounded-xl border bg-brand-surface border-brand-border/20 text-white placeholder-gray-500 focus:outline-none focus:border-[#7F77DD] font-sans"
+                  />
+                </div>
+
+                {/* Status Dropdown */}
+                <div className="relative w-full sm:w-64">
+                  <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500">
+                    <Filter size={14} />
+                  </span>
+                  <select
+                    value={planStatusFilter}
+                    onChange={(e) => setPlanStatusFilter(e.target.value as any)}
+                    className="w-full text-xs py-2.5 pl-9 pr-4 rounded-xl border bg-brand-surface border-brand-border/20 text-white focus:outline-none focus:border-[#7F77DD] cursor-pointer appearance-none"
+                  >
+                    <option value="all">Filtro: Todos los estados</option>
+                    <option value="pending">Estado: Pendientes</option>
+                    <option value="approved">Estado: Aprobados</option>
+                    <option value="rejected">Estado: Rechazados</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="text-gray-400 text-xs font-semibold pr-2 text-left self-start sm:self-auto font-mono">
+                {filteredPlanRequests.length} registros hallados
+              </div>
+            </div>
+
+            {/* Clear Filters button if any is active */}
+            {(planSearchQuery || planStatusFilter !== 'all') && (
+              <div className="border-t border-brand-border/10 pt-3 text-left">
+                <button
+                  onClick={() => {
+                    setPlanSearchQuery('');
+                    setPlanStatusFilter('all');
+                    addToast('Filtros de planes reestablecidos con éxito', 'info');
+                  }}
+                  className="text-[10.5px] font-bold text-red-400 hover:text-red-300 transition-colors bg-transparent border-0 cursor-pointer p-0 underline"
+                >
+                  Restablecer filtros de planes
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* PLANS TRANSACTIONAL TABLE */}
+          <div className="bg-[#1C1C2E]/40 rounded-2xl border border-brand-border/15 overflow-hidden animate-in fade-in duration-300">
+            <div className="p-4 bg-white/5 border-b border-brand-border/15 flex justify-between items-center text-left">
+              <h4 className="text-xs font-black uppercase text-slate-200 tracking-wider font-mono flex items-center gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-[#7F77DD] animate-pulse" />
+                Historial de Cobros de Planes y Suscripciones
+              </h4>
+              <span className="text-[9px] font-mono text-gray-500">
+                D'Cuban Membership Ledger Core • CUP/USD
+              </span>
+            </div>
+
+            {filteredPlanRequests.length === 0 ? (
+              <div className="p-12 text-center text-gray-500 space-y-3">
+                <AlertCircle size={32} className="mx-auto text-gray-600 opacity-60" />
+                <p className="text-xs font-semibold text-gray-300">No se encontraron cobros registrados</p>
+                <p className="text-[10px] text-gray-500 max-w-sm mx-auto leading-relaxed">
+                  No se encontraron solicitudes o cobros de planes que coincidan con la búsqueda o filtros actuales.
+                </p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left font-mono text-[11.5px] min-w-[900px] border-collapse table-fixed">
+                  <thead>
+                    <tr className="bg-white/[0.02] text-gray-400 border-b border-brand-border/10 uppercase pb-2 select-none">
+                      <th className="py-4 pl-4 pr-2 text-[10px] tracking-wider font-bold text-left w-[24%]">Plan Adquirido</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-left w-[15%]">Productor</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[10%]">Ref ID</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[12%]">Monto</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[13%]">Fecha</th>
+                      <th className="py-4 px-2 text-[10px] tracking-wider font-bold text-center w-[13%]">Estado</th>
+                      <th className="py-4 pl-2 pr-4 text-[10px] tracking-wider font-bold text-center w-[13%]">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-white/5 text-gray-300">
+                    {filteredPlanRequests.map((req) => {
+                      return (
+                        <tr key={req.id} className="hover:bg-white/[0.04] transition-colors border-l-2 border-transparent hover:border-[#7F77DD]">
+                          {/* Plan */}
+                          <td className="py-4 pl-4 pr-2 font-sans font-bold text-white truncate" title={req.planName}>
+                            {req.planName}
+                          </td>
+
+                          {/* Productor */}
+                          <td className="py-4 px-2 font-sans truncate" title={req.producerName}>
+                            <span className="text-gray-250 font-semibold block truncate">{req.producerName}</span>
+                            <span className="text-[9px] text-gray-500 font-mono block truncate">ID: {req.producerId}</span>
+                          </td>
+
+                          {/* Ref ID */}
+                          <td className="py-4 px-2 text-center font-mono text-amber-300 select-all font-bold text-xs truncate" title={req.transactionId}>
+                            {req.transactionId}
+                          </td>
+
+                          {/* Monto */}
+                          <td className="py-4 px-2 text-center font-mono font-extrabold text-[#53E0A3] text-xs">
+                            ${req.amount.toLocaleString()} {req.currency}
+                          </td>
+
+                          {/* Fecha */}
+                          <td className="py-4 px-2 text-center text-gray-400 text-[10.5px] font-mono truncate" title={req.date}>
+                            {req.date}
+                          </td>
+
+                          {/* Estado */}
+                          <td className="py-4 px-2 text-center">
+                            {req.status === 'approved' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[9px] font-extrabold border border-emerald-500/20 uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                                Aprobado
+                              </span>
+                            )}
+                            {req.status === 'pending' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400 text-[9px] font-extrabold border border-amber-500/20 uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+                                Pendiente
+                              </span>
+                            )}
+                            {req.status === 'rejected' && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-500/10 text-red-400 text-[9px] font-extrabold border border-red-500/20 uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+                                Rechazado
+                              </span>
+                            )}
+                          </td>
+
+                          {/* Acciones */}
+                          <td className="py-2 pl-2 pr-1 text-center">
+                            <button
+                              onClick={() => setSelectedPlanTx(req)}
+                              className="inline-flex items-center gap-1 bg-[#1E1E38] hover:bg-[#2B2B4E]/80 text-[#9B94EC] hover:text-white px-2 py-1.5 rounded-xl border border-brand-border/20 text-[10px] font-bold tracking-wide transition-all cursor-pointer hover:shadow-sm"
+                            >
+                              <Eye size={12} />
+                              Ver Detalles
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
 
       {/* TRANSACTION DETAILED INSTANT MODAL */}
       {selectedTx && (
@@ -1054,6 +1377,173 @@ export const AdminTransactions: React.FC = () => {
                   Descargar Factura PDF
                 </Button>
               )}
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* PLAN TRANSACTION DETAILED MODAL */}
+      {selectedPlanTx && (
+        <div 
+          className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm transition-all animate-in fade-in duration-200"
+          id="cb-plan-tx-modal"
+          onClick={(e) => {
+            if ((e.target as HTMLElement).id === 'cb-plan-tx-modal') {
+              setSelectedPlanTx(null);
+            }
+          }}
+        >
+          <div className="bg-[#131322] border border-brand-border/40 w-full max-w-xl rounded-3xl overflow-hidden shadow-2xl relative flex flex-col max-h-[90vh] text-left animate-in zoom-in-95 duration-200">
+            
+            {/* Header decor bar color according to state */}
+            <div className={`h-2.5 w-full ${
+              selectedPlanTx.status === 'approved' 
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-400' 
+                : selectedPlanTx.status === 'pending'
+                ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
+                : 'bg-gradient-to-r from-red-500 to-rose-400'
+            }`} />
+
+            {/* Modal Title Banner and Close Button */}
+            <div className="flex justify-between items-center px-6 py-5 border-b border-brand-border/15">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-[#7F77DD]/10 rounded-xl text-[#7F77DD]">
+                  <CreditCard size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black uppercase text-white tracking-widest font-mono">
+                    Comprobante de Membresía
+                  </h3>
+                  <span className="text-[10px] text-gray-500 font-mono">ID: {selectedPlanTx.id} • D'Cuban Subscription</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedPlanTx(null)}
+                className="p-1 px-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5 border-0 bg-transparent cursor-pointer transition-colors"
+                title="Cerrar modal"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 overflow-y-auto space-y-6">
+              
+              {/* Membership package display */}
+              <div className="flex gap-4 items-center bg-[#1C1C2E]/40 p-3 rounded-2xl border border-brand-border/10">
+                <div className="w-16 h-16 rounded-xl overflow-hidden flex-shrink-0 bg-[#534AB7]/10 flex items-center justify-center border border-[#7F77DD]/25">
+                  <ShieldCheck size={32} className="text-[#7F77DD]" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <span className="px-2 py-0.5 rounded text-[8px] font-black uppercase inline-block mb-1 border bg-[#7F77DD]/10 text-[#9B94EC] border-[#7F77DD]/20">
+                    Suscripción Premium
+                  </span>
+                  <h4 className="text-xs font-extrabold text-white truncate pr-2 font-sans leading-snug">
+                    {selectedPlanTx.planName}
+                  </h4>
+                  <p className="text-[10px] text-gray-400 font-medium">Productor: <span className="text-white font-semibold">{selectedPlanTx.producerName}</span></p>
+                </div>
+              </div>
+
+              {/* Status panel */}
+              <div className={`p-4 rounded-2xl border flex items-center gap-3.5 ${
+                selectedPlanTx.status === 'approved'
+                  ? 'bg-emerald-500/5 border-emerald-500/15 text-emerald-400'
+                  : selectedPlanTx.status === 'pending'
+                  ? 'bg-amber-500/5 border-amber-500/15 text-amber-400'
+                  : 'bg-red-500/5 border-red-500/15 text-red-500'
+              }`}>
+                <div className={`p-2.5 rounded-full ${
+                  selectedPlanTx.status === 'approved'
+                    ? 'bg-emerald-500/10'
+                    : selectedPlanTx.status === 'pending'
+                    ? 'bg-amber-500/10 animate-pulse'
+                    : 'bg-red-500/10'
+                }`}>
+                  {selectedPlanTx.status === 'approved' && <Check size={18} />}
+                  {selectedPlanTx.status === 'pending' && <Clock size={18} />}
+                  {selectedPlanTx.status === 'rejected' && <Ban size={18} />}
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold font-mono tracking-wider block uppercase opacity-80">ESTADO DEL PAGO</span>
+                  <h5 className="text-xs font-black uppercase tracking-wider font-sans mt-0.5 text-white">
+                    {selectedPlanTx.status === 'approved' && 'PAGO VERIFICADO Y ACTIVADO'}
+                    {selectedPlanTx.status === 'pending' && 'PAGO PENDIENTE DE CONCILIACIÓN'}
+                    {selectedPlanTx.status === 'rejected' && 'PAGO DECLINADO / RECHAZADO'}
+                  </h5>
+                  <p className="text-[10.5px] text-gray-400 mt-1 leading-normal">
+                    {selectedPlanTx.status === 'approved' && 'El pago fue auditado manualmente por un administrador y los beneficios del plan premium han sido activados para el productor.'}
+                    {selectedPlanTx.status === 'pending' && 'El productor ha enviado la solicitud de pago. Se requiere validación bancaria para activar los beneficios.'}
+                    {selectedPlanTx.status === 'rejected' && 'La solicitud fue rechazada por falta de comprobante válido o datos de transferencia incorrectos.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Technical details Grid */}
+              <div className="space-y-3 bg-[#1C1C2E]/20 p-4 rounded-2xl border border-brand-border/10">
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-wider font-mono block border-b border-brand-border/10 pb-1.5 border-dashed">
+                  Parámetros de la Suscripción
+                </span>
+
+                <div className="grid grid-cols-2 gap-x-6 gap-y-4 font-mono text-[11px]">
+                  <div>
+                    <span className="text-gray-500 text-[10px] block font-semibold uppercase leading-none">Productor Beneficiario:</span>
+                    <strong className="text-gray-200 block font-sans text-xs mt-1">{selectedPlanTx.producerName}</strong>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 text-[10px] block font-semibold uppercase leading-none">ID de Productor:</span>
+                    <strong className="text-gray-350 block text-xs mt-1">{selectedPlanTx.producerId}</strong>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 text-[10px] block font-semibold uppercase leading-none">Referencia de Pago:</span>
+                    <strong className="text-amber-300 block font-semibold text-xs mt-1">{selectedPlanTx.transactionId}</strong>
+                  </div>
+
+                  <div>
+                    <span className="text-gray-500 text-[10px] block font-semibold uppercase leading-none">Fecha de Emisión:</span>
+                    <strong className="text-gray-300 block text-xs mt-1">{selectedPlanTx.date}</strong>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3.5 border-t border-brand-border/10 border-dashed flex justify-between items-center">
+                  <span className="text-gray-400 text-[10.5px] font-bold font-mono">TOTAL RECAUDADO:</span>
+                  <span className="text-base font-black font-mono text-emerald-400">
+                    ${selectedPlanTx.amount.toLocaleString()}.00 {selectedPlanTx.currency}
+                  </span>
+                </div>
+              </div>
+
+              {/* Image capture */}
+              {selectedPlanTx.receiptUrl && (
+                <div className="space-y-3">
+                  <span className="text-[9.5px] font-black text-gray-400 uppercase tracking-widest font-mono block">
+                    📷 Captura del Comprobante de Pago
+                  </span>
+                  <div className="border border-white/10 rounded-xl overflow-hidden bg-black/40 flex items-center justify-center p-2">
+                    <img 
+                      src={selectedPlanTx.receiptUrl} 
+                      alt="Comprobante" 
+                      className="max-h-60 object-contain rounded w-full"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                </div>
+              )}
+
+            </div>
+
+            <div className="p-4 bg-[#141423] border-t border-brand-border/15 flex justify-end">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setSelectedPlanTx(null)}
+                className="text-xs font-bold px-4 py-2.5 rounded-xl border border-white/5 text-gray-300 hover:bg-white/5 active:scale-95 transition-all cursor-pointer"
+              >
+                Cerrar Comprobante
+              </Button>
             </div>
 
           </div>

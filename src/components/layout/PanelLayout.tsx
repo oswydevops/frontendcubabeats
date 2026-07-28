@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
 import { Modal } from '../ui/Modal';
+import { BrandLogo } from './BrandLogo';
 
 interface PanelLayoutProps {
   children: React.ReactNode;
@@ -42,12 +43,18 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
     { name: 'Dashboard Global', icon: LayoutDashboard, path: '/admin/dashboard' },
     { name: 'Estadísticas Globales', icon: BarChart3, path: '/admin/stats' },
     { name: 'Gestionar Usuarios', icon: Users, path: '/admin/users' },
+    { name: 'Solicitudes de Planes', icon: CreditCard, path: '/admin/plan-requests' },
     { name: 'Transacciones', icon: Receipt, path: '/admin/transactions' },
     { name: 'Configurar Planes', icon: Radio, path: '/admin/plans' },
+    { name: 'Métodos de Pago Admin', icon: Landmark, path: '/admin/payment-methods' },
     { name: 'Mi Perfil Admin', icon: UserCheck, path: '/admin/profile' },
   ];
 
-  const menuItems = isProducer ? PRODUCER_MENU : ADMIN_MENU;
+  const filteredAdminMenu = user?.isCollaborator
+    ? ADMIN_MENU.filter(item => item.path !== '/admin/plan-requests' && item.path !== '/admin/transactions')
+    : ADMIN_MENU;
+
+  const menuItems = isProducer ? PRODUCER_MENU : filteredAdminMenu;
 
   const handleNav = (path: string) => {
     navigateTo(path);
@@ -60,12 +67,7 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
       {/* 1. Mobile Header (Visible on small screens) */}
       <header className="md:hidden flex items-center justify-between px-6 py-4 border-b shadow-sm z-30 transition-all bg-brand-surface border-brand-border/40 text-white">
         <div className="flex items-center gap-2" onClick={() => navigateTo('/')}>
-          <span className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center text-white">
-            <Music size={15} />
-          </span>
-          <span className="font-bold tracking-tight text-sm text-white">
-            D'Cuban<span className="text-[#7F77DD] font-mono">[Beats]</span>
-          </span>
+          <BrandLogo className="h-10 w-auto" />
         </div>
         
         <div className="flex items-center gap-2">
@@ -96,12 +98,7 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
           {/* Logo Brand Header */}
           <div className="px-6 pb-6 border-b items-center justify-center hidden md:flex border-brand-border/20">
             <div className="flex items-center gap-2 cursor-pointer animate-in fade-in duration-300" onClick={() => navigateTo('/')}>
-              <span className="w-9 h-9 rounded-xl gradient-primary flex items-center justify-center text-white shadow-md shadow-brand-primary/10">
-                <Music size={16} fill="currentColor" />
-              </span>
-              <span className="font-bold text-base tracking-tight text-white">
-                D'Cuban<span className="text-[#7F77DD] font-semibold font-mono">[Beats]</span>
-              </span>
+              <BrandLogo className="h-16 w-auto" />
             </div>
           </div>
 
@@ -333,7 +330,7 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
                       </div>
 
                       {/* Dropdown Action Footer control bar */}
-                      <div className="p-3 border-t border-white/5 bg-[#0D0D14] rounded-b-2xl flex justify-between gap-2">
+                      <div className="p-3 border-t border-white/5 bg-[#0D0D14] rounded-b-2xl flex justify-end gap-2">
                         <button
                           onClick={() => {
                             clearAdminNotifications();
@@ -342,37 +339,6 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
                           className="text-[10px] font-bold text-gray-500 hover:text-red-400 transition-colors bg-transparent border-none cursor-pointer p-1"
                         >
                           Limpiar todo
-                        </button>
-
-                        <button
-                          onClick={() => {
-                            const types: Array<'beat_uploaded' | 'user_registered' | 'plan_purchased' | 'beat_sold'> = [
-                              'beat_uploaded', 'user_registered', 'plan_purchased', 'beat_sold'
-                            ];
-                            const randomType = types[Math.floor(Math.random() * types.length)];
-                            
-                            let t = '';
-                            let d = '';
-                            if (randomType === 'beat_uploaded') {
-                              t = 'Nuevo Beat Cubano';
-                              d = 'El productor "La Clave Music" ha subido un nuevo beat titulado "Ritmo Varadero" (105 BPM).';
-                            } else if (randomType === 'user_registered') {
-                              t = 'Nuevo Cliente Registrado';
-                              d = 'Se ha registrado un nuevo cliente de la Habana: "Yusniel Rap" (yusniel@correo.cu).';
-                            } else if (randomType === 'plan_purchased') {
-                              t = 'Plan Membresía Elite';
-                              d = 'El productor "El Chama" ha ascendido al Plan Elite ($1,200 CUP/mes).';
-                            } else {
-                              t = '¡Beat Vendido con Éxito!';
-                              d = 'Se ha vendido la Licencia Básica de "Malecón Sunset" por un monto de $600 CUP.';
-                            }
-                            
-                            addAdminNotification(randomType, t, d);
-                            addToast('Nuevo evento simulado con éxito', 'success');
-                          }}
-                          className="text-[10px] font-bold text-[#7F77DD] hover:text-white transition-colors bg-transparent border-none cursor-pointer p-1 flex items-center gap-1"
-                        >
-                          <Sparkles size={11} /> Simular Evento
                         </button>
                       </div>
 

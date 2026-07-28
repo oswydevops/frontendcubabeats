@@ -6,7 +6,8 @@ import {
 } from 'recharts';
 import { 
   BarChart2, Users, Radio, Activity, Play, Eye, MapPin, 
-  Sparkles, Calendar, ArrowUpRight, TrendingUp, RefreshCw, Sliders
+  Sparkles, Calendar, ArrowUpRight, TrendingUp, RefreshCw, Sliders,
+  Tag, Heart
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
 
@@ -157,6 +158,66 @@ export const AdminStats: React.FC = () => {
   // Overall calculations
   const totalRegisteredUsers = simulatedClients + liveProducersCount + 45 + 68 + 41; // clients + live producers + augmented mock producers
 
+  // --- MERGED GRAPH METRIC STRUCTURES FROM GLOBAL DASHBOARD ---
+  const userTypeData = useMemo(() => [
+    { name: 'Clientes Oyentes', value: simulatedClients },
+    { name: 'Productores Registrados', value: liveProducersCount + 154 } // 45 + 68 + 41 = 154 augmented
+  ], [simulatedClients, liveProducersCount]);
+
+  const planDistributionData = useMemo(() => {
+    const gratis = verifiedProducersTask.filter(p => !p.plan || p.plan === 'Gratis').length + 45;
+    const pro = verifiedProducersTask.filter(p => p.plan === 'Pro').length + 68;
+    const elite = verifiedProducersTask.filter(p => p.plan === 'Elite').length + 41;
+    return [
+      { name: 'Plan Gratis', value: gratis },
+      { name: 'Plan Pro', value: pro },
+      { name: 'Plan Elite', value: elite }
+    ];
+  }, [verifiedProducersTask]);
+
+  const trafficGrowthData = useMemo(() => {
+    return [
+      { month: 'Ene', visitas: 12400, reproducciones: 38200 },
+      { month: 'Feb', visitas: 14800, reproducciones: 49100 },
+      { month: 'Mar', visitas: 19100, reproducciones: 68600 },
+      { month: 'Abr', visitas: 25400, reproducciones: 89400 },
+      { month: 'May', visitas: 32000, reproducciones: 104500 },
+      { month: 'Jun', visitas: extraVisits, reproducciones: aggregatePlaysCount }
+    ];
+  }, [extraVisits, aggregatePlaysCount]);
+
+  const COLORS_USER_TYPE = ['#38BDF8', '#7F77DD'];
+  const COLORS_PLANS = ['#94A3B8', '#7F77DD', '#10B981'];
+
+  // Calculations for likes metrics
+  const calculatedGlobalLikes = useMemo(() => {
+    return beats.reduce((sum, b) => {
+      const l = b.likes ?? Math.max(5, Math.floor((b.plays * 0.18) + (b.id.charCodeAt(b.id.length - 1) % 15)));
+      return sum + l;
+    }, 0);
+  }, [beats]);
+
+  const globalLikesCount = useMemo(() => {
+    return calculatedGlobalLikes + 4230;
+  }, [calculatedGlobalLikes]);
+
+  const weeklyLikesData = useMemo(() => {
+    const baseData = [
+      { name: 'Semana 1', likes: 240 },
+      { name: 'Semana 2', likes: 310 },
+      { name: 'Semana 3', likes: 450 },
+      { name: 'Semana 4', likes: 520 },
+      { name: 'Semana 5', likes: 610 },
+      { name: 'Semana 6', likes: 740 },
+      { name: 'Semana Actual', likes: Math.max(180, Math.floor((calculatedGlobalLikes % 300) + 520)) }
+    ];
+    return baseData;
+  }, [calculatedGlobalLikes]);
+
+  const weeklyLikesTotal = useMemo(() => {
+    return weeklyLikesData.reduce((acc, item) => acc + item.likes, 0);
+  }, [weeklyLikesData]);
+
   return (
     <div className="space-y-6 text-left animate-in fade-in pb-12 text-white">
       
@@ -167,28 +228,6 @@ export const AdminStats: React.FC = () => {
             <BarChart2 className="text-brand-primary-light w-6 h-6" /> Análisis Estadístico y Métricas Globales
           </h2>
           <p className="text-xs text-white/60">Mide el rendimiento del sitio web, audiencias registradas por provincia, reproducciones de audio y planes activos.</p>
-        </div>
-
-        {/* Simulador Toolbar */}
-        <div className="flex items-center gap-2 self-start sm:self-center">
-          <Button 
-            variant="outline" 
-            onClick={increaseSimulations}
-            className="flex items-center gap-1.5 border-[#7F77DD]/30 text-[#7F77DD] hover:text-[#8D84F7] bg-[#534AB7]/10 hover:bg-[#534AB7]/20 text-xs py-1.5 px-3 rounded-xl cursor-pointer transition-colors"
-            title="Simular tráfico en tiempo real"
-          >
-            <Activity size={13} className="animate-pulse" />
-            Simular Visita/Play
-          </Button>
-
-          <Button
-            variant="ghost"
-            onClick={handleResetSimulations}
-            className="p-2 text-white/40 hover:text-red-400 rounded-xl cursor-pointer transition-colors"
-            title="Restablecer"
-          >
-            <RefreshCw size={13} />
-          </Button>
         </div>
       </div>
 
@@ -260,186 +299,206 @@ export const AdminStats: React.FC = () => {
 
       </div>
 
-      {/* DETAILED CHARTS GRID: ROW 1 */}
+      {/* SECCIÓN DE ESTADÍSTICAS Y GRÁFICOS GLOBALES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-        {/* CHART A: CLIENTS VS PRODUCERS COMPARISON */}
-        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Users size={16} className="text-brand-primary-light" /> Relación de Clientes vs. Productores
-            </h3>
-            <p className="text-[11px] text-white/60">Comportamiento proporcional de las cuentas compradoras de instrumentales frente a los creadores de ritmos.</p>
+        {/* Gráfico 1: Distribución de Usuarios Registrados */}
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <Users size={14} className="text-[#38BDF8]" /> Distribución de Usuarios Registrados
+            </span>
+            <span className="text-[10px] bg-sky-500/10 text-[#38BDF8] border border-sky-500/20 px-2 py-0.5 rounded-full font-bold">Total: {totalRegisteredUsers}</span>
+          </div>
+          
+          <div className="h-[220px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={userTypeData}
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={55}
+                  outerRadius={75}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {userTypeData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS_USER_TYPE[index % COLORS_USER_TYPE.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1C1C2E', borderColor: 'rgba(127, 119, 221, 0.4)', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                />
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  iconSize={10}
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '10.5px', color: '#94A3B8' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gráfico 2: Plan de Suscripción de los Productores */}
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <Tag size={14} className="text-[#7F77DD]" /> Planes de Suscripción Activos (Membresías)
+            </span>
+            <span className="text-[10px] bg-indigo-500/10 text-[#7F77DD] border border-indigo-500/20 px-2 py-0.5 rounded-full font-bold">Monitoreo Real</span>
           </div>
 
-          <div className="h-64 mt-2">
+          <div className="h-[220px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={[
-                  { name: 'Clientes Registrados', cantidad: simulatedClients, fill: '#534AB7' },
-                  { name: 'Productores Registrados', cantidad: (liveProducersCount + 45 + 68 + 41), fill: '#8B5CF6' }
-                ]}
-                margin={{ top: 20, right: 30, left: 0, bottom: 5 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" fontSize={11} stroke="#9CA3AF" tickLine={false} />
-                <YAxis fontSize={11} stroke="#9CA3AF" tickLine={false} />
+              <PieChart>
+                <Pie
+                  data={planDistributionData}
+                  cx="50%"
+                  cy="45%"
+                  innerRadius={0}
+                  outerRadius={75}
+                  dataKey="value"
+                >
+                  {planDistributionData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS_PLANS[index % COLORS_PLANS.length]} />
+                  ))}
+                </Pie>
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '11px', color: '#fff' }} 
-                  cursor={{ fill: 'rgba(255,255,255,0.02)' }}
+                  contentStyle={{ backgroundColor: '#1C1C2E', borderColor: 'rgba(127, 119, 221, 0.4)', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
                 />
-                <Bar dataKey="cantidad" radius={[12, 12, 0, 0]}>
-                  {
-                    [
-                      { fill: '#534AB7' },
-                      { fill: '#8B5CF6' }
-                    ].map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.fill} />
-                    ))
-                  }
+                <Legend 
+                  verticalAlign="bottom" 
+                  height={36}
+                  iconSize={10}
+                  iconType="circle"
+                  wrapperStyle={{ fontSize: '10.5px', color: '#94A3B8' }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Gráfico 3: Productores por Provincias de Cuba */}
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <MapPin size={14} className="text-emerald-400" /> Dispersión Territorial de Creadores Cubanos por Provincias
+            </span>
+            <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded-full font-bold">Cobertura Nacional</span>
+          </div>
+
+          <div className="h-[240px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={provincesData} margin={{ top: 10, right: 10, left: -20, bottom: 5 }}>
+                <XAxis dataKey="name" stroke="#94A3B8" fontSize={9.5} tickLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={9.5} tickLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1C1C2E', borderColor: 'rgba(12, 185, 129, 0.4)', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                  cursor={{ fill: 'rgba(127, 119, 221, 0.05)' }}
+                />
+                <Bar dataKey="value" radius={[6, 6, 0, 0]} barSize={28}>
+                  {provincesData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
-
-          <div className="bg-[#13131F]/50 p-3 rounded-xl border border-brand-border/20 flex justify-between text-xs">
-            <span className="text-white/60">Tasa de Compradores Activos:</span>
-            <strong className="text-white">{(simulatedClients / totalRegisteredUsers * 100).toFixed(1)}% de comunidad cubana</strong>
-          </div>
         </div>
 
-        {/* CHART B: PRODUCERS DISTRIBUTION BY SUBSCRIPTION PLAN */}
-        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Radio size={16} className="text-amber-400" /> Suscripción de Productores por Plan
-            </h3>
-            <p className="text-[11px] text-white/60">Desglose de los planes activos adquiridos por los productores registrados para alojar beats.</p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
-            
-            {/* Visual Pie */}
-            <div className="h-56 md:col-span-3">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={planDistribution}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={80}
-                    paddingAngle={3}
-                    dataKey="value"
-                  >
-                    {planDistribution.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '11px', color: '#fff' }} 
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+        {/* Gráfico 4: Cantidad de Visitas vs Cantidad de Reproducciones Total */}
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 lg:col-span-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <TrendingUp size={14} className="text-[#7F77DD]" /> Tráfico Web de Visitas vs Reproducción Total de Beats
+            </span>
+            <div className="flex gap-4">
+              <div className="flex items-center gap-1 text-[10.5px] font-bold text-[#38BDF8]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#38BDF8]" /> Visitas
+              </div>
+              <div className="flex items-center gap-1 text-[10.5px] font-bold text-[#7F77DD]">
+                <span className="w-2.5 h-2.5 rounded-full bg-[#7F77DD]" /> Reproducciones
+              </div>
             </div>
-
-            {/* Labels Custom Legend */}
-            <div className="md:col-span-2 space-y-2.5 text-xs">
-              {planDistribution.map((pl, idx) => (
-                <div key={pl.name} className="flex flex-col gap-0.5 border-l-2 pl-2.5" style={{ borderColor: COLORS[idx % COLORS.length] }}>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/60 font-medium">{pl.name}</span>
-                    <strong className="text-white font-mono">{pl.value}</strong>
-                  </div>
-                  <span className="text-[10px] text-white/40 block font-semibold">
-                    {((pl.value / (planDistribution.reduce((sum, p) => sum + p.value, 0))) * 100).toFixed(0)}% de los artistas
-                  </span>
-                </div>
-              ))}
-            </div>
-
           </div>
 
-          <div className="text-[10px] text-center text-white/40 italic">
-            * Los planes Pro y Elite requieren aprobación de comprobantes por Transfermóvil o QvaPay.
-          </div>
-        </div>
-
-      </div>
-
-      {/* DETAILED CHARTS GRID: ROW 2 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        
-        {/* CHART C: CUBAN PROVINCES DISTRIBUTION (LARGE BAR CHART) */}
-        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 lg:col-span-2">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <MapPin size={16} className="text-emerald-400" /> Distribución Geográfica Cubana (Provincias)
-            </h3>
-            <p className="text-[11px] text-white/60">Representación de la localización de productores independientes y sus estudios a lo largo del archipiélago nacional.</p>
-          </div>
-
-          <div className="h-68 mt-3">
+          <div className="h-[240px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={provincesData}
-                margin={{ top: 10, right: 10, left: -25, bottom: 20 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis 
-                  dataKey="name" 
-                  fontSize={9} 
-                  stroke="#9CA3AF" 
-                  angle={-45} 
-                  textAnchor="end"
-                  interval={0}
-                  height={50}
-                  tickLine={false}
-                />
-                <YAxis fontSize={10} stroke="#9CA3AF" tickLine={false} />
+              <AreaChart data={trafficGrowthData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                <XAxis dataKey="month" stroke="#94A3B8" fontSize={9.5} tickLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={9.5} tickLine={false} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '11px', color: '#fff' }} 
+                  contentStyle={{ backgroundColor: '#1C1C2E', borderColor: 'rgba(127, 119, 221, 0.4)', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
                 />
-                <Bar dataKey="value" fill="#10B981" radius={[4, 4, 0, 0]} />
-              </BarChart>
+                <defs>
+                  <linearGradient id="colorVisits" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#38BDF8" stopOpacity={0.2}/>
+                    <stop offset="95%" stopColor="#38BDF8" stopOpacity={0}/>
+                  </linearGradient>
+                  <linearGradient id="colorPlays" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#7F77DD" stopOpacity={0.26}/>
+                    <stop offset="95%" stopColor="#7F77DD" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <Area type="monotone" dataKey="visitas" stroke="#38BDF8" strokeWidth={2.5} fillOpacity={1} fill="url(#colorVisits)" name="Visitas a la Web" />
+                <Area type="monotone" dataKey="reproducciones" stroke="#7F77DD" strokeWidth={2.5} fillOpacity={1} fill="url(#colorPlays)" name="Reproducciones de Beats" />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
-        {/* CHART D: TRAFFIC & REPRODUCTIONS TREND (LINE CHART) */}
-        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 lg:col-span-1">
-          <div>
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Activity size={16} className="text-cyan-400" /> Tránsito y Reproducción Semanal
-            </h3>
-            <p className="text-[11px] text-white/60">Resumen del volumen de tráfico promedio e interacciones de audición de beats de lunes a domingo.</p>
+        {/* Gráfico 5: Estadísticas de Likes (Me Gusta Seccional y Global) */}
+        <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 lg:col-span-2">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <span className="text-xs font-bold text-gray-300 flex items-center gap-1.5">
+              <Heart size={14} className="text-rose-500 fill-rose-500 animate-pulse" /> Rendimiento de Likes: Interacción Social y Favoritos
+            </span>
+            <div className="flex items-center gap-4 text-[10.5px]">
+              <div className="p-1 px-2.5 bg-rose-500/10 text-rose-400 border border-rose-500/20 rounded-lg">
+                Semanal: <strong className="font-mono">{weeklyLikesData[weeklyLikesData.length - 1].likes} 🤍</strong>
+              </div>
+              <div className="p-1 px-2.5 bg-amber-500/10 text-amber-400 border border-amber-500/20 rounded-lg">
+                Global Plataforma: <strong className="font-mono">{globalLikesCount.toLocaleString()} TOTAL</strong>
+              </div>
+            </div>
           </div>
 
-          <div className="h-68 mt-3">
-            <ResponsiveContainer width="105%" height="100%">
-              <AreaChart
-                data={MOCK_TRAFFIC_SEMANAL}
-                margin={{ top: 10, right: 15, left: -25, bottom: 10 }}
-              >
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pb-2 text-left">
+            <div className="p-3 bg-[#1C1C2E]/50 rounded-xl border border-white/5 space-y-1">
+              <span className="text-[9.5px] uppercase font-bold text-gray-400 tracking-wider block">Me Gusta Esta Semana</span>
+              <span className="text-lg font-bold font-mono text-rose-400">+{weeklyLikesData[weeklyLikesData.length - 1].likes}</span>
+              <span className="text-[10px] text-gray-500 block">Incremento del 12% vs sem anterior</span>
+            </div>
+            <div className="p-3 bg-[#1C1C2E]/50 rounded-xl border border-white/5 space-y-1">
+              <span className="text-[9.5px] uppercase font-bold text-gray-400 tracking-wider block">Promedio Semanal Acumulado</span>
+              <span className="text-lg font-bold font-mono text-white">{Math.floor(weeklyLikesTotal / weeklyLikesData.length)} likes/sem</span>
+              <span className="text-[10px] text-gray-500 block">Calculado sobre 7 semanas</span>
+            </div>
+            <div className="p-3 bg-[#1C1C2E]/50 rounded-xl border border-white/5 space-y-1">
+              <span className="text-[9.5px] uppercase font-bold text-gray-400 tracking-wider block">Total Histórico (Global)</span>
+              <span className="text-lg font-bold font-mono text-amber-400">{globalLikesCount.toLocaleString()} Likes</span>
+              <span className="text-[10px] text-gray-500 block">Sincronizado con catálogo en vivo</span>
+            </div>
+          </div>
+
+          <div className="h-[240px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={weeklyLikesData} margin={{ top: 10, right: 10, left: -10, bottom: 5 }}>
+                <XAxis dataKey="name" stroke="#94A3B8" fontSize={9.5} tickLine={false} />
+                <YAxis stroke="#94A3B8" fontSize={9.5} tickLine={false} />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#1C1C2E', borderColor: 'rgba(244, 63, 94, 0.4)', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                />
                 <defs>
-                  <linearGradient id="colorVisitas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06B6D4" stopOpacity={0.2}/>
-                    <stop offset="95%" stopColor="#06B6D4" stopOpacity={0}/>
-                  </linearGradient>
-                  <linearGradient id="colorReproducciones" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#534AB7" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#534AB7" stopOpacity={0}/>
+                  <linearGradient id="colorLikes" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#EC4899" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#EC4899" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.05)" />
-                <XAxis dataKey="name" fontSize={9} stroke="#9CA3AF" tickLine={false} />
-                <YAxis fontSize={9} stroke="#9CA3AF" tickLine={false} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1C1C2E', border: '1px solid rgba(127,119,221,0.3)', borderRadius: '12px', fontSize: '10px', color: '#fff' }} 
-                />
-                <Legend iconSize={8} iconType="circle" wrapperStyle={{ fontSize: '10.5px', marginTop: '10px', color: '#94A3B8' }} />
-                <Area type="monotone" name="Visitas Diarias" dataKey="visitas" stroke="#06B6D4" strokeWidth={2} fillOpacity={1} fill="url(#colorVisitas)" />
-                <Area type="monotone" name="Plays Beats" dataKey="reproducciones" stroke="#534AB7" strokeWidth={2} fillOpacity={1} fill="url(#colorReproducciones)" />
+                <Area type="monotone" dataKey="likes" stroke="#EC4899" strokeWidth={2.5} fillOpacity={1} fill="url(#colorLikes)" name="Me Gusta Semanales" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -447,13 +506,7 @@ export const AdminStats: React.FC = () => {
 
       </div>
 
-      {/* FOOTER METRIC NOTE */}
-      <div className="bg-amber-500/10 border border-amber-500/20 p-4.5 rounded-2xl flex items-start gap-3">
-        <Sliders className="text-amber-400 flex-shrink-0 mt-0.5" size={16} />
-        <div className="text-xs text-amber-300 leading-normal">
-          <strong>Sugerencia del Sistema:</strong> El panel superior de simulación te permite aumentar aleatoriamente el conteo acumulativo de visitas para probar la reactividad de los gráficos y predecir cargas de hosting de almacenamiento. La escala se guarda en caché local.
-        </div>
-      </div>
+
 
     </div>
   );

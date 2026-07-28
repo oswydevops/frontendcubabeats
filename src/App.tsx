@@ -33,15 +33,24 @@ import { AdminTransactions } from './pages/admin/AdminTransactions';
 import { AdminPlans } from './pages/admin/AdminPlans';
 import { AdminStats } from './pages/admin/AdminStats';
 import { AdminProfile } from './pages/admin/AdminProfile';
+import { AdminPlanRequests } from './pages/admin/AdminPlanRequests';
+import { SupportChatWidget } from './components/support/SupportChatWidget';
+import { ErrorPages } from './pages/errors/ErrorPages';
+import { MaintenancePage } from './pages/errors/MaintenancePage';
 
 // Alerts icons
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export default function App() {
-  const { currentPath, toasts } = useApp();
+  const { currentPath, toasts, user, isMaintenanceMode } = useApp();
 
   // 1. Dynamic route selector
   const renderContent = () => {
+    // If the platform is in maintenance, override render for non-admins (except when testing errors specifically)
+    if (isMaintenanceMode && user?.role !== 'admin' && currentPath !== '/login' && !currentPath.startsWith('/errors/')) {
+      return <MaintenancePage />;
+    }
+
     switch (currentPath) {
       // Catalog public paths
       case '/':
@@ -62,6 +71,20 @@ export default function App() {
         return <CheckoutPage />;
       case '/artist/dashboard':
         return <ArtistDashboard />;
+
+      // Error and Maintenance paths
+      case '/errors/401':
+        return <ErrorPages code="401" />;
+      case '/errors/403':
+        return <ErrorPages code="403" />;
+      case '/errors/404':
+        return <ErrorPages code="404" />;
+      case '/errors/500':
+        return <ErrorPages code="500" />;
+      case '/errors/503':
+        return <ErrorPages code="503" />;
+      case '/mantenimiento':
+        return <MaintenancePage />;
 
       // Producer workspace paths
       case '/producer/dashboard':
@@ -88,16 +111,36 @@ export default function App() {
       case '/admin/users':
         return <AdminUsers />;
       case '/admin/transactions':
+        if (user?.isCollaborator) {
+          return (
+            <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
+              <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
+              <p className="text-xs text-gray-400">Los colaboradores de administración no tienen privilegios para acceder a los registros financieros ni de pago de la plataforma.</p>
+            </div>
+          );
+        }
         return <AdminTransactions />;
       case '/admin/plans':
         return <AdminPlans />;
+      case '/admin/plan-requests':
+        if (user?.isCollaborator) {
+          return (
+            <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
+              <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
+              <p className="text-xs text-gray-400">Los colaboradores de administración no tienen privilegios para acceder a las solicitudes de planes.</p>
+            </div>
+          );
+        }
+        return <AdminPlanRequests />;
       case '/admin/stats':
         return <AdminStats />;
+      case '/admin/payment-methods':
+        return <ProducerPaymentMethods />;
       case '/admin/profile':
         return <AdminProfile />;
 
       default:
-        return <CatalogPage />;
+        return <ErrorPages code="404" />;
     }
   };
 
@@ -115,7 +158,7 @@ export default function App() {
       )}
 
       {/* Floating System-Wide Notifier Toasts */}
-      <div id="qb-toast-container" className="fixed top-5 right-5 space-y-2.5 z-999 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+      <div id="qb-toast-container" className="fixed top-25 right-5 space-y-2.5 z-999 max-w-sm w-full pointer-events-none px-4 sm:px-0">
         {toasts.map((t) => (
           <div
             key={t.id}
@@ -136,6 +179,9 @@ export default function App() {
           </div>
         ))}
       </div>
+
+      {/* Floating Support Chat Widget for Artists & Producers */}
+      <SupportChatWidget />
 
     </div>
   );

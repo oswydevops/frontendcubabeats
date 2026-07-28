@@ -3,7 +3,8 @@ import {
   Search, SlidersHorizontal, Music, Play, Pause, ShoppingCart, 
   Tag, Download, Calendar, Flame, Eye, Edit2, CheckCircle, 
   ExternalLink, ArrowRight, Star, Heart, Radio, Disc, Share2,
-  BadgeCheck, Award, ShieldCheck, Wallet, Landmark, CreditCard, Check
+  BadgeCheck, Award, ShieldCheck, Wallet, Landmark, CreditCard, Check,
+  Crown, AlertTriangle, CheckCircle2, Library, FolderArchive, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
 import { BeatCard } from '../../components/beats/BeatCard';
@@ -18,15 +19,53 @@ export const CatalogPage: React.FC = () => {
     beats, addToCart, cart, playBeat, activeBeat, isPlaying, 
     selectedBeatId, selectedProducerId, navigateTo, user, updateUserProfile,
     verifiedProducersTask, addToast, likedBeats, toggleLikeBeat, addProducerNotification,
-    convertPrice
+    convertPrice, plans, exchangeRates
   } = useApp();
 
   // Filter States
+  const [catalogTab, setCatalogTab] = useState<'beats' | 'libraries'>('beats');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedGenre, setSelectedGenre] = useState('Todos');
   const [maxBpm, setMaxBpm] = useState(160);
   const [minBpm, setMinBpm] = useState(70);
   const [showFilters, setShowFilters] = useState(false);
+  const [showAll, setShowAll] = useState(false);
+
+  const CAROUSEL_SLIDES = useMemo(() => [
+    {
+      image: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1200&auto=format&fit=crop',
+      tag: '🔥 RAP & HIP HOP',
+      title: 'La Esencia de la Calle Cubana',
+      description: 'Bombos pesados, rimas crudas e instrumentales de rap de conciencia diseñadas por productores elite de Cuba.'
+    },
+    {
+      image: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?q=80&w=1200&auto=format&fit=crop',
+      tag: '🎵 REPARTO & CUBATÓN',
+      title: 'El Sonido del Reparto de la Isla',
+      description: 'Bajos brutales y percusiones contagiosas que hacen vibrar cada rincón de La Habana. Instrumentales de reparto 100% auténticas.'
+    },
+    {
+      image: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?q=80&w=1200&auto=format&fit=crop',
+      tag: '🎹 ESTUDIO DE PRODUCCIÓN',
+      title: 'Ingeniería Acústica Profesional',
+      description: 'Mezcla y masterización con calidad de estándar internacional. Beats con nitidez y poder comercial garantizado.'
+    },
+    {
+      image: 'https://images.unsplash.com/photo-1598653222000-6b7b7a552625?q=80&w=1200&auto=format&fit=crop',
+      tag: '📦 SAMPLES & LOOPS',
+      title: 'Librerías de Ritmos Autóctonos',
+      description: 'Kits completos de sonido de percusión cubana, samples melódicos y MIDI con descargas de licencias permanentes.'
+    }
+  ], []);
+
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    const slideTimer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % CAROUSEL_SLIDES.length);
+    }, 5000);
+    return () => clearInterval(slideTimer);
+  }, [currentSlide, CAROUSEL_SLIDES.length]);
 
   // Simulated Async Fetching Loading State 
   const [isLoading, setIsLoading] = useState(true);
@@ -108,23 +147,47 @@ export const CatalogPage: React.FC = () => {
     return baseFollowers + (isFollowed ? 1 : 0);
   };
 
+  // Featured Producers Logic (Who pay the plan with "featured" attribute, i.e., Elite)
+  const featuredProducers = useMemo(() => {
+    return verifiedProducersTask.filter((producer) => {
+      if (producer.role !== 'producer') return false;
+      const producerPlan = plans.find(p => p.name.toLowerCase() === (producer.plan || 'Gratis').toLowerCase());
+      return producerPlan ? producerPlan.featured : (producer.plan === 'Elite');
+    });
+  }, [verifiedProducersTask, plans]);
+
   // Genre Options
   const GENRES = ['Todos', 'Reggaetón', 'Trap', 'Dembow', 'R&B', 'Hip Hop', 'Drill', 'Son', 'Salsa', 'Timba', 'Reparto', 'Cubatón', 'Merengue', 'Bachata', 'Fusión'];
 
   // 1. FILTERING BEATS LOGIC
   const filteredBeats = useMemo(() => {
     return beats.filter((beat) => {
+      const isLib = !!beat.isSoundLibrary;
+      if (catalogTab === 'beats' && isLib) return false;
+      if (catalogTab === 'libraries' && !isLib) return false;
+
+      // Hide beat from catalog if it is currently in the cart
+      const inCart = cart.some((item) => item.beat.id === beat.id || item.id.startsWith(beat.id));
+      if (inCart) return false;
+
       const matchesSearch = 
         beat.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         beat.producerName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        beat.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase()));
+        (beat.tags && beat.tags.some(t => t.toLowerCase().includes(searchQuery.toLowerCase())));
       
       const matchesGenre = selectedGenre === 'Todos' || beat.genre.toLowerCase() === selectedGenre.toLowerCase();
-      const matchesBpm = beat.bpm >= minBpm && beat.bpm <= maxBpm;
+      const matchesBpm = isLib ? true : (beat.bpm >= minBpm && beat.bpm <= maxBpm);
 
       return matchesSearch && matchesGenre && matchesBpm;
     });
-  }, [beats, searchQuery, selectedGenre, minBpm, maxBpm]);
+  }, [beats, cart, searchQuery, selectedGenre, minBpm, maxBpm, catalogTab]);
+
+  const displayedBeats = useMemo(() => {
+    if (showAll) {
+      return filteredBeats;
+    }
+    return filteredBeats.slice(0, 10);
+  }, [filteredBeats, showAll]);
 
   // 2. ACTIVE BEAT DETAILS
   const detailBeat = useMemo(() => {
@@ -236,118 +299,260 @@ export const CatalogPage: React.FC = () => {
   const isOwnProducerProfile = user?.role === 'producer' && detailProducer?.id === 'p2';
 
   return (
-    <div className="px-4 md:px-10 lg:px-14 py-6 max-w-7xl mx-auto space-y-10">
-      
-      {user?.role === 'producer' && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/20 pb-4 animate-in fade-in duration-300">
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight flex items-center gap-2">
-              <Music className="text-[#7F77DD]" size={22} /> Catálogo de Beats
-            </h1>
-            <p className="text-xs text-gray-400">Escucha las instrumentales de la comunidad en modo de demostración.</p>
-          </div>
-        </div>
-      )}
+    <div className="px-4 md:px-10 lg:px-14 pt-12 pb-12 max-w-7xl xl:max-w-[1450px] mx-auto space-y-10">
 
-      {/* 1. HERO BANNER LANDING */}
+      {/* 1. HERO BANNER LANDING - EPIC IMAGE CAROUSEL WITH SEARCH */}
       {user?.role !== 'producer' && user?.role !== 'admin' && (
-        <div className="relative rounded-3xl overflow-hidden shadow-2xl purple-glow border border-brand-primary-light/10">
-          {/* Background Canvas Vector Art emulation */}
-          <div className="absolute inset-0 bg-gradient-to-tr from-[#0D0D14] via-[#1C1C2E] to-[#26215C] z-0" />
-          <div className="absolute inset-x-0 bottom-0 top-1/2 bg-gradient-to-t from-[#0D0D14] to-transparent opacity-80 z-0" />
-          
-          {/* Absolute SVG shapes */}
-          <div className="absolute right-0 bottom-0 top-0 opacity-15 pointer-events-none z-0">
-            <svg width="450" height="100%" viewBox="0 0 450 300" fill="none">
-              <circle cx="250" cy="150" r="120" stroke="#7F77DD" strokeWidth="8" strokeDasharray="10 15 animate-spin" />
-              <circle cx="250" cy="150" r="80" stroke="#E24B4A" strokeWidth="4" />
-              <path d="M 150,150 L 350,150" stroke="#7F77DD" strokeWidth="3" />
-              <path d="M 250,50 L 250,250" stroke="#E24B4A" strokeWidth="3" />
-            </svg>
+        <div className="relative rounded-3xl overflow-hidden shadow-2xl purple-glow border border-brand-primary-light/10 min-h-[440px] md:min-h-[480px] flex items-center">
+          {/* Slides background wrapper */}
+          <div className="absolute inset-0 z-0">
+            {CAROUSEL_SLIDES.map((slide, index) => (
+              <div
+                key={index}
+                className={`absolute inset-0 transition-opacity duration-1000 ease-in-out ${
+                  index === currentSlide ? 'opacity-100' : 'opacity-0'
+                }`}
+              >
+                <img
+                  src={slide.image}
+                  alt={slide.title}
+                  className="w-full h-full object-cover object-center"
+                  referrerPolicy="no-referrer"
+                />
+                {/* Dark gradient overlay for ultimate contrast and readability */}
+                <div className="absolute inset-0 bg-gradient-to-r from-[#07070F]/95 via-[#0C0C17]/80 to-[#191930]/80" />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D14] via-transparent to-black/30" />
+              </div>
+            ))}
           </div>
 
-          {/* Content Box */}
-          <div className="relative z-10 px-8 py-12 md:p-14 text-left max-w-xl space-y-5">
-            <Badge variant="purple" className="bg-brand-primary-light/20 text-brand-primary-light border-brand-primary-light/40 font-bold tracking-wider rounded-lg uppercase">
-              🔥 Mercado Líder en Cuba
-            </Badge>
-            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-white leading-tight">
-              Beats Exclusivos de <span className="text-brand-primary-light bg-clip-text">Productores Cubanos</span>
-            </h1>
-            <p className="text-white/60 text-sm md:text-base font-medium max-w-md">
-              Instrumentales de alta calidad con sonido unique caribeño. Descarga demostraciones y paga en pesos locales vía <span className="text-emerald-400 font-bold">Transfermóvil</span>, <span className="text-cyan-400 font-bold">EnZona</span> o <span className="text-sky-400 font-bold">QvaPay</span>.
-            </p>
-            
-            <div className="flex flex-wrap gap-3 pt-3">
-              <Button variant="primary" onClick={() => {
-                const el = document.getElementById('catalog-grid');
-                el?.scrollIntoView({ behavior: 'smooth' });
-              }} className="group">
-                Explorar Catálogo
-                <ArrowRight size={15} className="ml-2 group-hover:translate-x-1 transition-transform" />
-              </Button>
+          {/* Foreground content - dynamically updates based on active slide */}
+          <div className="relative z-10 w-full px-6 py-10 md:p-14 text-left space-y-6 flex flex-col justify-center">
+            <div className="space-y-3.5 max-w-2xl">
+              <Badge variant="purple" className="bg-brand-primary/30 text-brand-primary-light border-brand-primary/50 font-extrabold tracking-wider rounded-lg uppercase text-[10px] md:text-xs">
+                {CAROUSEL_SLIDES[currentSlide].tag}
+              </Badge>
+              
+              <h1 className="text-[40px] md:text-[48px] font-bold md:font-black tracking-tight text-white leading-tight transition-all duration-500 animate-in fade-in slide-in-from-left-4">
+                {CAROUSEL_SLIDES[currentSlide].title}
+              </h1>
+              
+              <p className="text-white/70 text-[14px] font-normal leading-relaxed max-w-lg transition-all duration-500 animate-in fade-in slide-in-from-left-4 delay-75">
+                {CAROUSEL_SLIDES[currentSlide].description}
+              </p>
+            </div>
+
+            {/* Premium Search Bar */}
+            <div className="max-w-xl w-full space-y-3">
+              <div className="relative group/search flex items-center bg-[#13131F]/90 backdrop-blur-md border border-[rgba(127,119,221,0.35)] hover:border-[#7F77DD] focus-within:border-[#7F77DD] rounded-2xl p-1 shadow-2xl transition-all">
+                <div className="flex items-center pl-3.5 pointer-events-none text-gray-400">
+                  <Search size={18} className="text-brand-primary-light group-focus-within/search:scale-110 transition-transform" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Busca beats de reparto, rap, trap, o productores..."
+                  className="w-full bg-transparent border-0 text-white placeholder-white/35 focus:ring-0 focus:outline-none px-3 py-3 text-xs md:text-sm font-sans"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="text-xs text-[#7F77DD] hover:text-white px-2.5 cursor-pointer font-bold transition-colors"
+                  >
+                    Limpiar
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    const el = document.getElementById('catalog-grid');
+                    el?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                  className="bg-brand-primary hover:bg-[#6c64c7] text-white text-xs font-bold px-5 py-2.5 rounded-xl transition-all cursor-pointer flex-shrink-0"
+                >
+                  Buscar
+                </button>
+              </div>
+
+              {/* Quick Search Tag Suggestions */}
+              <div className="flex flex-wrap gap-1.5 items-center">
+                <span className="text-[10px] uppercase font-bold text-white/45 tracking-wider mr-1">Búsquedas:</span>
+                {['Reparto', 'Trap', 'Reggaetón', 'Drill', 'Rap', 'Librería'].map((tag) => (
+                  <button
+                    key={tag}
+                    onClick={() => {
+                      if (tag === 'Librería') {
+                        setCatalogTab('libraries');
+                        setSearchQuery('');
+                      } else {
+                        setCatalogTab('beats');
+                        setSearchQuery(tag);
+                      }
+                      const el = document.getElementById('catalog-grid');
+                      el?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className={`text-[10px] font-bold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                      (tag === 'Librería' && catalogTab === 'libraries') || (tag !== 'Librería' && searchQuery.toLowerCase() === tag.toLowerCase())
+                        ? 'bg-[#7F77DD]/20 border-[#7F77DD] text-white'
+                        : 'bg-white/5 border-white/10 text-white/50 hover:border-[#7F77DD]/40 hover:text-white'
+                    }`}
+                  >
+                    {tag}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Slider Navigation Buttons */}
+            <div className="absolute bottom-5 right-6 flex items-center gap-2.5 z-20">
+              <button
+                onClick={() => setCurrentSlide((prev) => (prev - 1 + CAROUSEL_SLIDES.length) % CAROUSEL_SLIDES.length)}
+                className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer"
+                title="Slide Anterior"
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <div className="flex gap-1.5">
+                {CAROUSEL_SLIDES.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setCurrentSlide(i)}
+                    className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
+                      i === currentSlide ? 'bg-brand-primary w-5' : 'bg-white/20 hover:bg-white/40'
+                    }`}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={() => setCurrentSlide((prev) => (prev + 1) % CAROUSEL_SLIDES.length)}
+                className="w-8 h-8 rounded-full bg-black/40 hover:bg-black/70 border border-white/10 flex items-center justify-center text-white/70 hover:text-white transition-all cursor-pointer"
+                title="Siguiente Slide"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* 1.5 CERTIFIED PRODUCERS SLIDER SECTION (Accessible to all guests & users) */}
+      {/* 1.5 FEATURED PRODUCERS SLIDER SECTION (Accessible to all guests & users) */}
       <div className="space-y-4 animate-in fade-in duration-300">
         <div className="flex items-center justify-between border-b border-white/5 pb-2">
           <div className="flex items-center gap-2">
-            <BadgeCheck size={18} className="text-emerald-400" />
-            <h2 className="text-sm font-bold uppercase tracking-wider text-white">Productores Certificados</h2>
+            <Crown size={18} className="text-amber-400 animate-pulse" />
+            <h1 className="text-[24px] md:text-[28px] font-bold text-white tracking-tight">Productores Destacados</h1>
           </div>
-          <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
-            Sello de Confianza
+          <span className="text-[12px] font-medium text-amber-400 uppercase tracking-wider bg-amber-500/10 px-2.5 py-0.5 rounded-full border border-amber-500/20">
+            Suscripción Premium
           </span>
         </div>
         
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {verifiedProducersTask.map((producer) => (
-            <div 
-              key={producer.id}
-              onClick={() => navigateTo('/', { producerId: producer.id })}
-              className="bg-[#13131F]/80 p-4 rounded-2xl border border-white/5 hover:border-[#7F77DD]/40 hover:bg-[#1C1C2E] cursor-pointer text-center space-y-2.5 transition-all group flex flex-col items-center justify-center"
-              id={`featured-producer-${producer.id}`}
-            >
-              <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-[#7F77DD]/50 transition-colors mx-auto">
-                <img 
-                  src={producer.avatarUrl || 'https://images.unsplash.com/photo-1542206395-9feb3edaa68d?q=80&w=200&auto=format&fit=crop'} 
-                  alt={producer.artistName} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  referrerPolicy="no-referrer"
-                />
+        <div className="relative w-full overflow-hidden">
+          <style dangerouslySetInnerHTML={{__html: `
+            .scrollbar-hide::-webkit-scrollbar {
+              display: none !important;
+            }
+            .scrollbar-hide {
+              -ms-overflow-style: none !important;
+              scrollbar-width: none !important;
+            }
+          `}} />
+          
+          <div className="flex gap-4 overflow-x-auto scrollbar-hide py-2 px-1 snap-x scroll-smooth">
+            {featuredProducers.length === 0 ? (
+              <div className="text-center py-6 w-full text-white/40 text-xs">
+                No hay productores destacados en este momento.
               </div>
+            ) : (
+              featuredProducers.map((producer) => (
+                <div 
+                  key={producer.id}
+                  onClick={() => navigateTo('/', { producerId: producer.id })}
+                  className="bg-[#13131F]/80 w-36 h-36 sm:w-40 sm:h-40 flex-shrink-0 rounded-2xl border border-white/5 hover:border-[#7F77DD]/40 hover:bg-[#1C1C2E] cursor-pointer text-center p-3 transition-all group flex flex-col items-center justify-center snap-start animate-in fade-in"
+                  id={`featured-producer-${producer.id}`}
+                >
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-white/10 group-hover:border-[#7F77DD]/50 transition-colors mx-auto relative">
+                    <img 
+                      src={producer.avatarUrl || 'https://images.unsplash.com/photo-1542206395-9feb3edaa68d?q=80&w=200&auto=format&fit=crop'} 
+                      alt={producer.artistName} 
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      referrerPolicy="no-referrer"
+                    />
+                    {producer.plan === 'Elite' && (
+                      <div className="absolute top-0 right-0 bg-amber-400 text-black rounded-full p-0.5 animate-bounce" title="Elite">
+                        <Crown size={8} />
+                      </div>
+                    )}
+                  </div>
 
-              <div className="flex items-center justify-center gap-1 max-w-full">
-                <h4 className="text-xs font-bold text-white group-hover:text-[#7F77DD] transition-colors truncate">
-                  {producer.artistName || producer.name}
-                </h4>
-                {producer.verified && (
-                  <BadgeCheck size={14} className="text-blue-500 fill-blue-500/10 flex-shrink-0" title="Verificado" />
-                )}
-              </div>
-            </div>
-          ))}
+                  <div className="flex items-center justify-center gap-1 max-w-full mt-2">
+                    <h4 className="text-[14px] font-semibold text-white group-hover:text-[#7F77DD] transition-colors truncate max-w-[120px] sm:max-w-[140px]" title={producer.artistName || producer.name}>
+                      {producer.artistName || producer.name}
+                    </h4>
+                    {producer.verified && (
+                      <BadgeCheck size={12} className="text-blue-500 fill-blue-500/10 flex-shrink-0" title="Verificado" />
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
 
-
-
       {/* 3. CATALOG LISTING GRID */}
-      <div id="catalog-grid" className="space-y-6">
-        <div className="flex items-center justify-between border-b border-white/5 pb-3">
-          <div className="flex items-center gap-2">
-            <Flame size={18} className="text-brand-accent-amber" />
-            <h2 className="text-lg font-bold tracking-tight text-white uppercase">Beats de Tendencia</h2>
+      <div id="catalog-grid" className="space-y-6 pt-2 animate-in fade-in duration-300">
+        <div className="flex items-center gap-2 border-b border-white/5 pb-2">
+          <Music className="text-[#7F77DD]" size={20} />
+          <h2 className="text-[24px] md:text-[28px] font-bold text-white tracking-tight">
+            Beats y Librerías de Sonidos
+          </h2>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-white/5 pb-1 gap-2 flex-wrap">
+          <div className="flex gap-2">
+            <button
+              onClick={() => {
+                setCatalogTab('beats');
+                setSelectedGenre('Todos');
+                setShowAll(false);
+              }}
+              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
+                catalogTab === 'beats'
+                  ? 'border-[#7F77DD] text-white bg-white/5 rounded-t-xl'
+                  : 'border-transparent text-gray-400 hover:text-white'
+              }`}
+            >
+              <Music size={14} /> Beats de Tendencia
+            </button>
+            <button
+              onClick={() => {
+                setCatalogTab('libraries');
+                setSelectedGenre('Todos');
+                setShowAll(false);
+              }}
+              className={`px-4 py-2.5 text-xs font-bold transition-all border-b-2 flex items-center gap-1.5 cursor-pointer ${
+                catalogTab === 'libraries'
+                  ? 'border-[#7F77DD] text-white bg-white/5 rounded-t-xl'
+                  : 'border-transparent text-gray-400 hover:text-white'
+              }`}
+            >
+              <Library size={14} /> Librerías de Sonido
+            </button>
           </div>
-          <span className="text-xs text-[#7F77DD] font-semibold">Sonido de Cuba en Vivo</span>
+          {filteredBeats.length > 10 && (
+            <button
+              onClick={() => setShowAll(!showAll)}
+              className="text-xs bg-[#7F77DD]/10 hover:bg-[#7F77DD]/25 text-[#7F77DD] border border-[#7F77DD]/30 hover:border-[#7F77DD]/60 font-bold px-4 py-1.5 rounded-xl transition-all flex items-center gap-1.5 cursor-pointer self-start sm:self-center mr-2 mb-1"
+            >
+              {showAll ? 'Ver Menos' : 'Ver Más'}
+            </button>
+          )}
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {Array.from({ length: 8 }).map((_, idx) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {Array.from({ length: 12 }).map((_, idx) => (
               <BeatCardSkeleton key={idx} index={idx} />
             ))}
           </div>
@@ -365,8 +570,8 @@ export const CatalogPage: React.FC = () => {
             </Button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-            {filteredBeats.map((beat) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {displayedBeats.map((beat) => (
               <BeatCard key={beat.id} beat={beat} />
             ))}
           </div>
@@ -377,11 +582,141 @@ export const CatalogPage: React.FC = () => {
       <Modal
         isOpen={!!selectedBeatId && !selectedProducerId}
         onClose={() => navigateTo('/')}
-        title="Detalles Musicales del Beat"
+        title={detailBeat?.isSoundLibrary ? "Detalles de la Librería" : "Detalles Musicales del Beat"}
         themeMode="dark"
         maxWidth="max-w-2xl"
       >
-        {detailBeat && (
+        {detailBeat && detailBeat.isSoundLibrary ? (
+          /* SOUND LIBRARY DETAIL SHEET VIEW */
+          <div className="space-y-6 text-left">
+            {/* Split top */}
+            <div className="flex flex-col sm:flex-row gap-5">
+              {/* Mockup layout */}
+              <div className="relative w-32 h-32 rounded-xl overflow-hidden flex-shrink-0 border border-white/10 mx-auto sm:mx-0 bg-brand-bg">
+                <img 
+                  src={detailBeat.coverUrl} 
+                  alt="detail mockup" 
+                  referrerPolicy="no-referrer"
+                  className="w-full h-full object-cover" 
+                />
+              </div>
+
+              {/* Title, details */}
+              <div className="flex-grow space-y-3">
+                <div>
+                  <h4 className="text-xl font-bold text-white tracking-tight">{detailBeat.title}</h4>
+                  <p 
+                    onClick={() => navigateTo('/', { producerId: detailBeat.producerId })}
+                    className="text-brand-primary-light text-xs font-semibold mt-1 hover:underline cursor-pointer inline-flex items-center gap-1"
+                  >
+                    Librería por {detailBeat.producerName}
+                    <ExternalLink size={11} />
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2 text-xs font-mono">
+                  <Badge variant="purple">Librería de Sonido</Badge>
+                  <span className="bg-[#1C1C2E] px-2.5 py-1 rounded text-white/70 border border-white/5">📦 Género: {detailBeat.genre}</span>
+                  <span className="bg-[#1C1C2E] px-2.5 py-1 rounded text-white/70 border border-white/5">🎹 {detailBeat.fileCount || 150} Samples</span>
+                  <span className="bg-[#1C1C2E] px-2.5 py-1 rounded text-white/70 border border-white/5">💾 {detailBeat.librarySizeMB || 100} MB</span>
+                </div>
+
+                <p className="text-white/60 text-xs leading-relaxed font-normal">
+                  {detailBeat.description || 'Kit de sonidos premium de alta calidad con loops y disparos de batería listos para usar en tus proyectos musicales.'}
+                </p>
+              </div>
+            </div>
+
+            {/* Platform metrics stats */}
+            <div className="grid grid-cols-2 gap-2 bg-[#0C0C14] p-3 rounded-xl border border-white/5 text-center">
+              <div className="flex flex-col justify-center py-0.5">
+                <span className="text-[10px] text-white/40 block">Formato de Compresión</span>
+                <span className="font-mono text-xs font-semibold text-white uppercase">{detailBeat.libraryFileName ? detailBeat.libraryFileName.split('.').pop() : 'ZIP'} / RAR</span>
+              </div>
+              <div className="flex flex-col justify-center py-0.5">
+                <span className="text-[10px] text-white/40 block">Lanzamiento</span>
+                <span className="text-xs font-semibold text-white">{detailBeat.releasedAt}</span>
+              </div>
+            </div>
+
+            {/* License options selector details */}
+            <div className="space-y-3">
+              <h5 className="text-xs font-bold uppercase tracking-wider text-white/60">Adquisición Comercial</h5>
+              
+              <div className="bg-[#1C1C2E] p-5 rounded-2xl border border-[#7F77DD]/40 flex flex-col justify-between relative overflow-hidden space-y-4">
+                <div className="absolute top-0 right-0 bg-[#7F77DD] text-[#0D0D14] font-bold text-[9px] uppercase tracking-wider px-3 py-1 rounded-bl-xl">
+                  Licencia Permanente
+                </div>
+                
+                <div className="space-y-3 text-left">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                    <span className="font-extrabold text-base text-white flex items-center gap-1.5">
+                      <FolderArchive size={16} className="text-brand-accent-amber" />
+                      Descarga Completa de Librería
+                    </span>
+                    <span className="text-sm text-brand-accent-amber font-extrabold">
+                      {detailBeat.isSoundLibrary 
+                        ? `$${Math.round(detailBeat.priceBasic * (exchangeRates?.USD || 360.0))} CUP` 
+                        : convertPrice(detailBeat.priceBasic).formatted}
+                    </span>
+                  </div>
+                  
+                  <p className="text-[11px] text-gray-300 leading-relaxed">
+                    Esta librería se vende bajo Licencia de Uso Comercial ilimitado y libre de regalías. El comprador recibe de forma perpetua el derecho a utilizar todos los loops, percusiones y muestras incluidas en cualquier producción sin tener que pagar royalties futuros.
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                    <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                      <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] font-bold text-white block">Regalías (Royalties)</span>
+                        <span className="text-[10px] text-gray-400">100% Libre de regalías</span>
+                      </div>
+                    </div>
+                    <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                      <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-0.5">
+                        <span className="text-[11px] font-bold text-white block">Uso Comercial</span>
+                        <span className="text-[10px] text-gray-400">Totalmente ilimitado</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Términos Generales de la Plataforma */}
+                  <div className="space-y-1.5 pt-1 text-left opacity-90">
+                    <span className="text-[10px] font-bold text-emerald-400 block uppercase tracking-wider flex items-center gap-1">
+                      Términos de la Plataforma (Librerías de Sonido)
+                    </span>
+                    <div className="bg-[#0C0C14]/60 border border-white/5 rounded-xl p-3 text-[10.5px] text-gray-400 leading-relaxed select-none">
+                      D'Cuban Beats garantiza la procedencia legal de esta librería de samples. El productor certifica bajo juramento ser el creador original de todas las muestras. La compra otorga una licencia exclusiva de uso comercial y libre de regalías a perpetuidad para el comprador. Está estrictamente prohibida la reventa, distribución no autorizada o sub-licenciamiento de los contenidos individuales o en paquete de esta librería.
+                    </div>
+                  </div>
+                </div>
+                
+                <Button 
+                  variant="primary" 
+                  size="sm" 
+                  fullWidth 
+                  onClick={() => {
+                    addToCart(detailBeat, 'basic');
+                    navigateTo('/');
+                  }}
+                  disabled={user?.role === 'admin'}
+                  className="mt-2 text-xs py-2.5 font-bold tracking-wide flex items-center justify-center gap-1.5"
+                >
+                  {user?.role === 'admin' ? (
+                    'No disponible para Administradores'
+                  ) : (
+                    <>
+                      <ShoppingCart size={14} />
+                      Añadir Librería al Carrito
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : detailBeat ? (
           <div className="space-y-6 text-left">
             {/* Split top */}
             <div className="flex flex-col sm:flex-row gap-5">
@@ -534,74 +869,189 @@ export const CatalogPage: React.FC = () => {
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {/* 1. Basic License info */}
-                  <div className="bg-[#1C1C2E] p-4 rounded-xl border border-[rgba(127,119,221,0.2)] flex flex-col justify-between">
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-sm">Licencia Básica</span>
-                        <span className="text-xs text-brand-primary-light font-bold">{convertPrice(detailBeat.priceBasic).formatted}</span>
-                      </div>
-                      <ul className="text-[10px] text-white/50 space-y-1 pt-2 list-disc list-inside">
-                        <li>Archivo MP3 de alta calidad</li>
-                        <li>Hasta 10,000 reproducciones</li>
-                        <li>Uso no exclusivo</li>
-                      </ul>
+                <div className="bg-[#1C1C2E] p-5 rounded-2xl border border-[#7F77DD]/40 flex flex-col justify-between relative overflow-hidden space-y-4">
+                  <div className="absolute top-0 right-0 bg-[#7F77DD] text-[#0D0D14] font-bold text-[9px] uppercase tracking-wider px-3 py-1 rounded-bl-xl">
+                    Licencia Exclusiva Comercial
+                  </div>
+                  
+                  <div className="space-y-3 text-left">
+                    <div className="flex justify-between items-center pb-2 border-b border-white/10">
+                      <span className="font-extrabold text-base text-white flex items-center gap-1.5">
+                        <Crown size={16} className="text-brand-accent-amber animate-pulse" />
+                        Adquisición Única Exclusiva
+                      </span>
+                      <span className="text-sm text-brand-accent-amber font-extrabold">
+                        {convertPrice(detailBeat.priceBasic || detailBeat.priceExclusive).formatted}
+                      </span>
                     </div>
                     
-                    <Button 
-                      variant="primary" 
-                      size="sm" 
-                      fullWidth 
-                      onClick={() => {
-                        addToCart(detailBeat, 'basic');
-                        navigateTo('/');
-                      }}
-                      disabled={detailBeat.status === 'sold' || user?.role === 'admin'}
-                      className="mt-4 text-xs"
-                    >
-                      {user?.role === 'admin' ? 'No disponible para Administradores' : 'Añadir Básica'}
-                    </Button>
-                  </div>
+                    <p className="text-[11px] text-gray-300 leading-relaxed">
+                      Esta instrumental se vende únicamente bajo Licencia Comercial Exclusiva con validez permanente (de por vida). Una vez adquirida, se retira automáticamente de la tienda para garantizar su exclusividad absoluta.
+                    </p>
 
-                  {/* 2. Exclusive License info */}
-                  <div className="bg-[#1C1C2E] p-4 rounded-xl border border-[#7F77DD]/40 flex flex-col justify-between relative overflow-hidden">
-                    <div className="absolute top-0 right-0 bg-[#7F77DD] text-[#0D0D14] font-bold text-[8px] uppercase tracking-widest px-2 py-0.5 rounded-bl">
-                      Único
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between items-center">
-                        <span className="font-bold text-sm">Licencia Exclusiva</span>
-                        <span className="text-xs text-brand-accent-amber font-bold">{convertPrice(detailBeat.priceExclusive).formatted}</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                      {/* 1. Copies */}
+                      <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                        {(() => {
+                          const licText = detailBeat.customLicenseClause || '';
+                          const isLimited = licText.includes('✗ [LIMITADO] Cantidad de copias') || licText.includes('✗ [LIMITADO] Distribución sujeta');
+                          return (
+                            <>
+                              {isLimited ? (
+                                <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              )}
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-bold text-white block">Distribución de Copias</span>
+                                <span className="text-[10px] text-gray-400">{isLimited ? 'Sujeto a negociación directa' : 'Ilimitado - De por vida'}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
-                      <ul className="text-[10px] text-white/50 space-y-1 pt-2 list-disc list-inside">
-                        <li>Archivos WAV + Tracks separados (STEMS)</li>
-                        <li>Uso comercial ilimitado</li>
-                        <li>El beat se elimina de la tienda</li>
-                      </ul>
+
+                      {/* 2. Videos */}
+                      <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                        {(() => {
+                          const licText = detailBeat.customLicenseClause || '';
+                          const isLimited = licText.includes('✗ [LIMITADO] Cantidad de videos') || licText.includes('✗ [LIMITADO] Uso en videoclips');
+                          return (
+                            <>
+                              {isLimited ? (
+                                <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              )}
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-bold text-white block">Videos Musicales</span>
+                                <span className="text-[10px] text-gray-400">{isLimited ? 'Sujeto a negociación directa' : 'Ilimitado - Monetización activa'}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      {/* 3. Streaming */}
+                      <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                        {(() => {
+                          const licText = detailBeat.customLicenseClause || '';
+                          const isLimited = licText.includes('✗ [LIMITADO] Plataformas de streaming') || licText.includes('✗ [LIMITADO] Transmisiones digitales');
+                          return (
+                            <>
+                              {isLimited ? (
+                                <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              )}
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-bold text-white block">Plataformas de Streaming</span>
+                                <span className="text-[10px] text-gray-400">{isLimited ? 'Sujeto a negociación directa' : 'Reproducciones Ilimitadas'}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      {/* 4. Rights/Exclusivity */}
+                      <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                        {(() => {
+                          const licText = detailBeat.customLicenseClause || '';
+                          const isLimited = licText.includes('✗ [LIMITADO] Derechos de autor') || licText.includes('✗ [LIMITADO] Derechos exclusivos');
+                          return (
+                            <>
+                              {isLimited ? (
+                                <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              )}
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-bold text-white block">Exclusividad Comercial</span>
+                                <span className="text-[10px] text-gray-400">{isLimited ? 'Condiciones especiales' : 'Absoluta de por vida'}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      {/* 5. Stems Included */}
+                      <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                        {(() => {
+                          const licText = detailBeat.customLicenseClause || '';
+                          const isNoStems = licText.includes('✗ [NO INCLUIDO] Pistas por separado') || licText.includes('✗ No incluye pistas por separado');
+                          return (
+                            <>
+                              {isNoStems ? (
+                                <AlertTriangle size={15} className="text-amber-500 mt-0.5 flex-shrink-0" />
+                              ) : (
+                                <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              )}
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-bold text-white block">Pistas Separadas (STEMS)</span>
+                                <span className="text-[10px] text-gray-400">{isNoStems ? 'No incluye pistas por separado' : 'Incluidas en la descarga'}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+
+                      {/* 6. Audio Format */}
+                      <div className="flex items-start gap-2 bg-[#0C0C14]/50 p-2.5 rounded-xl border border-white/5">
+                        {(() => {
+                          const licText = detailBeat.customLicenseClause || '';
+                          const isMp3 = licText.includes('Audio entregado en formato MP3') || licText.includes('Calidad de audio: MP3');
+                          return (
+                            <>
+                              <CheckCircle2 size={15} className="text-emerald-400 mt-0.5 flex-shrink-0" />
+                              <div className="space-y-0.5">
+                                <span className="text-[11px] font-bold text-white block">Formato de Calidad</span>
+                                <span className="text-[10px] text-gray-400">{isMp3 ? 'Audio MP3 de alta fidelidad' : 'Audio WAV de 24 bits'}</span>
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
                     </div>
-                    
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      fullWidth 
-                      onClick={() => {
-                        addToCart(detailBeat, 'exclusive');
-                        navigateTo('/');
-                      }}
-                      disabled={detailBeat.status === 'sold' || user?.role === 'admin'}
-                      className="mt-4 text-xs bg-indigo-500/20 text-[#7F77DD] hover:bg-indigo-500/30 border border-[#7F77DD]/35 disabled:opacity-40"
-                    >
-                      {user?.role === 'admin' ? 'No disponible para Administradores' : 'Comprar Exclusiva'}
-                    </Button>
+
+                    {/* Términos Generales de la Plataforma */}
+                    <div className="space-y-1.5 pt-1 text-left opacity-90">
+                      <span className="text-[10px] font-bold text-emerald-400 block uppercase tracking-wider flex items-center gap-1">
+                        Términos Generales de la Plataforma (No Modificable)
+                      </span>
+                      <div className="max-h-[95px] overflow-y-auto bg-[#0C0C14]/60 border border-white/5 rounded-xl p-3 text-[10.5px] text-gray-400 leading-relaxed select-none scrollbar-thin">
+                        D'Cuban Beats actúa como intermediario legal y certifica la validez de esta transacción. La plataforma garantiza el derecho de uso legítimo de la maqueta descargada y se reserva el derecho de auditar el origen lícito de la transacción en caso de controversias de propiedad intelectual. Esta licencia incluye la firma digital de la plataforma y se emitirá de forma definitiva con los datos exactos del comprobante de pago verificado por la administración al momento de liberarse la descarga.
+                      </div>
+                      <span className="text-[9.5px] text-emerald-500 block font-semibold">✓ El sistema de descargas integrará de forma automática el comprobante de pago al PDF.</span>
+                    </div>
                   </div>
+                  
+                  <Button 
+                    variant="primary" 
+                    size="sm" 
+                    fullWidth 
+                    onClick={() => {
+                      addToCart(detailBeat, 'exclusive');
+                      navigateTo('/');
+                    }}
+                    disabled={detailBeat.status === 'sold' || user?.role === 'admin'}
+                    className="mt-2 text-xs py-2.5 font-bold tracking-wide flex items-center justify-center gap-1.5"
+                  >
+                    {user?.role === 'admin' ? (
+                      'No disponible para Administradores'
+                    ) : (
+                      <>
+                        <ShoppingCart size={14} />
+                        Añadir Licencia Exclusiva al Carrito
+                      </>
+                    )}
+                  </Button>
                 </div>
               )}
             </div>
 
 
           </div>
-        )}
+        ) : null}
       </Modal>
 
       {/* 5. MODAL: PRODUCER PUBLIC PROFILE VIEW */}
@@ -772,8 +1222,8 @@ export const CatalogPage: React.FC = () => {
             {/* List of Beats by this producer */}
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <h5 className="text-xs font-bold uppercase tracking-wider text-white/60">Catálogo de Beats Autorizados</h5>
-                <span className="text-[10px] text-white/40 font-mono">Mostrando {maxSimulatedBeats.length} de {detailProducer.beatsCount || maxSimulatedBeats.length} activos</span>
+                <h2 className="text-[16px] font-semibold tracking-tight text-white/60">Catálogo de Beats Autorizados</h2>
+                <span className="text-[11px] text-white/40 font-mono font-normal">Mostrando {maxSimulatedBeats.length} de {detailProducer.beatsCount || maxSimulatedBeats.length} activos</span>
               </div>
               
               {maxSimulatedBeats.length === 0 ? (
@@ -816,7 +1266,11 @@ export const CatalogPage: React.FC = () => {
                         </div>
                         
                         <div className="text-right flex-shrink-0 flex flex-col justify-center items-end gap-1">
-                          <span className="text-xs text-brand-primary-light font-bold block">{convertPrice(prodBeat.priceBasic).formatted}</span>
+                          <span className="text-xs text-brand-primary-light font-bold block">
+                            {prodBeat.isSoundLibrary 
+                              ? `$${Math.round(prodBeat.priceBasic * (exchangeRates?.USD || 360.0))} CUP` 
+                              : convertPrice(prodBeat.priceBasic).formatted}
+                          </span>
                           {prodBeat.status === 'sold' ? (
                             <span className="text-[8px] bg-red-500/15 text-red-400 font-extrabold px-1.5 py-0.5 rounded border border-red-500/20 uppercase tracking-wide">Vendido</span>
                           ) : (

@@ -20,11 +20,12 @@ export const ProducerOrders: React.FC = () => {
   }, [orders]);
 
   // Tab Selection state for order status tracking filters
-  const [activeTab, setActiveTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'disputed' | 'approved' | 'rejected'>('pending');
 
   const counts = useMemo(() => {
     return {
       pending: myOrders.filter(o => o.status === 'pending' || o.status === 'verified').length,
+      disputed: myOrders.filter(o => o.status === 'disputed').length,
       approved: myOrders.filter(o => o.status === 'approved').length,
       rejected: myOrders.filter(o => o.status === 'rejected').length,
     };
@@ -86,8 +87,8 @@ export const ProducerOrders: React.FC = () => {
 
   const handleConfirmFullApproval = () => {
     if (!liveSelectedOrder) return;
-    updateOrder(liveSelectedOrder.id, 'approved', undefined, generatedLink);
-    addToast('Orden liberada y completada con éxito. El enlace queda expuesto en este panel.', 'success');
+    updateOrder(liveSelectedOrder.id, 'approved');
+    setIsReleaseModalOpen(false);
   };
 
   const safeCopyText = (text: string, successMessage: string) => {
@@ -601,126 +602,60 @@ export const ProducerOrders: React.FC = () => {
 
       </div>
 
-      {/* MODAL: EXCLUSIVITY / BEAT RELEASE & LINK GENERATION */}
+      {/* MODAL: EXCLUSIVITY / BEAT RELEASE & EMAIL LICENSE DISPATCH */}
       <Modal
         isOpen={isReleaseModalOpen}
         onClose={() => setIsReleaseModalOpen(false)}
-        title={liveSelectedOrder?.status === 'approved' ? "Gestión de Licencia y Descarga Activa" : "Validar Pago y Generar Licencia de Descarga"}
+        title={liveSelectedOrder?.status === 'approved' ? "Licencia Enviada y Pedido Completado" : "Aprobar Pedido y Enviar Licencia al Correo"}
         themeMode="dark"
         maxWidth="max-w-md"
       >
         <div className="space-y-4 text-left pt-2 text-white bg-brand-surface">
           {liveSelectedOrder?.status === 'approved' ? (
             <div className="p-3 bg-emerald-950/20 text-emerald-300 border border-emerald-900/30 rounded-xl text-xs space-y-1">
-              <span className="font-bold block text-emerald-400">✓ Pedido Entregado</span>
-              <p className="text-gray-300">Este pedido de la instrumental <strong className="text-emerald-200">{liveSelectedOrder?.beatTitle}</strong> ha sido completado y entregado con éxito.</p>
+              <span className="font-bold block text-emerald-400">✓ Pedido Entregado y Licencia Emitida</span>
+              <p className="text-gray-300">
+                La licencia oficial de <strong className="text-emerald-200">{liveSelectedOrder?.beatTitle}</strong> fue enviada a la cuenta de correo <strong className="text-emerald-200">{liveSelectedOrder?.buyerEmail || 'del cliente'}</strong>.
+              </p>
             </div>
           ) : (
             <div className="p-3 bg-emerald-950/20 text-emerald-300 border border-emerald-900/30 rounded-xl text-xs space-y-1">
-              <span className="font-bold block text-emerald-400">✓ Pago Verificado</span>
-              <p className="text-gray-300">Al aprobar este pedido de la instrumental <strong className="text-emerald-200">{liveSelectedOrder?.beatTitle}</strong>, se generará una licencia temporal de descarga.</p>
+              <span className="font-bold block text-emerald-400">✓ Pago Verificado y Fondos Confirmados</span>
+              <p className="text-gray-300">
+                Estás a punto de liberar el pedido de la instrumental / librería <strong className="text-emerald-200">{liveSelectedOrder?.beatTitle}</strong>.
+              </p>
             </div>
           )}
 
-          <div className="space-y-1">
-            <label className="text-xs font-semibold uppercase text-gray-400 tracking-wider flex items-center gap-1">
-              <Clock size={13} />
-              Duración del Enlace de Descarga
-            </label>
-            <select
-              value={expirationHours}
-              onChange={(e) => setExpirationHours(e.target.value)}
-              className="w-full px-3 py-2.5 rounded-xl border border-brand-border bg-brand-card text-white focus:border-[#534AB7] focus:ring-1 focus:ring-[#534AB7]/10 text-xs outline-none"
-            >
-              <option value="12" className="bg-brand-surface">12 Horas de disponibilidad</option>
-              <option value="24" className="bg-brand-surface">24 Horas de disponibilidad</option>
-              <option value="48" className="bg-brand-surface">48 Horas de disponibilidad</option>
-              <option value="168" className="bg-brand-surface">7 Días de disponibilidad</option>
-            </select>
-            <p className="text-[10px] text-gray-400">Pasado este tiempo, el enlace expirará automáticamente por motivos de seguridad anti-piratería musical.</p>
+          <div className="p-3 bg-brand-card/60 border border-brand-border/40 rounded-xl space-y-2 text-xs">
+            <div className="flex justify-between items-center border-b border-brand-border/20 pb-1.5">
+              <span className="text-gray-400">Cliente Comprador:</span>
+              <span className="font-bold text-white">{liveSelectedOrder?.buyerName}</span>
+            </div>
+            <div className="flex justify-between items-center border-b border-brand-border/20 pb-1.5">
+              <span className="text-gray-400">Correo Electrónico Registrado:</span>
+              <span className="font-mono text-[#7F77DD] font-semibold">{liveSelectedOrder?.buyerEmail || 'cliente@dcubanbeats.com'}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Importe Verificado:</span>
+              <span className="font-mono text-emerald-400 font-bold">${liveSelectedOrder?.amount?.toLocaleString()} {liveSelectedOrder?.currency}</span>
+            </div>
           </div>
 
-          {/* Generate action */}
-          {!isLinkGenerated ? (
-            <Button 
-              variant="primary" 
-              size="md" 
-              onClick={handleGenerateSecureLink} 
-              className="w-full text-xs font-bold gap-1.5"
-            >
-              <ShieldCheck size={14} />
-              Generar Enlace Seguro de Descarga
-            </Button>
-          ) : (
-            <div className="space-y-3 p-3 bg-brand-card/40 border border-brand-border/30 rounded-xl animate-in fade-in duration-200">
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-bold uppercase text-indigo-300 block">Enlace de Descarga de Alta Definición:</span>
-                  {liveSelectedOrder?.status === 'approved' && (
-                    <button
-                      type="button"
-                      onClick={handleRegenerateSecureLink}
-                      className="text-[10px] text-amber-400 hover:text-amber-300 font-bold underline cursor-pointer outline-none bg-transparent border-none"
-                    >
-                      Regenerar Nuevo Enlace
-                    </button>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  <input
-                    type="text"
-                    readOnly
-                    value={generatedLink}
-                    className="flex-grow bg-brand-surface border border-brand-border/40 p-2 text-[10.5px] rounded-lg font-mono outline-none text-white"
-                  />
-                  <button 
-                    onClick={handleCopyGeneratedLink}
-                    className="p-2 bg-[#534AB7] text-white hover:bg-[#433A9B] rounded-lg transition-colors cursor-pointer"
-                    title="Copiar enlace"
-                  >
-                    <Copy size={14} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Instant messenger share options */}
-              <div className="space-y-1.5 pt-1">
-                <span className="text-[10px] font-bold uppercase text-gray-400 block tracking-wider">Enviar directamente por:</span>
-                
-                <div className="grid grid-cols-3 gap-2">
-                  <a
-                    href={`https://api.whatsapp.com/send?text=${encodeURIComponent('🎹 ¡Hola! Tu pago ha sido validado en CubaBeats. Aquí tienes tu enlace de descarga seguro (disponible por ' + expirationHours + 'h): ' + generatedLink)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-2 py-1.5 bg-[#25D366] hover:opacity-90 text-white rounded-lg text-[10px] font-bold text-center flex items-center justify-center gap-1 transition-opacity"
-                  >
-                    <MessageSquare size={12} />
-                    WhatsApp
-                  </a>
-
-                  <a
-                    href={`https://t.me/share/url?url=${encodeURIComponent(generatedLink)}&text=${encodeURIComponent('🎹 Tu pago ha sido validado en CubaBeats. Aquí tienes tu descarga por ' + expirationHours + 'h: ' + generatedLink)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="px-2 py-1.5 bg-[#0088cc] hover:opacity-90 text-white rounded-lg text-[10px] font-bold text-center flex items-center justify-center gap-1 transition-opacity"
-                  >
-                    <Send size={11} className="-rotate-12" />
-                    Telegram
-                  </a>
-
-                  <button
-                    onClick={() => {
-                      safeCopyText(generatedLink, 'Enlace de descarga copiado. Compártelo con el cliente por tu vía preferente.');
-                    }}
-                    className="px-2 py-1.5 bg-brand-surface hover:bg-brand-card border border-brand-border/50 text-white rounded-lg text-[10px] font-bold text-center flex items-center justify-center gap-1 transition-colors"
-                  >
-                    <Mail size={12} />
-                    Copiar
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          <div className="p-3 bg-[#1C1C2E] border border-indigo-500/20 rounded-xl space-y-2.5 text-xs text-gray-300 leading-relaxed">
+            <p className="flex items-start gap-2">
+              <Mail size={16} className="text-[#7F77DD] flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Envío Directo de Licencia:</strong> Al presionar <span className="text-white font-semibold">Aprobar y completar pedido</span>, el sistema enviará automáticamente la licencia comercial oficial firmada al correo electrónico con el que está registrado este cliente (<strong>{liveSelectedOrder?.buyerEmail || 'correo del cliente'}</strong>).
+              </span>
+            </p>
+            <p className="flex items-start gap-2 pt-2 border-t border-white/5">
+              <Clock size={16} className="text-amber-400 flex-shrink-0 mt-0.5" />
+              <span>
+                <strong>Plazo de Descarga de 24 horas:</strong> La producción aparecerá inmediatamente en el panel del cliente en la sección <span className="text-amber-300 font-semibold font-mono">Beats Adquiridos</span> con un botón de descarga disponible durante 24 horas para reintentos en caso de fallos de conexión. Transcurrido ese plazo, el archivo se retirará del storage y quedará únicamente la previsualización del beat.
+              </span>
+            </p>
+          </div>
 
           {/* Action Footer */}
           <div className="flex gap-2 justify-end pt-3 border-t border-brand-border/30">
@@ -731,11 +666,11 @@ export const ProducerOrders: React.FC = () => {
               <Button 
                 variant="primary" 
                 size="sm" 
-                disabled={!isLinkGenerated}
                 onClick={handleConfirmFullApproval}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white border-none disabled:opacity-50"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white border-none cursor-pointer flex items-center gap-1.5 font-bold"
               >
-                Aprobar y Completar Pedido ✓
+                <CheckCheck size={14} />
+                Aprobar y completar pedido
               </Button>
             )}
           </div>

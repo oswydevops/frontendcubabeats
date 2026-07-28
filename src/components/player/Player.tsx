@@ -81,10 +81,10 @@ export const Player: React.FC = () => {
           )}
         </div>
         <div className="text-left truncate">
-          <h5 className="text-white font-medium text-xs truncate max-w-[140px]" title={activeBeat.title}>
+          <h5 className="text-white font-semibold text-[14px] truncate max-w-[140px]" title={activeBeat.title}>
             {activeBeat.title}
           </h5>
-          <p className="text-white/40 text-[10px] truncate max-w-[140px]">
+          <p className="text-white/40 text-[12px] font-normal truncate max-w-[140px]">
             {activeBeat.producerName}
           </p>
         </div>
@@ -115,7 +115,7 @@ export const Player: React.FC = () => {
         </div>
 
         {/* Play progress bar slider wrapper */}
-        <div className="w-full flex items-center gap-3 text-[10px] text-white/50 font-mono">
+        <div className="w-full flex items-center gap-3 text-[11px] text-white/50 font-normal font-mono">
           <span>{formatTime(playbackTime)}</span>
           
           <div 
@@ -151,7 +151,7 @@ export const Player: React.FC = () => {
         </div>
 
         {/* Preview status tag */}
-        <span className="px-2 py-1 bg-brand-primary-light/10 text-brand-primary-light border border-brand-primary-light/25 font-semibold text-[10px] rounded uppercase font-mono tracking-wider">
+        <span className="px-2 py-1 bg-brand-primary-light/10 text-brand-primary-light border border-brand-primary-light/25 font-medium text-[12px] rounded uppercase font-mono tracking-wider">
           Demo Track
         </span>
 
