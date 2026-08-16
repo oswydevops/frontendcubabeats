@@ -10,7 +10,8 @@ import {
   ShieldCheck, Upload, Download, Trash2, LayoutDashboard, 
   SlidersHorizontal, Check, Play, Pause, ShoppingCart, AlertCircle,
   Mail, Phone, Lock, MapPin, Globe, FileImage, LogOut,
-  Eye, Calendar, CreditCard, X, ExternalLink, Send, Bell, Clock, MessageSquare
+  Eye, Calendar, CreditCard, X, ExternalLink, Send, Bell, Clock, MessageSquare,
+  Sparkles, CheckCircle2
 } from 'lucide-react';
 
 // List of Cuban provinces for analytical geolocation stats mapping
@@ -58,6 +59,30 @@ export const ArtistDashboard: React.FC = () => {
   }, [verifiedProducersTask, followedProducerIds]);
 
   const [activeTab, setActiveTab] = useState<'desktop' | 'acquired' | 'favorites' | 'following' | 'profile' | 'notifications'>('desktop');
+  
+  // Become Producer modal state (Ruta A)
+  const [showBecomeProducerModal, setShowBecomeProducerModal] = useState(false);
+  const [artistProducerName, setArtistProducerName] = useState(user?.artistName || user?.name || '');
+  const [artistInstagram, setArtistInstagram] = useState(user?.instagram || '');
+  const [becomeProducerError, setBecomeProducerError] = useState('');
+
+  const handleConfirmBecomeProducer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!artistProducerName.trim()) {
+      setBecomeProducerError('El nombre de productor musical es obligatorio');
+      return;
+    }
+
+    updateUserProfile({
+      role: 'producer',
+      artistName: artistProducerName.trim(),
+      instagram: artistInstagram.trim() || undefined,
+      plan: 'Gratis'
+    });
+
+    addToast(`¡Felicidades ${artistProducerName.trim()}! Tu cuenta ahora es de Productor (Plan Gratis)`, 'success');
+    setShowBecomeProducerModal(false);
+  };
   const [profileSubTab, setProfileSubTab] = useState<'profile' | 'security'>('profile');
   const [selectedFollowingProducerId, setSelectedFollowingProducerId] = useState<string | null>(null);
   const [chatInputText, setChatInputText] = useState('');
@@ -80,7 +105,7 @@ export const ArtistDashboard: React.FC = () => {
         markMessagesAsRead(activeFollowingProducer.id, user.id);
       }
     }
-  }, [activeTab, followingViewMode, activeFollowingProducer?.id, user?.id, directMessages, markMessagesAsRead]);
+  }, [activeTab, followingViewMode, activeFollowingProducer?.id, user?.id, directMessages.length, markMessagesAsRead]);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -340,6 +365,16 @@ export const ArtistDashboard: React.FC = () => {
         </div>
 
         <div className="z-10 flex-shrink-0 flex flex-col sm:flex-row gap-2.5 w-full md:w-auto">
+          <Button 
+            variant="primary" 
+            size="sm" 
+            onClick={() => navigateTo('/hazte-vendedor')}
+            className="w-full md:w-auto bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-extrabold shadow-lg cursor-pointer"
+          >
+            <Sparkles size={14} className="mr-1.5" />
+            Hazte Vendedor
+          </Button>
+
           <Button 
             variant="secondary" 
             size="sm" 
@@ -1961,6 +1996,78 @@ export const ArtistDashboard: React.FC = () => {
               beat={beats.find(b => b.id === selectedLicenseOrder.beatId)}
               onClose={() => setSelectedLicenseOrder(null)}
             />
+          </div>
+        </div>
+      )}
+
+      {/* Become Producer Modal (Ruta A) */}
+      {showBecomeProducerModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in">
+          <div className="bg-[#13131F] border border-amber-500/30 rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl relative text-left">
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2 text-amber-400 font-bold text-lg">
+                <Sparkles size={20} />
+                <span>¡Hazte Vendedor en D'Cuban Beats!</span>
+              </div>
+              <button
+                onClick={() => setShowBecomeProducerModal(false)}
+                className="p-1 rounded-lg text-white/40 hover:text-white hover:bg-white/10 cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="text-xs text-white/70 leading-relaxed font-sans">
+              Empieza a publicar y vender tus beats y librerías de sonido en la mayor comunidad de Cuba. Tu cuenta actual se convertirá en perfil de Productor con el <strong className="text-amber-400">Plan Gratis</strong> inmediatamente.
+            </p>
+
+            {user?.verified && (
+              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center gap-2 text-emerald-400 text-xs font-semibold">
+                <CheckCircle2 size={16} />
+                <span>Tu verificación de identidad (KYC) ya está aprobada y se mantendrá activa.</span>
+              </div>
+            )}
+
+            <form onSubmit={handleConfirmBecomeProducer} className="space-y-4">
+              <Input
+                label="Nombre de Productor Musical *"
+                placeholder="Ej. Beatmaker Habana / Prod. Carlos"
+                value={artistProducerName}
+                onChange={(e) => {
+                  setArtistProducerName(e.target.value);
+                  setBecomeProducerError('');
+                }}
+                error={becomeProducerError}
+              />
+
+              <Input
+                label="Usuario de Instagram (Opcional)"
+                placeholder="@tu_usuario_instagram"
+                value={artistInstagram}
+                onChange={(e) => setArtistInstagram(e.target.value)}
+              />
+
+              <div className="pt-2 flex gap-3">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  fullWidth
+                  onClick={() => setShowBecomeProducerModal(false)}
+                  className="cursor-pointer"
+                >
+                  Cancelar
+                </Button>
+
+                <Button
+                  type="submit"
+                  variant="primary"
+                  fullWidth
+                  className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-black font-extrabold shadow-lg cursor-pointer"
+                >
+                  Confirmar y Convertirme
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

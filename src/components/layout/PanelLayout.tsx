@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { 
   LayoutDashboard, Music, Receipt, DollarSign, UserCheck, 
   CreditCard, Landmark, Users, Radio, ArrowLeft, Menu, X, CheckCircle,
-  BarChart3, Bell, Sparkles, LogOut, HelpCircle
+  BarChart3, Bell, Sparkles, LogOut, HelpCircle, Headset
 } from 'lucide-react';
 import { useApp } from '../../store/AppContext';
 import { Modal } from '../ui/Modal';
@@ -41,6 +41,7 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
   // Admin Side Menu Items
   const ADMIN_MENU = [
     { name: 'Dashboard Global', icon: LayoutDashboard, path: '/admin/dashboard' },
+    { name: 'Soporte Técnico', icon: Headset, path: '/admin/support' },
     { name: 'Estadísticas Globales', icon: BarChart3, path: '/admin/stats' },
     { name: 'Gestionar Usuarios', icon: Users, path: '/admin/users' },
     { name: 'Solicitudes de Planes', icon: CreditCard, path: '/admin/plan-requests' },

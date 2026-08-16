@@ -25,6 +25,8 @@ import { ProducerEarnings } from './pages/producer/ProducerEarnings';
 import { ProducerProfile } from './pages/producer/ProducerProfile';
 import { ProducerPaymentMethods } from './pages/producer/ProducerPaymentMethods';
 import { ProducerPlans } from './pages/producer/ProducerPlans';
+import { ProducerPendingApproval } from './pages/producer/ProducerPendingApproval';
+import { BecomeProducerPage } from './pages/producer/BecomeProducerPage';
 
 // Admin panel screens
 import { AdminDashboard } from './pages/admin/AdminDashboard';
@@ -34,6 +36,8 @@ import { AdminPlans } from './pages/admin/AdminPlans';
 import { AdminStats } from './pages/admin/AdminStats';
 import { AdminProfile } from './pages/admin/AdminProfile';
 import { AdminPlanRequests } from './pages/admin/AdminPlanRequests';
+import { AdminPaymentMethods } from './pages/admin/AdminPaymentMethods';
+import { AdminSupport } from './pages/admin/AdminSupport';
 import { SupportChatWidget } from './components/support/SupportChatWidget';
 import { ErrorPages } from './pages/errors/ErrorPages';
 import { MaintenancePage } from './pages/errors/MaintenancePage';
@@ -104,6 +108,11 @@ export default function App() {
         return <ProducerPaymentMethods />;
       case '/producer/plans':
         return <ProducerPlans />;
+      case '/producer/pending-approval':
+        return <ProducerPendingApproval />;
+      case '/hazte-vendedor':
+      case '/vendedor':
+        return <BecomeProducerPage />;
 
       // Administration setup paths
       case '/admin/dashboard':
@@ -135,7 +144,9 @@ export default function App() {
       case '/admin/stats':
         return <AdminStats />;
       case '/admin/payment-methods':
-        return <ProducerPaymentMethods />;
+        return <AdminPaymentMethods />;
+      case '/admin/support':
+        return <AdminSupport />;
       case '/admin/profile':
         return <AdminProfile />;
 

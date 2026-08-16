@@ -2,77 +2,149 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
-import { Badge } from '../../components/ui/Badge';
 import { 
-  CreditCard, Landmark, Check, Phone, ArrowLeft, 
-  Send, ShieldAlert, Upload, Wallet, Copy, X, Camera, Info
+  CreditCard, Landmark, Check, ArrowLeft, 
+  Send, ShieldAlert, Upload, Wallet, Copy, X, Camera, ChevronRight, ChevronLeft
 } from 'lucide-react';
 
+// Estructura para agrupar ítems e información de pago por productor individual
+interface ProducerGroup {
+  producerId: string;
+  producerName: string;
+  items: any[];
+  subtotalUSD: number;
+  bankMethods: any[];
+  qvapayMethods: any[];
+  hasBankMethods: boolean;
+  hasQvapayMethods: boolean;
+}
+
+// Estado de comprobante e id de transacción por productor
+interface ProducerProofState {
+  channel: 'bancos' | 'qvapay';
+  selectedBankCardId: string;
+  transactionId: string;
+  smsConfirmation: string;
+  receiptImage: string | null;
+}
+
 export const CheckoutPage: React.FC = () => {
-  const { cart, createOrder, removeFromCart, navigateTo, addToast, user, convertPrice, exchangeRates, getProducerPaymentMethods, addProducerNotification } = useApp();
+  const { 
+    cart, createOrder, removeFromCart, navigateTo, addToast, user, 
+    convertPrice, exchangeRates, getProducerPaymentMethods, addProducerNotification, isTransactionIdUnique 
+  } = useApp();
 
   const payableCart = useMemo(() => cart.filter(item => item.selected !== false), [cart]);
 
-  // Find all producer payment configurations for the producers of the beats in the cart
-  const producerIds = useMemo(() => {
-    return Array.from(new Set(payableCart.map(item => item.beat.producerId)));
-  }, [payableCart]);
+  // CAMBIO CLAVE 1: Agrupar los ítems del carrito por producerId
+  // Cada productor tiene su propio subtotal y sus propios métodos de cobro
+  const producerGroups = useMemo<ProducerGroup[]>(() => {
+    const map = new Map<string, { items: typeof payableCart; producerName: string }>();
 
-  const availableProducerMethods = useMemo(() => {
-    const list: any[] = [];
-    producerIds.forEach(pId => {
-      const pMethods = getProducerPaymentMethods(pId);
-      pMethods.forEach(m => {
-        if (m.active !== false) {
-          list.push(m);
-        }
+    payableCart.forEach(item => {
+      const pId = item.beat.producerId;
+      if (!map.has(pId)) {
+        map.set(pId, { items: [], producerName: item.beat.producerName || 'Productor' });
+      }
+      map.get(pId)!.items.push(item);
+    });
+
+    const groups: ProducerGroup[] = [];
+    map.forEach((value, pId) => {
+      const pMethods = getProducerPaymentMethods(pId).filter((m: any) => m.active !== false);
+      const bankMethods = pMethods.filter((m: any) => m.type === 'transfermovil' || m.type === 'enzona' || !!m.cardNumber);
+      const qvapayMethods = pMethods.filter((m: any) => m.type === 'qvapay');
+
+      groups.push({
+        producerId: pId,
+        producerName: value.producerName,
+        items: value.items,
+        subtotalUSD: value.items.reduce((sum, item) => sum + item.price, 0),
+        bankMethods,
+        qvapayMethods,
+        hasBankMethods: bankMethods.length > 0,
+        hasQvapayMethods: qvapayMethods.length > 0,
       });
     });
-    return list;
-  }, [producerIds, getProducerPaymentMethods]);
 
-  // Separate Bank methods and QvaPay methods
-  const bankMethods = useMemo(() => {
-    return availableProducerMethods.filter(m => m.type === 'transfermovil' || m.type === 'enzona' || !!m.cardNumber);
-  }, [availableProducerMethods]);
+    return groups;
+  }, [payableCart, getProducerPaymentMethods]);
 
-  const qvapayMethods = useMemo(() => {
-    return availableProducerMethods.filter(m => m.type === 'qvapay');
-  }, [availableProducerMethods]);
+  // CAMBIO CLAVE 2: Estado indexado por producerId para almacenar transactionId, receiptImage, smsConfirmation y canal por productor
+  const [proofByProducer, setProofByProducer] = useState<Record<string, ProducerProofState>>({});
 
-  const hasBankMethods = bankMethods.length > 0;
-  const hasQvapayMethods = qvapayMethods.length > 0;
+  // Paso actual para el wizard multi-productor (0-indexed)
+  const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
 
-  // Selected Channel State ('bancos' | 'qvapay')
-  const [activeChannel, setActiveChannel] = useState<'bancos' | 'qvapay'>('bancos');
-
+  // Inicializar estado de comprobante para cada productor de forma independiente
   useEffect(() => {
-    if (!hasBankMethods && hasQvapayMethods) {
-      setActiveChannel('qvapay');
-    } else if (hasBankMethods) {
-      setActiveChannel('bancos');
-    }
-  }, [hasBankMethods, hasQvapayMethods]);
+    setProofByProducer(prev => {
+      const next = { ...prev };
+      let updated = false;
 
-  // Bank Card Selection (if multiple bank cards available)
-  const [selectedBankCardId, setSelectedBankCardId] = useState<string>('');
+      producerGroups.forEach(group => {
+        if (!next[group.producerId]) {
+          updated = true;
+          const initialChannel = group.hasBankMethods ? 'bancos' : group.hasQvapayMethods ? 'qvapay' : 'bancos';
+          const initialCardId = group.bankMethods.length > 0 ? group.bankMethods[0].id : '';
+          next[group.producerId] = {
+            channel: initialChannel,
+            selectedBankCardId: initialCardId,
+            transactionId: '',
+            smsConfirmation: '',
+            receiptImage: null,
+          };
+        }
+      });
 
-  const selectedBankCard = useMemo(() => {
-    if (bankMethods.length === 0) return null;
-    return bankMethods.find(m => m.id === selectedBankCardId) || bankMethods[0];
-  }, [bankMethods, selectedBankCardId]);
+      return updated ? next : prev;
+    });
+  }, [producerGroups]);
 
-  const selectedQvapayMethod = useMemo(() => {
-    if (qvapayMethods.length === 0) return null;
-    return qvapayMethods[0];
-  }, [qvapayMethods]);
+  // Asegurar que el paso actual esté dentro del rango disponible
+  const activeStep = Math.min(currentStepIndex, Math.max(0, producerGroups.length - 1));
+  const currentGroup = producerGroups[activeStep] || producerGroups[0];
 
-  // Form Inputs
-  const [transactionId, setTransactionId] = useState('');
-  const [smsConfirmation, setSmsConfirmation] = useState('');
-  const [receiptImage, setReceiptImage] = useState<string | null>(null);
+  // Helper para actualizar los datos de comprobante del productor actual
+  const updateCurrentProducerProof = (updates: Partial<ProducerProofState>) => {
+    if (!currentGroup) return;
+    setProofByProducer(prev => {
+      const pId = currentGroup.producerId;
+      const current = prev[pId] || {
+        channel: currentGroup.hasBankMethods ? 'bancos' : 'qvapay',
+        selectedBankCardId: currentGroup.bankMethods[0]?.id || '',
+        transactionId: '',
+        smsConfirmation: '',
+        receiptImage: null,
+      };
+      return {
+        ...prev,
+        [pId]: { ...current, ...updates }
+      };
+    });
+  };
 
-  // Copy & Expand States
+  const currentProof = (currentGroup && proofByProducer[currentGroup.producerId]) || {
+    channel: currentGroup?.hasBankMethods ? 'bancos' : 'qvapay',
+    selectedBankCardId: currentGroup?.bankMethods[0]?.id || '',
+    transactionId: '',
+    smsConfirmation: '',
+    receiptImage: null,
+  };
+
+  // Método de tarjeta bancaria seleccionado para el grupo actual
+  const currentSelectedBankCard = useMemo(() => {
+    if (!currentGroup || currentGroup.bankMethods.length === 0) return null;
+    return currentGroup.bankMethods.find((m: any) => m.id === currentProof.selectedBankCardId) || currentGroup.bankMethods[0];
+  }, [currentGroup, currentProof.selectedBankCardId]);
+
+  // Método QvaPay para el grupo actual
+  const currentSelectedQvapayMethod = useMemo(() => {
+    if (!currentGroup || currentGroup.qvapayMethods.length === 0) return null;
+    return currentGroup.qvapayMethods[0];
+  }, [currentGroup]);
+
+  // Estados auxiliares UI
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [expandedQrImage, setExpandedQrImage] = useState<string | null>(null);
 
@@ -114,16 +186,16 @@ export const CheckoutPage: React.FC = () => {
     }
   };
 
-  const totalAmountUSD = useMemo(() => payableCart.reduce((acc, item) => acc + item.price, 0), [payableCart]);
+  const totalCartAmountUSD = useMemo(() => payableCart.reduce((acc, item) => acc + item.price, 0), [payableCart]);
 
-  // Handle local file selection for payment proof
+  // Carga de captura de pantalla para el grupo actual
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
+    if (file && currentGroup) {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setReceiptImage(event.target.result as string);
+          updateCurrentProducerProof({ receiptImage: event.target.result as string });
           addToast('Captura de comprobante cargada con éxito', 'success');
         }
       };
@@ -132,116 +204,186 @@ export const CheckoutPage: React.FC = () => {
   };
 
   const handleSimulateReceiptUpload = () => {
-    setReceiptImage('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg==');
+    if (!currentGroup) return;
+    updateCurrentProducerProof({
+      receiptImage: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIxMDAiIGhlaWdodD0iMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI0MCIgZmlsbD0iIzUzNEFCNyIvPjwvc3ZnPg=='
+    });
     addToast('Captura de recibo adjuntada correctamente', 'success');
   };
 
-  // Submit payment declaration for either Bancos or QvaPay
-  const handleConfirmPayment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (payableCart.length === 0) return;
+  // Validar datos de un productor específico antes de avanzar o finalizar
+  const validateProducerProof = (group: ProducerGroup, proof: ProducerProofState): boolean => {
+    const txId = proof.transactionId.trim();
+    if (!txId) {
+      addToast(`El Número de ID de Transacción para "${group.producerName}" es obligatorio.`, 'error');
+      return false;
+    }
 
-    if (!transactionId.trim()) {
-      addToast('El Número de ID de Transacción es obligatorio.', 'error');
+    if (!proof.receiptImage) {
+      addToast(`Debe subir la captura del comprobante de pago para "${group.producerName}".`, 'error');
+      return false;
+    }
+
+    if (!isTransactionIdUnique(txId)) {
+      addToast(`El ID de transacción "${txId}" para "${group.producerName}" ya fue registrado en la plataforma.`, 'error');
+      return false;
+    }
+
+    return true;
+  };
+
+  // Avanzar al siguiente paso del wizard multi-productor
+  const handleNextStep = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentGroup) return;
+
+    if (!validateProducerProof(currentGroup, currentProof)) {
       return;
     }
 
-    if (!receiptImage) {
-      addToast('Debe subir la captura del comprobante de pago para validar la transacción.', 'error');
+    // Verificar que el ID de transacción de este paso no coincida con los de otros pasos en el mismo formulario
+    const otherDuplicate = Object.entries(proofByProducer).some(([pId, proof]: [string, ProducerProofState]) => {
+      return pId !== currentGroup.producerId && proof.transactionId.trim() === currentProof.transactionId.trim();
+    });
+
+    if (otherDuplicate) {
+      addToast(`Cada productor requiere un ID de transferencia diferente. Has usado "${currentProof.transactionId}" en otro paso.`, 'error');
       return;
+    }
+
+    if (activeStep < producerGroups.length - 1) {
+      setCurrentStepIndex(prev => prev + 1);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+
+  // CAMBIO CLAVE 3: Procesamiento final de pagos orden por orden y por grupo de productor
+  const handleConfirmAllPayments = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (payableCart.length === 0 || producerGroups.length === 0) return;
+
+    // Validar absolutamente todos los grupos de productores antes de crear cualquier orden
+    const txIdsUsed = new Set<string>();
+    for (const group of producerGroups) {
+      const proof = proofByProducer[group.producerId];
+      if (!proof || !validateProducerProof(group, proof)) {
+        // Redirigir al paso no completado
+        const targetIndex = producerGroups.findIndex(g => g.producerId === group.producerId);
+        if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
+        return;
+      }
+
+      const cleanTx = proof.transactionId.trim();
+      if (txIdsUsed.has(cleanTx)) {
+        addToast(`El ID de transacción "${cleanTx}" se repite entre productores. Cada transferencia a un productor debe tener un ID único.`, 'error');
+        const targetIndex = producerGroups.findIndex(g => g.producerId === group.producerId);
+        if (targetIndex !== -1) setCurrentStepIndex(targetIndex);
+        return;
+      }
+      txIdsUsed.add(cleanTx);
     }
 
     let allSuccessful = true;
     const rateSnapshot = exchangeRates?.USD || 360;
     const frozenAt = new Date().toISOString();
 
-    for (const item of payableCart) {
-      if (activeChannel === 'bancos') {
-        const targetCurrency = selectedBankCard?.currencyType || 'CUP';
-        const convertedAmount = item.price * rateSnapshot;
+    // Recorrer cada grupo de productor y generar sus órdenes correspondientes con sus propios datos de pago
+    for (const group of producerGroups) {
+      const proof = proofByProducer[group.producerId];
+      if (!proof) continue;
 
-        const created = createOrder({
-          id: `CB-${Math.floor(1000 + Math.random() * 9000)}`,
-          beatId: item.beat.id,
-          beatTitle: item.beat.title,
-          buyerName: user?.artistName || user?.name || user?.username || 'Comprador',
-          buyerEmail: user?.email || 'cliente@dcubanbeats.com',
-          producerId: item.beat.producerId,
-          producerName: item.beat.producerName,
-          amount: item.price,
-          currency: targetCurrency,
-          method: selectedBankCard?.acceptsTransfermovil ? 'Transfermovil' : 'EnZona',
-          status: 'pending',
-          date: 'Hace un momento',
-          transactionId: transactionId.trim(),
-          verificationSMS: smsConfirmation || undefined,
-          receiptUrl: receiptImage,
-          exchangeRateUsed: rateSnapshot,
-          amountUSD: item.price,
-          amountConverted: convertedAmount,
-          rateFrozenAt: frozenAt
-        });
+      const groupBankCard = group.bankMethods.find((m: any) => m.id === proof.selectedBankCardId) || group.bankMethods[0];
 
-        if (!created) {
-          allSuccessful = false;
-          break;
+      for (const item of group.items) {
+        if (proof.channel === 'bancos') {
+          const targetCurrency = groupBankCard?.currencyType || 'CUP';
+          const convertedAmount = item.price * rateSnapshot;
+
+          const created = createOrder({
+            id: `CB-${Math.floor(1000 + Math.random() * 9000)}`,
+            beatId: item.beat.id,
+            beatTitle: item.beat.title,
+            buyerName: user?.artistName || user?.name || user?.username || 'Comprador',
+            buyerEmail: user?.email || 'cliente@dcubanbeats.com',
+            producerId: item.beat.producerId,
+            producerName: item.beat.producerName,
+            amount: item.price,
+            currency: targetCurrency,
+            method: groupBankCard?.acceptsTransfermovil ? 'Transfermovil' : 'EnZona',
+            status: 'pending',
+            date: 'Hace un momento',
+            transactionId: proof.transactionId.trim(),
+            verificationSMS: proof.smsConfirmation || undefined,
+            receiptUrl: proof.receiptImage || '',
+            exchangeRateUsed: rateSnapshot,
+            amountUSD: item.price,
+            amountConverted: convertedAmount,
+            rateFrozenAt: frozenAt
+          });
+
+          if (!created) {
+            allSuccessful = false;
+            break;
+          }
+
+          addProducerNotification(
+            'beat_sold',
+            'Nuevo Pago Bancario por Validar',
+            `El artista ${user?.artistName || user?.name || 'Comprador'} ha registrado un pago bancario de ${convertPrice(item.price, targetCurrency as any).formatted} por el beat "${item.beat.title}". ID de Operación: ${proof.transactionId}. Por favor verifica el comprobante.`,
+            item.beat.id
+          );
+
+          removeFromCart(item.id);
+        } else {
+          // QvaPay channel
+          const created = createOrder({
+            id: `CB-${Math.floor(1000 + Math.random() * 9000)}`,
+            beatId: item.beat.id,
+            beatTitle: item.beat.title,
+            buyerName: user?.artistName || user?.name || user?.username || 'Comprador',
+            buyerEmail: user?.email || 'cliente@dcubanbeats.com',
+            producerId: item.beat.producerId,
+            producerName: item.beat.producerName,
+            amount: item.price,
+            currency: 'USDT',
+            method: 'QvaPay',
+            status: 'pending',
+            date: 'Hace un momento',
+            transactionId: proof.transactionId.trim(),
+            verificationSMS: proof.smsConfirmation || undefined,
+            receiptUrl: proof.receiptImage || '',
+            exchangeRateUsed: 1,
+            amountUSD: item.price,
+            amountConverted: item.price,
+            rateFrozenAt: frozenAt
+          });
+
+          if (!created) {
+            allSuccessful = false;
+            break;
+          }
+
+          addProducerNotification(
+            'beat_sold',
+            'Nuevo Pago QvaPay por Validar',
+            `El artista ${user?.artistName || user?.name || 'Comprador'} ha registrado un pago QvaPay de $${item.price} USD por el beat "${item.beat.title}". ID de Operación: ${proof.transactionId}. Por favor verifica tu saldo en QvaPay y aprueba el pago.`,
+            item.beat.id
+          );
+
+          removeFromCart(item.id);
         }
-
-        addProducerNotification(
-          'beat_sold',
-          'Nuevo Pago Bancario por Validar',
-          `El artista ${user?.artistName || user?.name || 'Comprador'} ha registrado un pago bancario de ${convertPrice(item.price, targetCurrency as any).formatted} por el beat "${item.beat.title}". ID de Operación: ${transactionId}. Por favor verifica el comprobante.`,
-          item.beat.id
-        );
-
-        removeFromCart(item.id);
-      } else {
-        // QvaPay channel
-        const created = createOrder({
-          id: `CB-${Math.floor(1000 + Math.random() * 9000)}`,
-          beatId: item.beat.id,
-          beatTitle: item.beat.title,
-          buyerName: user?.artistName || user?.name || user?.username || 'Comprador',
-          buyerEmail: user?.email || 'cliente@dcubanbeats.com',
-          producerId: item.beat.producerId,
-          producerName: item.beat.producerName,
-          amount: item.price,
-          currency: 'USDT',
-          method: 'QvaPay',
-          status: 'pending',
-          date: 'Hace un momento',
-          transactionId: transactionId.trim(),
-          verificationSMS: smsConfirmation || undefined,
-          receiptUrl: receiptImage,
-          exchangeRateUsed: 1,
-          amountUSD: item.price,
-          amountConverted: item.price,
-          rateFrozenAt: frozenAt
-        });
-
-        if (!created) {
-          allSuccessful = false;
-          break;
-        }
-
-        addProducerNotification(
-          'beat_sold',
-          'Nuevo Pago QvaPay por Validar',
-          `El artista ${user?.artistName || user?.name || 'Comprador'} ha registrado un pago QvaPay de $${item.price} USD por el beat "${item.beat.title}". ID de Operación: ${transactionId}. Por favor verifica tu saldo en QvaPay y aprueba el pago.`,
-          item.beat.id
-        );
-
-        removeFromCart(item.id);
       }
+
+      if (!allSuccessful) break;
     }
 
     if (allSuccessful) {
-      addToast('Tu comprobante de pago ha sido enviado al productor. Se verificará en breve.', 'success');
+      addToast('Comprobantes de pago enviados correctamente a los productores. Se verificarán en breve.', 'success');
       navigateTo('/');
     }
   };
 
-  // Check authentication & verification
+  // Validaciones de sesión e identidad
   if (!user) {
     return (
       <div className="max-w-xl mx-auto my-12 bg-[#13131F] border border-red-500/25 rounded-3xl p-8 text-center space-y-6 animate-in fade-in duration-250">
@@ -312,15 +454,35 @@ export const CheckoutPage: React.FC = () => {
     );
   }
 
+  if (producerGroups.length === 0) {
+    return (
+      <div className="max-w-xl mx-auto my-12 bg-[#13131F] border border-white/10 rounded-3xl p-8 text-center space-y-6">
+        <h2 className="text-xl font-bold text-white">Tu Carrito está Vacío</h2>
+        <Button variant="primary" size="sm" onClick={() => navigateTo('/cart')}>
+          Volver al Carrito
+        </Button>
+      </div>
+    );
+  }
+
+  const isMultiProducer = producerGroups.length > 1;
+
   return (
     <div className="max-w-4xl mx-auto my-6 px-4 space-y-6 text-left">
       
-      {/* Title Header with Volver al Carrito situated at the end */}
+      {/* Title Header with Volver al Carrito */}
       <div className="flex items-center justify-between border-b border-white/10 pb-3.5 flex-wrap gap-3">
-        <h1 className="text-[22px] sm:text-[24px] font-bold tracking-tight text-white uppercase flex items-center gap-2.5">
-          <CreditCard size={22} className="text-[#7F77DD]" />
-          <span>Pagar Instrumentales</span>
-        </h1>
+        <div>
+          <h1 className="text-[22px] sm:text-[24px] font-bold tracking-tight text-white uppercase flex items-center gap-2.5">
+            <CreditCard size={22} className="text-[#7F77DD]" />
+            <span>Pagar Instrumentales</span>
+          </h1>
+          {isMultiProducer && (
+            <p className="text-xs text-amber-300 font-medium mt-1">
+              Tu carrito incluye beats de {producerGroups.length} productores distintos. Debes realizar y comprobar el pago correspondiente a cada uno.
+            </p>
+          )}
+        </div>
 
         <button 
           onClick={() => navigateTo('/cart')}
@@ -331,7 +493,47 @@ export const CheckoutPage: React.FC = () => {
         </button>
       </div>
 
-      {!hasBankMethods && !hasQvapayMethods ? (
+      {/* CAMBIO CLAVE 4: Visualizador de pasos cuando hay múltiples productores */}
+      {isMultiProducer && (
+        <div className="bg-[#13131F] border border-[rgba(127,119,221,0.25)] rounded-2xl p-4 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2.5">
+            <span className="bg-[#534AB7] text-white font-bold text-xs px-3 py-1 rounded-lg">
+              Paso {activeStep + 1} de {producerGroups.length}
+            </span>
+            <span className="text-white text-sm font-bold">
+              Pago para Productor: <span className="text-[#7F77DD]">{currentGroup.producerName}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            {producerGroups.map((group, idx) => {
+              const pProof = proofByProducer[group.producerId];
+              const isDone = !!pProof?.transactionId?.trim() && !!pProof?.receiptImage;
+              const isCurrent = idx === activeStep;
+
+              return (
+                <button
+                  key={group.producerId}
+                  type="button"
+                  onClick={() => setCurrentStepIndex(idx)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    isCurrent
+                      ? 'bg-[#534AB7] text-white border border-[#7F77DD] shadow-md'
+                      : isDone
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-[#1C1C2E] text-white/50 border border-white/5 hover:text-white'
+                  }`}
+                >
+                  {isDone && !isCurrent ? <Check size={12} className="text-emerald-400" /> : null}
+                  <span>{group.producerName}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {!currentGroup.hasBankMethods && !currentGroup.hasQvapayMethods ? (
         <div className="py-12 px-6 bg-[#13131F] rounded-3xl border border-red-500/30 text-center space-y-5 animate-in fade-in">
           <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-400">
             <ShieldAlert size={32} />
@@ -339,7 +541,7 @@ export const CheckoutPage: React.FC = () => {
           <div className="space-y-2 max-w-md mx-auto">
             <h3 className="text-white font-bold text-[18px]">Método de Pago No Configurado</h3>
             <p className="text-white/70 text-[14px] leading-relaxed">
-              El productor no ha configurado ningún método de pago (Bancos o QvaPay) para solicitar la compra. Por favor vuelve al carrito o ponte en contacto con el productor.
+              El productor <strong className="text-white">{currentGroup.producerName}</strong> no ha configurado ningún método de pago (Bancos o QvaPay). Por favor vuelve al carrito o ponte en contacto con el productor.
             </p>
           </div>
           <Button variant="primary" size="md" onClick={() => navigateTo('/cart')} className="text-xs font-bold mx-auto">
@@ -350,23 +552,44 @@ export const CheckoutPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* Left: Channel Selector & Details Container */}
+          {/* Left Column: Beats of this producer & Channel selector & Target payment details */}
           <div className="lg:col-span-7 space-y-6">
             
-            {/* Primary Channel Selector (Bancos vs QvaPay) */}
+            {/* Resumen de Beats del Productor Actual */}
             <div className="bg-[#13131F] border border-[rgba(127,119,221,0.2)] rounded-2xl p-5 space-y-3">
-              <span className="text-xs font-semibold text-white/50 uppercase tracking-widest block">Canal de Pago Local</span>
+              <div className="flex justify-between items-center pb-2 border-b border-white/5">
+                <span className="text-xs font-semibold text-white/60 uppercase tracking-widest">
+                  Beats a pagar a {currentGroup.producerName}
+                </span>
+                <span className="font-mono text-sm font-bold text-[#7F77DD]">
+                  Subtotal: ${currentGroup.subtotalUSD} USD
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2 pt-1">
+                {currentGroup.items.map(item => (
+                  <span key={item.id} className="text-xs bg-[#1C1C2E] text-white/90 px-3 py-1.5 rounded-xl border border-white/10 font-medium">
+                    🎵 {item.beat.title} — <strong className="text-[#7F77DD]">${item.price} USD</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            {/* Selector de Canal de Pago (Bancos vs QvaPay) para este productor */}
+            <div className="bg-[#13131F] border border-[rgba(127,119,221,0.2)] rounded-2xl p-5 space-y-3">
+              <span className="text-xs font-semibold text-white/50 uppercase tracking-widest block">
+                Canal de Pago para {currentGroup.producerName}
+              </span>
               
               <div className="grid grid-cols-2 gap-3.5">
                 {/* BANCOS BUTTON */}
                 <button
                   type="button"
-                  disabled={!hasBankMethods}
-                  onClick={() => setActiveChannel('bancos')}
+                  disabled={!currentGroup.hasBankMethods}
+                  onClick={() => updateCurrentProducerProof({ channel: 'bancos' })}
                   className={`py-3.5 px-4 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    activeChannel === 'bancos'
+                    currentProof.channel === 'bancos'
                       ? 'bg-[#534AB7]/25 text-[#7F77DD] border border-[#7F77DD] shadow-sm'
-                      : hasBankMethods
+                      : currentGroup.hasBankMethods
                         ? 'bg-[#1C1C2E] border border-white/5 hover:bg-white/5 text-white/70 hover:text-white'
                         : 'bg-[#1C1C2E]/40 border border-white/5 text-gray-600 cursor-not-allowed opacity-50'
                   }`}
@@ -375,20 +598,20 @@ export const CheckoutPage: React.FC = () => {
                     <Landmark size={18} />
                     <span>Bancos</span>
                   </div>
-                  {!hasBankMethods && (
-                    <span className="text-[10px] font-normal text-red-400">No disponible por el productor</span>
+                  {!currentGroup.hasBankMethods && (
+                    <span className="text-[10px] font-normal text-red-400">No habilitado por el productor</span>
                   )}
                 </button>
 
                 {/* QVAPAY BUTTON */}
                 <button
                   type="button"
-                  disabled={!hasQvapayMethods}
-                  onClick={() => setActiveChannel('qvapay')}
+                  disabled={!currentGroup.hasQvapayMethods}
+                  onClick={() => updateCurrentProducerProof({ channel: 'qvapay' })}
                   className={`py-3.5 px-4 rounded-xl text-xs font-bold flex flex-col items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                    activeChannel === 'qvapay'
+                    currentProof.channel === 'qvapay'
                       ? 'bg-[#534AB7]/25 text-[#7F77DD] border border-[#7F77DD] shadow-sm'
-                      : hasQvapayMethods
+                      : currentGroup.hasQvapayMethods
                         ? 'bg-[#1C1C2E] border border-white/5 hover:bg-white/5 text-white/70 hover:text-white'
                         : 'bg-[#1C1C2E]/40 border border-white/5 text-gray-600 cursor-not-allowed opacity-50'
                   }`}
@@ -397,37 +620,36 @@ export const CheckoutPage: React.FC = () => {
                     <Wallet size={18} />
                     <span>QvaPay</span>
                   </div>
-                  {!hasQvapayMethods && (
-                    <span className="text-[10px] font-normal text-red-400">No disponible por el productor</span>
+                  {!currentGroup.hasQvapayMethods && (
+                    <span className="text-[10px] font-normal text-red-400">No habilitado por el productor</span>
                   )}
                 </button>
               </div>
             </div>
 
-            {/* DETAILS CONTAINER ACCORDING TO CHANNEL */}
+            {/* DETALLES DE CUENTA DEL PRODUCTOR SEGÚN EL CANAL */}
             <div className="bg-[#13131F] border border-[rgba(127,119,221,0.15)] rounded-2xl p-6 space-y-5">
               
               {/* 1. BANCOS DETAILS */}
-              {activeChannel === 'bancos' && selectedBankCard && (
+              {currentProof.channel === 'bancos' && currentSelectedBankCard && (
                 <div className="space-y-4">
                   
-                  {/* Badges container for supported gateways */}
                   <div className="flex items-center justify-between pb-3 border-b border-white/5">
                     <div className="space-y-1">
                       <h4 className="text-sm font-bold text-white flex items-center gap-2">
                         <Landmark size={16} className="text-[#7F77DD]" /> 
-                        Pago por Transferencia Bancaria
+                        Cuenta Bancaria de {currentGroup.producerName}
                       </h4>
                       <p className="text-xs text-white/50">Canales habilitados para este pago:</p>
                     </div>
 
                     <div className="flex gap-1.5">
-                      {(selectedBankCard.acceptsTransfermovil !== false) && (
+                      {(currentSelectedBankCard.acceptsTransfermovil !== false) && (
                         <span className="bg-[#534AB7]/30 text-[#7F77DD] text-[10px] px-2 py-0.5 rounded font-bold border border-[#534AB7]/40">
                           Transfermóvil
                         </span>
                       )}
-                      {(selectedBankCard.acceptsEnzona !== false || selectedBankCard.type === 'enzona') && (
+                      {(currentSelectedBankCard.acceptsEnzona !== false || currentSelectedBankCard.type === 'enzona') && (
                         <span className="bg-emerald-950/50 text-emerald-400 text-[10px] px-2 py-0.5 rounded font-bold border border-emerald-900/40">
                           EnZona
                         </span>
@@ -435,18 +657,18 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Multiple bank cards selector pills if producer has > 1 card */}
-                  {bankMethods.length > 1 && (
+                  {/* Múltiples tarjetas si este productor tiene más de una */}
+                  {currentGroup.bankMethods.length > 1 && (
                     <div className="space-y-1.5">
                       <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider block">Selecciona la Tarjeta de Destino:</span>
                       <div className="flex flex-wrap gap-2">
-                        {bankMethods.map((m) => (
+                        {currentGroup.bankMethods.map((m: any) => (
                           <button
                             key={m.id}
                             type="button"
-                            onClick={() => setSelectedBankCardId(m.id)}
+                            onClick={() => updateCurrentProducerProof({ selectedBankCardId: m.id })}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                              (selectedBankCard?.id === m.id)
+                              (currentSelectedBankCard?.id === m.id)
                                 ? 'bg-[#534AB7] text-white'
                                 : 'bg-brand-card text-gray-400 border border-brand-border/40 hover:text-white'
                             }`}
@@ -458,16 +680,16 @@ export const CheckoutPage: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Card Credentials Box */}
+                  {/* Datos de la Tarjeta */}
                   <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-xl space-y-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-2 flex-grow text-xs">
                       <div className="flex justify-between items-center">
                         <span className="text-white/40">Número de Tarjeta:</span>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-white font-bold text-sm select-all">{selectedBankCard.cardNumber || '9224 8129 0019 4021'}</span>
+                          <span className="font-mono text-white font-bold text-sm select-all">{currentSelectedBankCard.cardNumber || '9224 8129 0019 4021'}</span>
                           <button
                             type="button"
-                            onClick={() => handleCopyText(selectedBankCard.cardNumber || '', 'cardNumber')}
+                            onClick={() => handleCopyText(currentSelectedBankCard.cardNumber || '', 'cardNumber')}
                             className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer"
                             title="Copiar Tarjeta"
                           >
@@ -478,21 +700,21 @@ export const CheckoutPage: React.FC = () => {
 
                       <div className="flex justify-between items-center">
                         <span className="text-white/40">Tipo de Moneda:</span>
-                        <span className="font-bold text-[#7F77DD] uppercase">{selectedBankCard.currencyType || 'CUP'}</span>
+                        <span className="font-bold text-[#7F77DD] uppercase">{currentSelectedBankCard.currencyType || 'CUP'}</span>
                       </div>
 
                       <div className="flex justify-between items-center">
                         <span className="text-white/40">Titular de la Tarjeta:</span>
-                        <span className="text-white font-semibold">{selectedBankCard.titularName || 'Titular Oficial'}</span>
+                        <span className="text-white font-semibold">{currentSelectedBankCard.titularName || currentGroup.producerName}</span>
                       </div>
 
                       <div className="flex justify-between items-center">
                         <span className="text-white/40">Teléfono a Confirmar:</span>
                         <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-indigo-200 font-bold select-all">{selectedBankCard.phoneConfirm || '+53 50000000'}</span>
+                          <span className="font-mono text-indigo-200 font-bold select-all">{currentSelectedBankCard.phoneConfirm || '+53 50000000'}</span>
                           <button
                             type="button"
-                            onClick={() => handleCopyText(selectedBankCard.phoneConfirm || '', 'phoneConfirm')}
+                            onClick={() => handleCopyText(currentSelectedBankCard.phoneConfirm || '', 'phoneConfirm')}
                             className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer"
                             title="Copiar Teléfono"
                           >
@@ -502,15 +724,14 @@ export const CheckoutPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* QR Code Screenshot thumbnail */}
-                    {selectedBankCard.qrScreenshot && (
+                    {currentSelectedBankCard.qrScreenshot && (
                       <div className="flex-shrink-0 flex justify-center">
                         <div 
                           className="group relative cursor-pointer" 
-                          onClick={() => setExpandedQrImage(selectedBankCard.qrScreenshot || null)}
+                          onClick={() => setExpandedQrImage(currentSelectedBankCard.qrScreenshot || null)}
                         >
                           <img 
-                            src={selectedBankCard.qrScreenshot} 
+                            src={currentSelectedBankCard.qrScreenshot} 
                             alt="QR Banco" 
                             referrerPolicy="no-referrer"
                             className="w-20 h-20 object-cover rounded-xl border border-white/10 group-hover:border-[#7F77DD] group-hover:scale-105 transition-all duration-200" 
@@ -527,33 +748,31 @@ export const CheckoutPage: React.FC = () => {
               )}
 
               {/* 2. QVAPAY DETAILS */}
-              {activeChannel === 'qvapay' && selectedQvapayMethod && (
+              {currentProof.channel === 'qvapay' && currentSelectedQvapayMethod && (
                 <div className="space-y-4">
                   
                   <div className="pb-3 border-b border-white/5">
                     <h4 className="text-sm font-bold text-white flex items-center gap-2">
                       <Wallet size={16} className="text-[#7F77DD]" /> 
-                      Pago Directo por QvaPay
+                      Cuenta QvaPay de {currentGroup.producerName}
                     </h4>
-                    <p className="text-xs text-white/50">Transfiere directamente a la cuenta QvaPay asignada por el productor.</p>
+                    <p className="text-xs text-white/50">Transfiere la suma exacta a la cuenta QvaPay del productor.</p>
                   </div>
 
-                  {/* QvaPay Account Credentials Box */}
                   <div className="bg-[#0C0C14] border border-white/5 p-4 rounded-xl space-y-3">
                     
-                    {/* Amount USD Display */}
                     <div className="flex justify-between items-center text-xs pb-2 border-b border-white/5">
-                      <span className="text-white/50 font-medium">Monto Total a Pagar:</span>
-                      <span className="font-mono text-base font-bold text-[#7F77DD]">${totalAmountUSD} USD</span>
+                      <span className="text-white/50 font-medium">Subtotal a Pagar a {currentGroup.producerName}:</span>
+                      <span className="font-mono text-base font-bold text-[#7F77DD]">${currentGroup.subtotalUSD} USD</span>
                     </div>
 
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-white/40">Correo Cuenta QvaPay:</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-white font-bold select-all">{selectedQvapayMethod.qvapayEmail || 'correo@qvapay.com'}</span>
+                        <span className="font-mono text-white font-bold select-all">{currentSelectedQvapayMethod.qvapayEmail || 'correo@qvapay.com'}</span>
                         <button
                           type="button"
-                          onClick={() => handleCopyText(selectedQvapayMethod.qvapayEmail || '', 'qvapayEmail')}
+                          onClick={() => handleCopyText(currentSelectedQvapayMethod.qvapayEmail || '', 'qvapayEmail')}
                           className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer"
                           title="Copiar Correo"
                         >
@@ -565,10 +784,10 @@ export const CheckoutPage: React.FC = () => {
                     <div className="flex justify-between items-center text-xs">
                       <span className="text-white/40">Nombre de Usuario QvaPay:</span>
                       <div className="flex items-center gap-1.5">
-                        <span className="font-mono text-[#7F77DD] font-bold select-all">@{selectedQvapayMethod.qvapayUser || 'productor'}</span>
+                        <span className="font-mono text-[#7F77DD] font-bold select-all">@{currentSelectedQvapayMethod.qvapayUser || 'productor'}</span>
                         <button
                           type="button"
-                          onClick={() => handleCopyText(`@${selectedQvapayMethod.qvapayUser || 'productor'}`, 'qvapayUser')}
+                          onClick={() => handleCopyText(`@${currentSelectedQvapayMethod.qvapayUser || 'productor'}`, 'qvapayUser')}
                           className="text-white/40 hover:text-[#7F77DD] p-1 rounded hover:bg-white/5 transition-colors cursor-pointer"
                           title="Copiar Usuario"
                         >
@@ -577,16 +796,15 @@ export const CheckoutPage: React.FC = () => {
                       </div>
                     </div>
 
-                    {/* QR Code Screenshot thumbnail for QvaPay */}
-                    {selectedQvapayMethod.qrQvapayScreenshot && (
+                    {currentSelectedQvapayMethod.qrQvapayScreenshot && (
                       <div className="pt-2 flex flex-col items-center gap-1">
                         <span className="text-[10px] text-gray-400 font-medium">Código QR de la Cuenta QvaPay:</span>
                         <div 
                           className="group relative cursor-pointer" 
-                          onClick={() => setExpandedQrImage(selectedQvapayMethod.qrQvapayScreenshot || null)}
+                          onClick={() => setExpandedQrImage(currentSelectedQvapayMethod.qrQvapayScreenshot || null)}
                         >
                           <img 
-                            src={selectedQvapayMethod.qrQvapayScreenshot} 
+                            src={currentSelectedQvapayMethod.qrQvapayScreenshot} 
                             alt="QR QvaPay" 
                             referrerPolicy="no-referrer"
                             className="w-24 h-24 object-cover rounded-xl border border-white/10 group-hover:border-[#7F77DD] group-hover:scale-105 transition-all duration-200" 
@@ -606,52 +824,62 @@ export const CheckoutPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Payment Declaration Form */}
+          {/* Right Column: Declaración de Pago para este Productor Específico */}
           <div className="lg:col-span-5 space-y-6">
-            <form onSubmit={handleConfirmPayment} className="bg-[#13131F] border border-[rgba(127,119,221,0.2)] rounded-3xl p-6 space-y-5">
+            <form onSubmit={activeStep < producerGroups.length - 1 ? handleNextStep : handleConfirmAllPayments} className="bg-[#13131F] border border-[rgba(127,119,221,0.2)] rounded-3xl p-6 space-y-5">
               
               <div className="border-b border-white/5 pb-3">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-white">Declaración de Pago</h3>
-                <p className="text-[11px] text-gray-400 mt-0.5">Ingresa los datos para que el productor verifique la transacción.</p>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-white">
+                  Declaración de Pago ({currentGroup.producerName})
+                </h3>
+                <p className="text-[11px] text-gray-400 mt-0.5">
+                  Ingresa los datos del pago realizado a {currentGroup.producerName}.
+                </p>
               </div>
               
               <div className="space-y-4">
-                {/* ID Transacción (Mandatory) */}
+                {/* ID Transacción por Productor */}
                 <Input
                   label="Número de ID Transacción (Obligatorio)"
-                  placeholder={activeChannel === 'bancos' ? "Ej. 99421290" : "Ej. QP-882194"}
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
+                  placeholder={currentProof.channel === 'bancos' ? "Ej. 99421290" : "Ej. QP-882194"}
+                  value={currentProof.transactionId}
+                  onChange={(e) => updateCurrentProducerProof({ transactionId: e.target.value })}
                   required
                 />
 
-                {/* Textarea for SMS pasting (Optional for both) */}
+                {/* Textarea para SMS de confirmación */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold uppercase tracking-widest text-white/60">
                     Contenido SMS / Nota de Confirmación (Opcional)
                   </label>
                   <textarea
-                    value={smsConfirmation}
-                    onChange={(e) => setSmsConfirmation(e.target.value)}
+                    value={currentProof.smsConfirmation}
+                    onChange={(e) => updateCurrentProducerProof({ smsConfirmation: e.target.value })}
                     placeholder="Pega el mensaje SMS recibido o notas adicionales para el productor..."
                     rows={3}
                     className="w-full bg-[#1C1C2E] border border-[rgba(127,119,221,0.25)] rounded-xl p-3 text-xs text-white outline-none focus:border-brand-primary-light"
                   />
                 </div>
 
-                {/* Capture / Screenshot Uploader (Mandatory) */}
+                {/* Subir Captura del Comprobante por Productor */}
                 <div className="space-y-1.5 text-left">
                   <label className="text-xs font-bold uppercase tracking-widest text-white/60">
                     Subir Captura del Comprobante (Obligatorio)
                   </label>
                   
-                  {receiptImage ? (
+                  {currentProof.receiptImage ? (
                     <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2">
-                        <img src={receiptImage} alt="Receipt preview" className="w-8 h-8 object-cover rounded border border-emerald-500/30" />
+                        <img src={currentProof.receiptImage} alt="Receipt preview" className="w-8 h-8 object-cover rounded border border-emerald-500/30" />
                         <span className="text-emerald-400 font-medium">Recibo adjuntado</span>
                       </div>
-                      <button type="button" onClick={() => setReceiptImage(null)} className="text-red-400 font-semibold hover:underline cursor-pointer text-xs">Eliminar</button>
+                      <button 
+                        type="button" 
+                        onClick={() => updateCurrentProducerProof({ receiptImage: null })} 
+                        className="text-red-400 font-semibold hover:underline cursor-pointer text-xs"
+                      >
+                        Eliminar
+                      </button>
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -659,12 +887,12 @@ export const CheckoutPage: React.FC = () => {
                         <input
                           type="file"
                           accept="image/*"
-                          id="receipt-file-picker"
+                          id={`receipt-file-picker-${currentGroup.producerId}`}
                           className="hidden"
                           onChange={handleFileUpload}
                         />
                         <label
-                          htmlFor="receipt-file-picker"
+                          htmlFor={`receipt-file-picker-${currentGroup.producerId}`}
                           className="flex-1 py-3 px-3 bg-[#1C1C2E] hover:bg-[#1C1C2E]/80 border border-dashed border-white/20 hover:border-[#7F77DD] rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all text-xs font-semibold text-white/80"
                         >
                           <Camera size={16} className="text-[#7F77DD]" />
@@ -686,28 +914,70 @@ export const CheckoutPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Total display */}
+              {/* Subtotal del productor actual */}
               <div className="border-t border-white/5 pt-4 flex justify-between text-sm items-center">
-                <span className="font-bold text-white/70">Monto del Pago:</span>
+                <span className="font-bold text-white/70">Monto para {currentGroup.producerName}:</span>
                 <span className="font-mono text-[#7F77DD] font-bold text-base">
-                  {activeChannel === 'qvapay'
-                    ? `$${totalAmountUSD} USD`
-                    : convertPrice(totalAmountUSD, (selectedBankCard?.currencyType as any) || 'CUP').formatted
+                  {currentProof.channel === 'qvapay'
+                    ? `$${currentGroup.subtotalUSD} USD`
+                    : convertPrice(currentGroup.subtotalUSD, (currentSelectedBankCard?.currencyType as any) || 'CUP').formatted
                   }
                 </span>
               </div>
 
-              <Button variant="primary" fullWidth type="submit" className="mt-2 text-xs font-bold py-3">
-                {activeChannel === 'bancos' ? 'Enviar Comprobante Bancario' : 'Enviar Comprobante QvaPay'}
-                <Send size={14} className="ml-1.5" />
-              </Button>
+              {/* Total acumulado del carrito */}
+              {isMultiProducer && (
+                <div className="flex justify-between text-xs text-white/50 border-t border-white/5 pt-2">
+                  <span>Total General de Todo el Carrito:</span>
+                  <span className="font-mono text-white font-bold">${totalCartAmountUSD} USD</span>
+                </div>
+              )}
+
+              {/* Botones de navegación del Wizard */}
+              <div className="space-y-2 pt-2">
+                {activeStep < producerGroups.length - 1 ? (
+                  <Button 
+                    variant="primary" 
+                    fullWidth 
+                    type="submit" 
+                    className="text-xs font-bold py-3"
+                  >
+                    <span>Siguiente Productor</span>
+                    <ChevronRight size={16} className="ml-1" />
+                  </Button>
+                ) : (
+                  <Button 
+                    variant="primary" 
+                    fullWidth 
+                    type="submit" 
+                    className="text-xs font-bold py-3"
+                  >
+                    <span>{isMultiProducer ? 'Confirmar Todos los Pagos' : 'Enviar Comprobante de Pago'}</span>
+                    <Send size={14} className="ml-1.5" />
+                  </Button>
+                )}
+
+                {activeStep > 0 && (
+                  <Button 
+                    variant="secondary" 
+                    fullWidth 
+                    type="button" 
+                    onClick={() => setCurrentStepIndex(prev => prev - 1)}
+                    className="text-xs font-medium py-2 text-white/70"
+                  >
+                    <ChevronLeft size={16} className="mr-1" />
+                    <span>Volver al Productor Anterior</span>
+                  </Button>
+                )}
+              </div>
+
             </form>
           </div>
 
         </div>
       )}
 
-      {/* EXPANDED QR LIGHTBOX */}
+      {/* LIGHTBOX CÓDIGO QR */}
       {expandedQrImage && (
         <div 
           className="fixed inset-0 z-[100] flex items-center justify-center bg-black/85 backdrop-blur-md p-4 animate-in fade-in duration-200 cursor-zoom-out" 

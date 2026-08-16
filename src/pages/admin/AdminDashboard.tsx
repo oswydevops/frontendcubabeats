@@ -7,90 +7,17 @@ import { DashboardSkeleton } from '../../components/ui/DashboardSkeleton';
 import { 
   Users, Music, Receipt, Activity, ShieldCheck, Landmark, Check, 
   Trash2, XCircle, AlertCircle, Eye, RefreshCw,
-  CreditCard, Globe, MessageSquare, Send
+  CreditCard, Globe, MessageSquare, Headset, ArrowRight
 } from 'lucide-react';
 
 export const AdminDashboard: React.FC = () => {
   const { 
     beats, orders, verifiedProducersTask, approveProducer, rejectProducer, addToast, user,
-    supportMessages, sendSupportMessage, markSupportAsReadBySupport, deleteSupportChat,
     isMaintenanceMode, setMaintenanceMode, navigateTo
   } = useApp();
 
   const [selectedVerificationProducer, setSelectedVerificationProducer] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [activeSupportUserId, setActiveSupportUserId] = useState<string | null>(null);
-  const [supportInput, setSupportInput] = useState('');
-
-  // Group support messages to get list of conversations
-  const uniqueConversations = useMemo(() => {
-    const map = new Map<string, { userId: string; userName: string; userRole: 'client' | 'producer'; lastMessage: string; timestamp: string; unreadCount: number }>();
-    
-    supportMessages.forEach(msg => {
-      const existing = map.get(msg.userId);
-      const isUnread = !msg.readBySupport;
-      
-      if (!existing) {
-        map.set(msg.userId, {
-          userId: msg.userId,
-          userName: msg.userName,
-          userRole: msg.userRole,
-          lastMessage: msg.text,
-          timestamp: msg.timestamp,
-          unreadCount: isUnread ? 1 : 0
-        });
-      } else {
-        existing.lastMessage = msg.text;
-        existing.timestamp = msg.timestamp;
-        if (isUnread) {
-          existing.unreadCount += 1;
-        } else {
-          // If read, reset unreadCount or let the messages flow
-        }
-      }
-    });
-    
-    return Array.from(map.values());
-  }, [supportMessages]);
-
-  const activeSupportMessages = useMemo(() => {
-    if (!activeSupportUserId) return [];
-    return supportMessages.filter(m => m.userId === activeSupportUserId);
-  }, [supportMessages, activeSupportUserId]);
-
-  useEffect(() => {
-    if (activeSupportUserId && markSupportAsReadBySupport) {
-      markSupportAsReadBySupport(activeSupportUserId);
-    }
-  }, [activeSupportUserId, supportMessages, markSupportAsReadBySupport]);
-
-  const handleSendSupportReply = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!supportInput.trim() || !activeSupportUserId) return;
-    
-    const activeMsg = activeSupportMessages[activeSupportMessages.length - 1] || uniqueConversations.find(c => c.userId === activeSupportUserId);
-    if (activeMsg) {
-      sendSupportMessage(
-        activeMsg.userId,
-        activeMsg.userName,
-        activeMsg.userRole,
-        'support',
-        supportInput.trim()
-      );
-    }
-    setSupportInput('');
-  };
-
-  const handleDeleteChat = (userId: string, userName: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (window.confirm(`¿Estás seguro de que deseas eliminar permanentemente el chat con ${userName}?`)) {
-      deleteSupportChat(userId);
-      addToast(`Chat con ${userName} eliminado correctamente`, 'success');
-      if (activeSupportUserId === userId) {
-        setActiveSupportUserId(null);
-      }
-    }
-  };
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -436,185 +363,34 @@ export const AdminDashboard: React.FC = () => {
         )}
       </div>
 
-      {/* SECCIÓN DE CHAT DE SOPORTE - SOLO PARA GESTORES DE SOPORTE */}
-      {user?.position === 'Gestor de Soporte' && (
-        <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4 text-left">
-          <div className="flex items-center gap-2 border-b border-brand-border/10 pb-3">
-            <div className="p-2 bg-[#534AB7]/10 rounded-xl text-[#7F77DD]">
-              <MessageSquare size={20} />
-            </div>
-            <div>
-              <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">Centro de Soporte y Reporte de Incidencias</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Comunícate en tiempo real con los artistas y productores para resolver dudas y guiarlos en el uso de la plataforma.</p>
-            </div>
+      {/* ACCESO RÁPIDO AL NUEVO SISTEMA DE TICKETS Y SOPORTE */}
+      <div className="bg-gradient-to-r from-[#1C1C2E] via-[#232042] to-[#1C1C2E] p-6 rounded-2xl border border-[#7F77DD]/30 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-left">
+        <div className="flex items-center gap-3.5">
+          <div className="p-3 bg-[#534AB7]/20 rounded-2xl text-[#7F77DD] border border-[#7F77DD]/30">
+            <Headset size={26} />
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-5 h-[400px]">
-            {/* Lista de Chats a la izquierda (4 cols) */}
-            <div className="md:col-span-4 border-r border-brand-border/20 pr-4 flex flex-col h-full overflow-hidden">
-              <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider mb-2 block font-mono">Conversaciones Activas</span>
-              <div className="space-y-1 overflow-y-auto flex-1 pr-1 scrollbar-thin">
-                {uniqueConversations.length === 0 ? (
-                  <div className="h-full flex flex-col items-center justify-center text-center p-4">
-                    <p className="text-xs text-gray-500 leading-relaxed">No hay conversaciones de soporte por el momento.</p>
-                  </div>
-                ) : (
-                  uniqueConversations.map((chat) => (
-                    <div
-                      key={chat.userId}
-                      onClick={() => setActiveSupportUserId(chat.userId)}
-                      className={`w-full text-left p-3 rounded-xl transition-all flex items-start gap-3 border cursor-pointer ${
-                        activeSupportUserId === chat.userId
-                          ? 'bg-[#534AB7]/20 border-[#7F77DD] text-white'
-                          : 'bg-brand-surface border-brand-border/10 text-gray-400 hover:bg-brand-card/10 hover:text-white'
-                      }`}
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-brand-bg flex items-center justify-center font-bold text-xs text-[#7F77DD] border border-brand-border/40 shrink-0">
-                        {chat.userName[0]}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex justify-between items-center gap-1">
-                          <span className="font-bold text-xs text-white truncate block">{chat.userName}</span>
-                          <span className={`text-[8.5px] uppercase font-semibold shrink-0 px-1 rounded ${
-                            chat.userRole === 'producer' ? 'bg-[#534AB7]/20 text-[#7F77DD]' : 'bg-emerald-500/15 text-emerald-400'
-                          }`}>
-                            {chat.userRole === 'producer' ? 'Prod' : 'Artista'}
-                          </span>
-                        </div>
-                        <p className="text-[10.5px] truncate mt-0.5 text-gray-400 font-mono">{chat.lastMessage}</p>
-                        <span className="text-[8.5px] text-gray-500 block mt-1">{chat.timestamp}</span>
-                      </div>
-                      <div className="flex flex-col items-end justify-between h-full self-stretch shrink-0">
-                        {chat.unreadCount > 0 && (
-                          <span className="w-2 h-2 bg-brand-accent-red rounded-full animate-pulse mb-2" />
-                        )}
-                        <button
-                          type="button"
-                          onClick={(e) => handleDeleteChat(chat.userId, chat.userName, e)}
-                          className="p-1.5 text-gray-400 hover:text-red-400 bg-transparent rounded-lg hover:bg-red-500/10 transition-all cursor-pointer"
-                          title="Eliminar Chat"
-                        >
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Panel de Conversación Activa a la derecha (8 cols) */}
-            <div className="md:col-span-8 flex flex-col h-full overflow-hidden">
-              {activeSupportUserId ? (
-                <div className="flex flex-col h-full overflow-hidden">
-                  {/* Cabecera */}
-                  <div className="flex justify-between items-center bg-[#1C1C2E]/30 p-2.5 rounded-xl border border-brand-border/10 mb-2">
-                    <div>
-                      <span className="font-bold text-xs text-white">
-                        {activeSupportMessages[0]?.userName || uniqueConversations.find(c => c.userId === activeSupportUserId)?.userName}
-                      </span>
-                      <span className="text-[10px] text-gray-400 block">
-                        Conversación activa para resolver incidencias
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={activeSupportMessages[0]?.userRole === 'producer' ? 'purple' : 'emerald'} className="text-[9px]">
-                        {activeSupportMessages[0]?.userRole === 'producer' ? 'PRODUCTOR' : 'ARTISTA'}
-                      </Badge>
-                      <button
-                        type="button"
-                        onClick={(e) => handleDeleteChat(activeSupportUserId, activeSupportMessages[0]?.userName || uniqueConversations.find(c => c.userId === activeSupportUserId)?.userName || 'Usuario', e)}
-                        className="p-1.5 text-gray-400 hover:text-red-400 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 rounded-xl transition-all cursor-pointer inline-flex items-center gap-1 font-bold text-[10px] px-2.5"
-                        title="Eliminar Conversación"
-                      >
-                        <Trash2 size={12} />
-                        Eliminar Chat
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Cuerpo de Mensajes */}
-                  <div className="flex-1 overflow-y-auto space-y-3 p-3 bg-brand-bg/40 rounded-xl border border-brand-border/20 mb-3 flex flex-col scrollbar-thin">
-                    {activeSupportMessages.map((msg) => {
-                      const isSupport = msg.senderType === 'support';
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex flex-col max-w-[75%] ${isSupport ? 'self-end items-end' : 'self-start items-start'}`}
-                        >
-                          <div
-                            className={`p-3 rounded-2xl text-xs leading-relaxed ${
-                              isSupport
-                                ? 'bg-gradient-to-r from-[#534AB7] to-[#7F77DD] text-white rounded-tr-none'
-                                : 'bg-[#1C1C2E] border border-brand-border/40 text-gray-300 rounded-tl-none'
-                            }`}
-                          >
-                            {msg.text}
-                          </div>
-                          <span className="text-[8.5px] text-gray-500 mt-1 px-1">{msg.timestamp}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Formulario de Entrada */}
-                  <form onSubmit={handleSendSupportReply} className="flex gap-2">
-                    <input
-                      type="text"
-                      value={supportInput}
-                      onChange={(e) => setSupportInput(e.target.value)}
-                      placeholder="Escribe una respuesta para el usuario..."
-                      className="flex-1 bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2.5 px-4 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
-                    />
-                    <button
-                      type="submit"
-                      className="p-2.5 px-4 bg-[#534AB7] hover:bg-[#433A9B] text-white rounded-xl transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 font-bold text-xs"
-                    >
-                      <Send size={12} />
-                      Enviar
-                    </button>
-                  </form>
-                  
-                  {/* Respuestas rápidas */}
-                  <div className="flex gap-1.5 mt-2 overflow-x-auto py-1 scrollbar-none">
-                    <button
-                      type="button"
-                      onClick={() => setSupportInput('Hola, hemos verificado tu cuenta correctamente. Ya puedes acceder a todas las funciones.')}
-                      className="px-2.5 py-1 bg-brand-border/20 hover:bg-brand-border/40 text-gray-300 rounded-lg text-[9px] font-bold cursor-pointer shrink-0 transition-all"
-                    >
-                      🚀 Aprobación KYC
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSupportInput('Estimado, ¿podrías enviarnos una foto más nítida de tu documento de identidad para completar la validación?')}
-                      className="px-2.5 py-1 bg-brand-border/20 hover:bg-brand-border/40 text-gray-300 rounded-lg text-[9px] font-bold cursor-pointer shrink-0 transition-all"
-                    >
-                      📸 Foto Borrosa
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSupportInput('Hola, disculpa las molestias. Estamos procesando tu pago manual, se reflejará en un plazo máximo de 24 horas.')}
-                      className="px-2.5 py-1 bg-brand-border/20 hover:bg-brand-border/40 text-gray-300 rounded-lg text-[9px] font-bold cursor-pointer shrink-0 transition-all"
-                    >
-                      💰 Retraso de Pago
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-6 bg-brand-bg/10 rounded-xl border border-dashed border-brand-border/30">
-                  <div className="p-3 bg-[#534AB7]/5 rounded-2xl text-[#7F77DD] mb-2.5">
-                    <MessageSquare size={24} />
-                  </div>
-                  <h4 className="text-xs font-bold text-white">Sin Conversación Seleccionada</h4>
-                  <p className="text-[11px] text-gray-500 max-w-xs mt-1 leading-relaxed">
-                    Selecciona una de las conversaciones activas de la lista para leer y responder los mensajes de soporte enviados por los usuarios.
-                  </p>
-                </div>
-              )}
-            </div>
+          <div>
+            <h3 className="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+              Centro de Soporte Técnico y Tickets
+              <span className="text-[10px] bg-[#7F77DD]/20 text-[#7F77DD] px-2 py-0.5 rounded-full font-bold border border-[#7F77DD]/30">
+                Nuevo Sistema
+              </span>
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              Gestiona tickets en tiempo real, bot de respuestas automáticas y asignación de agentes en cola.
+            </p>
           </div>
         </div>
-      )}
+
+        <button
+          onClick={() => navigateTo('/admin/support')}
+          className="px-5 py-2.5 bg-[#534AB7] hover:bg-[#433A9B] text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-2 shrink-0 group"
+          id="admin-dashboard-go-to-support-btn"
+        >
+          <span>Ir a Soporte</span>
+          <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform" />
+        </button>
+      </div>
 
       {/* DETAIL MODAL FOR ADMIN TO VERIFY DOCUMENTS */}
       <Modal

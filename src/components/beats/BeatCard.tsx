@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Pause, ShoppingCart, Check, Share2, Copy, X, Heart, FolderArchive, Library } from 'lucide-react';
+import { Play, Pause, ShoppingCart, Check, Share2, Copy, X, Heart, FolderArchive, Library, Lock } from 'lucide-react';
 import { Beat } from '../../types';
 import { useApp } from '../../store/AppContext';
 import { Badge } from '../ui/Badge';
@@ -24,12 +24,22 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
 
   const handlePlayClick = (e: React.MouseEvent) => {
     e.stopPropagation();
+    // Chequeo de beat bloqueado por plan
+    if (beat.isBlockedByPlan) {
+      addToast('Este beat no está disponible porque está bloqueado por el plan del productor', 'error');
+      return;
+    }
     playBeat(beat);
   };
 
   const handleCartClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (isSold) return;
+    // Chequeo de beat bloqueado por plan
+    if (beat.isBlockedByPlan) {
+      addToast('Este beat no está disponible porque el productor lo desactivó al bajar de plan', 'error');
+      return;
+    }
     addToCart(beat, 'basic');
   };
 
@@ -48,6 +58,8 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
       <div
         onClick={() => navigateTo('/', { beatId: beat.id })} // Navigate to details
         className={`group relative flex flex-col bg-[#131326] rounded-2xl border transition-all duration-300 transform hover:-translate-y-1.5 cursor-pointer overflow-hidden ${
+          beat.isBlockedByPlan ? 'opacity-65 grayscale-[20%]' : ''
+        } ${
           isCurrent 
             ? 'border-[#534AB7] shadow-[0_0_20px_rgba(83,74,183,0.3)]' 
             : 'border-[rgba(127,119,221,0.1)] hover:border-[rgba(127,119,221,0.3)]'
@@ -262,6 +274,8 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
     <div
       onClick={() => navigateTo('/', { beatId: beat.id })} // Navigate to catalog / detail view
       className={`group relative flex flex-col bg-[#13131F] rounded-2xl border transition-all duration-300 transform hover:-translate-y-1.5 cursor-pointer overflow-hidden ${
+        beat.isBlockedByPlan ? 'opacity-65 grayscale-[20%]' : ''
+      } ${
         isCurrent 
           ? 'border-[#534AB7] shadow-[0_0_20px_rgba(83,74,183,0.3)]' 
           : 'border-[rgba(127,119,221,0.1)] hover:border-[rgba(127,119,221,0.3)]'
@@ -440,7 +454,12 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
 
         {/* Top Badges */}
         <div className="absolute top-3 left-3 z-10 flex flex-col gap-1">
-          {isSold ? (
+          {beat.isBlockedByPlan ? (
+            <Badge variant="red" className="font-semibold uppercase tracking-wider text-[10px] px-2 py-0.5 shadow-lg bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 backdrop-blur-md">
+              <Lock size={10} />
+              Bloqueado por plan
+            </Badge>
+          ) : isSold ? (
             <Badge variant="red" className="font-semibold uppercase tracking-wider text-[10px] px-2 py-0.5 shadow-lg">
               Vendido
             </Badge>
@@ -508,15 +527,25 @@ export const BeatCard: React.FC<BeatCardProps> = ({ beat }) => {
             {!isSold && (
               <button
                 onClick={user?.role === 'admin' ? undefined : handleCartClick}
-                disabled={inCart || user?.role === 'admin' || user?.role === 'producer'}
+                disabled={inCart || beat.isBlockedByPlan || user?.role === 'admin' || user?.role === 'producer'}
                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                  user?.role === 'admin' || user?.role === 'producer'
+                  beat.isBlockedByPlan || user?.role === 'admin' || user?.role === 'producer'
                     ? 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed opacity-35'
                     : inCart 
                     ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 cursor-pointer' 
                     : 'bg-brand-primary-light/10 text-brand-primary-light hover:bg-brand-primary/20 border border-[#7F77DD]/25 active:scale-95 cursor-pointer'
                 }`}
-                title={user?.role === 'admin' ? 'No disponible para Administradores' : user?.role === 'producer' ? 'No disponible para Productores' : inCart ? 'En el carrito' : 'Añadir al carrito'}
+                title={
+                  beat.isBlockedByPlan 
+                    ? 'No disponible: Bloqueado por plan del productor' 
+                    : user?.role === 'admin' 
+                    ? 'No disponible para Administradores' 
+                    : user?.role === 'producer' 
+                    ? 'No disponible para Productores' 
+                    : inCart 
+                    ? 'En el carrito' 
+                    : 'Añadir al carrito'
+                }
               >
                 {inCart ? <Check size={14} /> : <ShoppingCart size={14} />}
               </button>

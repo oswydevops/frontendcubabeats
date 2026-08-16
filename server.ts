@@ -8,24 +8,19 @@ async function startServer() {
 
   app.use(express.json());
 
-  // API Route to fetch real-time exchange rates from El Toque
-  app.get("/api/exchange-rates", async (req, res) => {
-    // Realistic default informal market rates in Cuba (fallback)
-    // 1 USD cash = ~360 CUP
-    // 1 MLC card = ~280 CUP
-    // 1 EUR cash = ~370 CUP
-    // 1 Clásica card = ~310 CUP
-    const rates = {
-      USD: 360.0,
-      MLC: 280.0,
-      EUR: 370.0,
-      CLASICA: 310.0,
-      timestamp: Date.now(),
-      source: "El Toque (Fallback)"
-    };
+  // Global cached exchange rates
+  let cachedRates = {
+    USD: 360.0,
+    MLC: 280.0,
+    EUR: 370.0,
+    CLASICA: 310.0,
+    timestamp: Date.now(),
+    source: "El Toque (Fallback)"
+  };
 
+  const updateExchangeRates = async () => {
     try {
-      // 1. Try to fetch from El Toque / Toque.io informal rates endpoint
+      // Try to fetch from El Toque / Toque.io informal rates endpoint
       const response = await fetch("https://api.toque.io/v1/rates?g=informal", {
         headers: {
           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -35,41 +30,58 @@ async function startServer() {
       if (response.ok) {
         const data = await response.json();
         if (data && data.rates) {
-          rates.USD = data.rates.USD || rates.USD;
-          rates.MLC = data.rates.MLC || rates.MLC;
-          rates.EUR = data.rates.EUR || rates.EUR;
-          rates.CLASICA = data.rates.VAL_CLASICA || data.rates.CLASICA || rates.CLASICA;
-          rates.source = "El Toque (API)";
-        }
-      } else {
-        // 2. Try scraping from the eltoque home page if the API fails
-        const htmlRes = await fetch("https://eltoque.com/", {
-          headers: {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-          }
-        });
-        if (htmlRes.ok) {
-          const html = await htmlRes.text();
-          
-          // Look for direct key value rates in HTML
-          const usdMatch = html.match(/"USD"\s*:\s*(\d+(\.\d+)?)/) || html.match(/USD.*?(\d{3})/);
-          const mlcMatch = html.match(/"MLC"\s*:\s*(\d+(\.\d+)?)/) || html.match(/MLC.*?(\d{3})/);
-          const eurMatch = html.match(/"EUR"\s*:\s*(\d+(\.\d+)?)/) || html.match(/EUR.*?(\d{3})/);
-          const clasicaMatch = html.match(/"(CLASICA|VAL_CLASICA)"\s*:\s*(\d+(\.\d+)?)/) || html.match(/CLASICA.*?(\d{3})/);
-
-          if (usdMatch) rates.USD = parseFloat(usdMatch[1]);
-          if (mlcMatch) rates.MLC = parseFloat(mlcMatch[1]);
-          if (eurMatch) rates.EUR = parseFloat(eurMatch[1]);
-          if (clasicaMatch) rates.CLASICA = parseFloat(clasicaMatch[1]);
-          rates.source = "El Toque (Scraper)";
+          cachedRates.USD = data.rates.USD || cachedRates.USD;
+          cachedRates.MLC = data.rates.MLC || cachedRates.MLC;
+          cachedRates.EUR = data.rates.EUR || cachedRates.EUR;
+          cachedRates.CLASICA = data.rates.VAL_CLASICA || data.rates.CLASICA || cachedRates.CLASICA;
+          cachedRates.source = "El Toque (API 12h Cron)";
+          cachedRates.timestamp = Date.now();
+          console.log(`[ExchangeRates Job] Updated rates successfully at ${new Date().toISOString()}`);
+          return;
         }
       }
-    } catch (e) {
-      // Quietly fall back without logging the full exception stack to keep console clean of network/SSL warnings
-      rates.source = "Local Database (Mock)";
-    }
 
-    res.json(rates);
+      // Try scraping from the eltoque home page if the API fails
+      const htmlRes = await fetch("https://eltoque.com/", {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        }
+      });
+      if (htmlRes.ok) {
+        const html = await htmlRes.text();
+        const usdMatch = html.match(/"USD"\s*:\s*(\d+(\.\d+)?)/) || html.match(/USD.*?(\d{3})/);
+        const mlcMatch = html.match(/"MLC"\s*:\s*(\d+(\.\d+)?)/) || html.match(/MLC.*?(\d{3})/);
+        const eurMatch = html.match(/"EUR"\s*:\s*(\d+(\.\d+)?)/) || html.match(/EUR.*?(\d{3})/);
+        const clasicaMatch = html.match(/"(CLASICA|VAL_CLASICA)"\s*:\s*(\d+(\.\d+)?)/) || html.match(/CLASICA.*?(\d{3})/);
+
+        if (usdMatch) cachedRates.USD = parseFloat(usdMatch[1]);
+        if (mlcMatch) cachedRates.MLC = parseFloat(mlcMatch[1]);
+        if (eurMatch) cachedRates.EUR = parseFloat(eurMatch[1]);
+        if (clasicaMatch) cachedRates.CLASICA = parseFloat(clasicaMatch[1]);
+        cachedRates.source = "El Toque (Scraper 12h Cron)";
+        cachedRates.timestamp = Date.now();
+        console.log(`[ExchangeRates Job] Updated rates via Scraper at ${new Date().toISOString()}`);
+      }
+    } catch (e) {
+      cachedRates.source = "Local Database (Fallback)";
+      cachedRates.timestamp = Date.now();
+    }
+  };
+
+  // Initial fetch on server start
+  updateExchangeRates();
+
+  // Scheduled task: Update rates every 12 hours (12 * 60 * 60 * 1000 ms)
+  const TWELVE_HOURS_MS = 12 * 60 * 60 * 1000;
+  setInterval(updateExchangeRates, TWELVE_HOURS_MS);
+
+  // API Route to fetch real-time exchange rates from El Toque
+  app.get("/api/exchange-rates", async (req, res) => {
+    // If cache is older than 12 hours, trigger an async refresh
+    if (Date.now() - cachedRates.timestamp > TWELVE_HOURS_MS) {
+      updateExchangeRates();
+    }
+    res.json(cachedRates);
   });
 
   // Vite middleware setup for development, static serve for production

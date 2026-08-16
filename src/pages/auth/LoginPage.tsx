@@ -110,7 +110,11 @@ export const LoginPage: React.FC = () => {
         if (matchedUser.role === 'admin') {
           navigateTo('/admin/dashboard');
         } else if (matchedUser.role === 'producer') {
-          navigateTo('/producer/dashboard');
+          if (matchedUser.producerApprovalStatus === 'pending') {
+            navigateTo('/producer/pending-approval');
+          } else {
+            navigateTo('/producer/dashboard');
+          }
         } else {
           navigateTo('/artist/dashboard');
         }

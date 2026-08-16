@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import { Beat, User, CartItem, Order, PaymentGatewayConfig, Plan, AdminNotification, ProducerNotification, ArtistNotification, SimulatedEmail, DirectMessage, DisplayCurrency, ExchangeRates, PlanRequest, SupportMessage, AdminPaymentMethod } from '../types';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { Beat, User, CartItem, Order, PaymentGatewayConfig, Plan, AdminNotification, ProducerNotification, ArtistNotification, SimulatedEmail, DirectMessage, DisplayCurrency, ExchangeRates, PlanRequest, SupportTicket, SupportMessage, AdminPaymentMethod } from '../types';
 
 interface AppContextProps {
   user: User | null;
@@ -143,11 +143,24 @@ interface AppContextProps {
   toggleUser2FA: (userId: string, enabled?: boolean) => void;
 
   // Support System
+  supportTickets: SupportTicket[];
   supportMessages: SupportMessage[];
-  sendSupportMessage: (userId: string, userName: string, userRole: 'client' | 'producer', senderType: 'user' | 'support', text: string) => void;
-  markSupportAsReadBySupport: (userId: string) => void;
-  markSupportAsReadByUser: (userId: string) => void;
-  deleteSupportChat: (userId: string) => void;
+  toggleSupportOnline: () => void;
+  sendSupportMessage: (
+    ticketId: string,
+    userId: string,
+    userName: string,
+    userRole: 'client' | 'producer',
+    senderType: 'user' | 'support',
+    text: string,
+    isBot?: boolean
+  ) => void;
+  escalateTicket: (ticketId: string, category?: SupportTicket['category']) => void;
+  claimTicket: (ticketId: string, adminId: string) => void;
+  resolveTicket: (ticketId: string) => void;
+  markSupportAsReadBySupport: (ticketId: string) => void;
+  markSupportAsReadByUser: (userIdOrTicketId: string) => void;
+  deleteSupportChat: (ticketIdOrUserId: string) => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -300,6 +313,7 @@ const INITIAL_PRODUCERS: User[] = [
     verified: true,
     plan: 'Elite',
     isCollaborator: true,
+    isSupportOnline: true,
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
     password: 'contraseña123'
   },
@@ -711,7 +725,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('cb_admin_payment_methods', JSON.stringify(methods));
   };
 
-  const getProducerPaymentMethods = (producerId: string) => {
+  const getProducerPaymentMethods = useCallback((producerId: string) => {
     // Return payment methods of the given producerId strictly
     const carlosIds = ['p2', 'carlos_producer'];
     const filtered = producerPaymentMethods.filter(m => 
@@ -719,7 +733,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       (carlosIds.includes(producerId) && carlosIds.includes(m.producerId))
     );
     return filtered;
-  };
+  }, [producerPaymentMethods]);
 
   const fetchRates = async () => {
     try {
@@ -1323,7 +1337,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setDirectMessages(prev => [...prev, newMsg]);
   };
 
-  const markMessagesAsRead = (senderId: string, receiverId: string) => {
+  const markMessagesAsRead = useCallback((senderId: string, receiverId: string) => {
     setDirectMessages(prev => {
       const hasUnread = prev.some(m => m.senderId === senderId && m.receiverId === receiverId && !m.read);
       if (!hasUnread) return prev;
@@ -1334,19 +1348,54 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         return m;
       });
     });
-  };
+  }, []);
 
   const clearDirectMessages = () => {
     setDirectMessages([]);
   };
 
-  // Support Messages State & Actions
+  // Support System State & Actions (Tickets + Messages + Agent Presence)
+  const [supportTickets, setSupportTickets] = useState<SupportTicket[]>(() => {
+    const cached = localStorage.getItem('cb_support_tickets');
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      } catch (e) {
+        // ignore
+      }
+    }
+    return [
+      {
+        id: 'ticket_seed_1',
+        userId: 'a1',
+        userName: 'Yomil Oficial',
+        userRole: 'client',
+        status: 'esperando',
+        category: 'pagos',
+        createdAt: 'Hace 10 minutos',
+        updatedAt: 'Hace 10 minutos'
+      },
+      {
+        id: 'ticket_seed_2',
+        userId: 'carlos_producer',
+        userName: 'Flow Habano',
+        userRole: 'producer',
+        status: 'en_vivo',
+        category: 'kyc',
+        assignedAdminId: 'admin_collab_2',
+        createdAt: 'Hace 2 horas',
+        updatedAt: 'Hace 15 minutos'
+      }
+    ];
+  });
+
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>(() => {
     const cached = localStorage.getItem('cb_support_messages');
     if (cached) {
       try {
         const parsed = JSON.parse(cached);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       } catch (e) {
         // ignore
       }
@@ -1354,6 +1403,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return [
       {
         id: 'sup_seed_1',
+        ticketId: 'ticket_seed_1',
         userId: 'a1',
         userName: 'Yomil Oficial',
         userRole: 'client',
@@ -1361,35 +1411,102 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         text: 'Hola, tengo una duda sobre la pasarela EnZona. ¿Cómo puedo subir mi comprobante?',
         timestamp: 'Hace 10 minutos',
         readBySupport: false,
-        readByUser: true
+        readByUser: true,
+        isBot: false
       },
       {
         id: 'sup_seed_2',
+        ticketId: 'ticket_seed_2',
         userId: 'carlos_producer',
         userName: 'Flow Habano',
         userRole: 'producer',
         senderType: 'user',
         text: 'Saludos equipo, ¿cuánto tiempo toma la aprobación de mi verificación de identidad (KYC)? Subí mi documento esta mañana.',
         timestamp: 'Hace 2 horas',
-        readBySupport: false,
-        readByUser: true
+        readBySupport: true,
+        readByUser: true,
+        isBot: false
+      },
+      {
+        id: 'sup_seed_3',
+        ticketId: 'ticket_seed_2',
+        userId: 'carlos_producer',
+        userName: 'Alejandro (Soporte)',
+        userRole: 'producer',
+        senderType: 'support',
+        text: '¡Hola Flow Habano! Estamos revisando tu selfie con documento. Todo luce en orden, se aprobará en breve.',
+        timestamp: 'Hace 15 minutos',
+        readBySupport: true,
+        readByUser: false,
+        isBot: false
       }
     ];
   });
 
   useEffect(() => {
+    localStorage.setItem('cb_support_tickets', JSON.stringify(supportTickets));
+  }, [supportTickets]);
+
+  useEffect(() => {
     localStorage.setItem('cb_support_messages', JSON.stringify(supportMessages));
   }, [supportMessages]);
 
+  // Toggle admin live presence for support
+  const toggleSupportOnline = () => {
+    if (!user || user.role !== 'admin') return;
+    const nextStatus = !user.isSupportOnline;
+    const updated = { ...user, isSupportOnline: nextStatus };
+    setUserState(updated);
+    setVerifiedProducersTask(prev => prev.map(u => u.id === user.id ? { ...u, isSupportOnline: nextStatus } : u));
+    addToast(
+      nextStatus
+        ? '🟢 Soporte: Te has marcado como DISPONIBLE para atender usuarios'
+        : '⚪ Soporte: Te has marcado como DESCONECTADO',
+      nextStatus ? 'success' : 'info'
+    );
+  };
+
+  // Send message respecting ticket association & automatic ticket creation
   const sendSupportMessage = (
+    ticketId: string,
     userId: string,
     userName: string,
     userRole: 'client' | 'producer',
     senderType: 'user' | 'support',
-    text: string
+    text: string,
+    isBot: boolean = false
   ) => {
+    let resolvedTicketId = ticketId;
+
+    // Check / create ticket if not open
+    setSupportTickets(prev => {
+      let existing = prev.find(t => t.id === ticketId);
+      if (!existing && userId) {
+        existing = prev.find(t => t.userId === userId && t.status !== 'resuelto');
+      }
+
+      if (existing) {
+        resolvedTicketId = existing.id;
+        return prev.map(t => t.id === existing.id ? { ...t, updatedAt: 'Ahora mismo' } : t);
+      } else {
+        const newTicket: SupportTicket = {
+          id: resolvedTicketId || `ticket_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+          userId,
+          userName,
+          userRole,
+          status: 'bot',
+          category: 'otro',
+          createdAt: 'Ahora mismo',
+          updatedAt: 'Ahora mismo'
+        };
+        resolvedTicketId = newTicket.id;
+        return [newTicket, ...prev];
+      }
+    });
+
     const newMsg: SupportMessage = {
-      id: `sup_msg_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+      id: `sup_msg_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+      ticketId: resolvedTicketId,
       userId,
       userName,
       userRole,
@@ -1397,29 +1514,179 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       text,
       timestamp: 'Ahora mismo',
       readBySupport: senderType === 'support',
-      readByUser: senderType === 'user'
+      readByUser: senderType === 'user',
+      isBot
     };
+
     setSupportMessages(prev => [...prev, newMsg]);
   };
 
-  const markSupportAsReadBySupport = (userId: string) => {
-    setSupportMessages(prev => prev.map(m => 
-      m.userId === userId && !m.readBySupport 
-        ? { ...m, readBySupport: true } 
-        : m
-    ));
+  // Escalate case to human agent (checks online admin status)
+  const escalateTicket = (ticketId: string, category: SupportTicket['category'] = 'otro') => {
+    // Revisa si hay admins con isSupportOnline: true en verifiedProducersTask o el usuario actual
+    const anyAdminOnline = verifiedProducersTask.some(u => u.role === 'admin' && u.isSupportOnline) || (user?.role === 'admin' && user?.isSupportOnline);
+
+    let targetTicket: SupportTicket | undefined;
+
+    setSupportTickets(prev => {
+      return prev.map(t => {
+        if (t.id === ticketId) {
+          targetTicket = {
+            ...t,
+            status: 'esperando',
+            category: category || t.category || 'otro',
+            updatedAt: 'Ahora mismo'
+          };
+          return targetTicket;
+        }
+        return t;
+      });
+    });
+
+    const uId = targetTicket?.userId || user?.id || 'unknown';
+    const uName = targetTicket?.userName || user?.artistName || user?.name || 'Usuario';
+    const uRole = (targetTicket?.userRole || (user?.role === 'producer' ? 'producer' : 'client')) as 'client' | 'producer';
+
+    if (anyAdminOnline) {
+      // Admin disponible: Conectando con un agente
+      const newBotMsg: SupportMessage = {
+        id: `sup_msg_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        ticketId,
+        userId: uId,
+        userName: 'Bot de Asistencia',
+        userRole: uRole,
+        senderType: 'support',
+        text: '🤖 Conectando con un agente... Tu consulta ha sido transferida a la cola en vivo. Un miembro del equipo tomará tu caso de inmediato.',
+        timestamp: 'Ahora mismo',
+        readBySupport: false,
+        readByUser: true,
+        isBot: true
+      };
+      setSupportMessages(prev => [...prev, newBotMsg]);
+      addToast('Conectando con un agente de soporte en línea...', 'info');
+    } else {
+      // Nadie en línea: Caso registrado en cola
+      const newBotMsg: SupportMessage = {
+        id: `sup_msg_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        ticketId,
+        userId: uId,
+        userName: 'Bot de Asistencia',
+        userRole: uRole,
+        senderType: 'support',
+        text: '🤖 Tu caso ha sido registrado en cola. En este momento ningún gestor de soporte se encuentra en línea. Te responderemos tan pronto como un agente inicie sesión.',
+        timestamp: 'Ahora mismo',
+        readBySupport: false,
+        readByUser: true,
+        isBot: true
+      };
+      setSupportMessages(prev => [...prev, newBotMsg]);
+      addToast('Caso en cola: Te atenderemos en cuanto un agente esté disponible.', 'info');
+    }
   };
 
-  const markSupportAsReadByUser = (userId: string) => {
-    setSupportMessages(prev => prev.map(m => 
-      m.userId === userId && !m.readByUser 
-        ? { ...m, readByUser: true } 
-        : m
-    ));
+  // Claim waiting ticket by an admin
+  const claimTicket = (ticketId: string, adminId: string) => {
+    const adminObj = verifiedProducersTask.find(u => u.id === adminId) || user;
+    const adminName = adminObj?.name || 'Gestor de Soporte';
+
+    let targetTicket: SupportTicket | undefined;
+
+    setSupportTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        targetTicket = {
+          ...t,
+          status: 'en_vivo',
+          assignedAdminId: adminId,
+          updatedAt: 'Ahora mismo'
+        };
+        return targetTicket;
+      }
+      return t;
+    }));
+
+    if (targetTicket) {
+      const joinMsg: SupportMessage = {
+        id: `sup_msg_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        ticketId,
+        userId: targetTicket.userId,
+        userName: `${adminName} (Soporte)`,
+        userRole: targetTicket.userRole,
+        senderType: 'support',
+        text: `🎧 ${adminName} se ha unido a la conversación. ¿En qué podemos colaborarte hoy?`,
+        timestamp: 'Ahora mismo',
+        readBySupport: true,
+        readByUser: false,
+        isBot: false
+      };
+      setSupportMessages(prev => [...prev, joinMsg]);
+    }
+
+    addToast('Has tomado el ticket con éxito. Ahora estás en vivo con el usuario.', 'success');
   };
 
-  const deleteSupportChat = (userId: string) => {
-    setSupportMessages(prev => prev.filter(m => m.userId !== userId));
+  // Resolve a support ticket
+  const resolveTicket = (ticketId: string) => {
+    let targetTicket: SupportTicket | undefined;
+
+    setSupportTickets(prev => prev.map(t => {
+      if (t.id === ticketId) {
+        targetTicket = {
+          ...t,
+          status: 'resuelto',
+          updatedAt: 'Ahora mismo'
+        };
+        return targetTicket;
+      }
+      return t;
+    }));
+
+    if (targetTicket) {
+      const resMsg: SupportMessage = {
+        id: `sup_msg_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
+        ticketId,
+        userId: targetTicket.userId,
+        userName: 'Soporte D\'Cuban Beats',
+        userRole: targetTicket.userRole,
+        senderType: 'support',
+        text: '✅ El gestor de soporte ha marcado este caso como resuelto.',
+        timestamp: 'Ahora mismo',
+        readBySupport: true,
+        readByUser: false,
+        isBot: true
+      };
+      setSupportMessages(prev => [...prev, resMsg]);
+    }
+
+    addToast('Ticket de soporte marcado como resuelto.', 'success');
+  };
+
+  const markSupportAsReadBySupport = useCallback((ticketIdOrUserId: string) => {
+    setSupportMessages(prev => {
+      const hasUnread = prev.some(m => (m.ticketId === ticketIdOrUserId || m.userId === ticketIdOrUserId) && !m.readBySupport);
+      if (!hasUnread) return prev;
+      return prev.map(m => 
+        (m.ticketId === ticketIdOrUserId || m.userId === ticketIdOrUserId) && !m.readBySupport 
+          ? { ...m, readBySupport: true } 
+          : m
+      );
+    });
+  }, []);
+
+  const markSupportAsReadByUser = useCallback((ticketIdOrUserId: string) => {
+    setSupportMessages(prev => {
+      const hasUnread = prev.some(m => (m.ticketId === ticketIdOrUserId || m.userId === ticketIdOrUserId) && !m.readByUser);
+      if (!hasUnread) return prev;
+      return prev.map(m => 
+        (m.ticketId === ticketIdOrUserId || m.userId === ticketIdOrUserId) && !m.readByUser 
+          ? { ...m, readByUser: true } 
+          : m
+      );
+    });
+  }, []);
+
+  const deleteSupportChat = (ticketIdOrUserId: string) => {
+    setSupportTickets(prev => prev.filter(t => t.id !== ticketIdOrUserId && t.userId !== ticketIdOrUserId));
+    setSupportMessages(prev => prev.filter(m => m.ticketId !== ticketIdOrUserId && m.userId !== ticketIdOrUserId));
   };
 
   const addProducerNotification = (type: ProducerNotification['type'], title: string, description: string, beatId?: string) => {
@@ -1524,24 +1791,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => clearInterval(timer);
   }, [isPlaying, activeBeat]);
 
-  const navigateTo = (path: string, options?: { beatId?: string; producerId?: string }) => {
+  const navigateTo = useCallback((path: string, options?: { beatId?: string; producerId?: string }) => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
     setCurrentPath(path);
     setSelectedBeatId(options?.beatId || null);
     setSelectedProducerId(options?.producerId || null);
-  };
+  }, []);
 
   const setUser = (newUser: User | null) => {
     setUserState(newUser);
     if (newUser) {
+      if (newUser.role === 'producer') {
+        setVerifiedProducersTask(prev => {
+          const exists = prev.some(p => p.id === newUser.id);
+          return exists ? prev.map(p => p.id === newUser.id ? { ...p, ...newUser } : p) : [newUser, ...prev];
+        });
+      }
+
       addToast(`Sesión iniciada como ${newUser.role.toUpperCase()}: ${newUser.artistName || newUser.name}`, 'success');
       // Set to appropriate dashboard if role is producer/admin
       if (newUser.role === 'producer') {
-        setCurrentPath('/producer/dashboard');
+        if (newUser.producerApprovalStatus === 'pending') {
+          setCurrentPath('/producer/pending-approval');
+        } else {
+          setCurrentPath('/producer/dashboard');
+        }
       } else if (newUser.role === 'admin') {
         setCurrentPath('/admin/dashboard');
       } else {
-        setCurrentPath('/');
+        setCurrentPath('/artist/dashboard');
       }
     } else {
       addToast('Sesión cerrada correctamente', 'info');
@@ -1553,12 +1831,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     if (user) {
       const oldPlan = user.plan || 'Gratis';
       const newPlan = profile.plan;
+      const oldRole = user.role;
       
       const updated = { ...user, ...profile };
       setUserState(updated);
-      // Synchronize in the verified producers lists too if needed
-      setVerifiedProducersTask(prev => prev.map(p => p.id === user.id ? { ...p, ...profile } : p));
+      
+      // Synchronize in the verified producers list too if needed
+      setVerifiedProducersTask(prev => {
+        const exists = prev.some(p => p.id === user.id);
+        if (exists) {
+          return prev.map(p => p.id === user.id ? { ...p, ...profile } : p);
+        } else if (updated.role === 'producer') {
+          return [updated, ...prev];
+        }
+        return prev;
+      });
+
       addToast('Perfil actualizado correctamente', 'success');
+
+      if (updated.role === 'producer' && oldRole !== 'producer') {
+        if (updated.producerApprovalStatus === 'pending') {
+          setCurrentPath('/producer/pending-approval');
+        } else {
+          setCurrentPath('/producer/dashboard');
+        }
+      }
 
       if (newPlan !== undefined && newPlan !== oldPlan) {
         const uEmail = user.email || 'productor@dcubanbeats.com';
@@ -1656,7 +1953,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     if (status === 'approved') {
       const targetProd = verifiedProducersTask.find(p => p.id === requestObj.producerId);
-      if (targetProd && !targetProd.verified) {
+      if (targetProd && !targetProd.verified && targetProd.producerApprovalStatus !== 'pending') {
         addToast(`No se puede activar el plan: El productor "${targetProd.artistName || targetProd.name}" debe estar verificado (KYC) primero.`, 'error');
         return;
       }
@@ -1670,10 +1967,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const uEmail = targetProd?.email || 'productor@dcubanbeats.com';
 
     if (status === 'approved') {
-      setVerifiedProducersTask(prods => prods.map(p => p.id === requestObj.producerId ? { ...p, plan: selectedPlan } : p));
+      setVerifiedProducersTask(prods => prods.map(p => p.id === requestObj.producerId ? { ...p, plan: selectedPlan, producerApprovalStatus: 'approved' } : p));
 
       if (user && user.id === requestObj.producerId) {
-        setUserState(prevUser => prevUser ? { ...prevUser, plan: selectedPlan } : null);
+        setUserState(prevUser => prevUser ? { ...prevUser, plan: selectedPlan, producerApprovalStatus: 'approved' } : null);
       }
 
       addProducerNotification(
@@ -1797,6 +2094,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return;
     }
 
+    // Chequeo de beat bloqueado por plan del productor
+    if (beat.isBlockedByPlan) {
+      addToast('Este beat no está disponible: el productor lo desactivó al bajar de plan.', 'error');
+      return;
+    }
+
     const userCart = userCartsMap[user.id] || [];
     
     if (userCart.some((item) => item.id === id)) {
@@ -1855,6 +2158,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const playBeat = (beat: Beat) => {
+    // Chequeo de beat bloqueado por plan del productor
+    if (beat.isBlockedByPlan) {
+      addToast('Este beat no está disponible para reproducción porque está bloqueado por el plan del productor.', 'error');
+      return;
+    }
+
     if (activeBeat && activeBeat.id === beat.id) {
       togglePlay();
     } else {
@@ -2621,8 +2930,13 @@ D'Cuban Beats, S.A. Cuba, La Habana.
         clearDirectMessages,
 
         // Support System
+        supportTickets,
         supportMessages,
+        toggleSupportOnline,
         sendSupportMessage,
+        escalateTicket,
+        claimTicket,
+        resolveTicket,
         markSupportAsReadBySupport,
         markSupportAsReadByUser,
         deleteSupportChat,

@@ -93,7 +93,7 @@ export const ProducerDashboard: React.FC = () => {
     if (activeTab === 'chat' && activeChatArtist && user) {
       markMessagesAsRead(activeChatArtist.id, user.id);
     }
-  }, [activeTab, activeChatArtist, user?.id, directMessages.length, markMessagesAsRead]);
+  }, [activeTab, activeChatArtist?.id, user?.id, directMessages.length, markMessagesAsRead]);
 
   // Scroll to bottom
   useEffect(() => {
@@ -462,15 +462,18 @@ export const ProducerDashboard: React.FC = () => {
         <div className="space-y-8 animate-in fade-in duration-250">
           {/* 2. KYC REQUIRED ALERT (if not verified) */}
           {!isVerified && (
-            <div className="bg-amber-950/20 border border-amber-500/20 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="bg-red-950/40 border border-red-500/40 rounded-2xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-red-950/20">
               <div className="flex gap-3">
-                <div className="w-10 h-10 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-xl flex items-center justify-center flex-shrink-0">
+                <div className="w-10 h-10 bg-red-500/15 text-red-400 border border-red-500/30 rounded-xl flex items-center justify-center flex-shrink-0">
                   <AlertOctagon size={20} />
                 </div>
                 <div className="space-y-1">
-                  <h4 className="text-sm font-bold text-amber-500">Pasarela Directa Inactiva • Verificación KYC Requerida</h4>
-                  <p className="text-[11px] text-amber-200/80 max-w-xl leading-relaxed">
-                    Para desplegar tus enlaces de Transfermóvil, EnZona y QvaPay en el catálogo oficial y recibir transacciones CUP instantáneas, debes certificar tu firma de identidad oficial cubana.
+                  <h4 className="text-sm font-extrabold text-red-400 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                    Pendiente de Verificación KYC
+                  </h4>
+                  <p className="text-[11px] text-red-200/90 max-w-xl leading-relaxed">
+                    Tu cuenta está pendiente de verificación de identidad (KYC). Debes completar la verificación para desbloquear todas las funciones del panel de productor, como publicar beats y configurar cuentas de cobro.
                   </p>
                 </div>
               </div>
@@ -479,9 +482,9 @@ export const ProducerDashboard: React.FC = () => {
                 variant="ghost" 
                 size="xs" 
                 onClick={() => navigateTo('/producer/profile')}
-                className="bg-amber-600 hover:bg-amber-700 text-white border-none py-2 px-4 shadow-sm font-bold whitespace-nowrap self-end sm:self-center text-[11px]"
+                className="bg-red-600 hover:bg-red-700 text-white border-none py-2 px-4 shadow-md font-bold whitespace-nowrap self-end sm:self-center text-[11px] cursor-pointer"
               >
-                Validar Identidad →
+                Completar Verificación KYC →
               </Button>
             </div>
           )}
@@ -560,8 +563,8 @@ export const ProducerDashboard: React.FC = () => {
                             <span className="text-xs font-bold block truncate">{beat.title}</span>
                             <span className="text-[10px] text-slate-400 font-mono block">{beat.genre} • {beat.bpm} BPM</span>
                           </div>
-                          <span className={`text-xs font-bold px-2 py-0.5 rounded-lg ${isSelected ? 'bg-emerald-500 text-black' : 'bg-white/10 text-slate-400'}`}>
-                            {isSelected ? 'Mantener ✓' : 'Bloquear'}
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-lg ${isSelected ? 'bg-emerald-500 text-black' : 'bg-amber-500/20 text-amber-300 border border-amber-500/30'}`}>
+                            {isSelected ? 'Activo (Mantener ✓)' : 'Bloqueado por plan'}
                           </span>
                         </button>
                       );
@@ -631,9 +634,14 @@ export const ProducerDashboard: React.FC = () => {
               </div>
               <div>
                 <h3 className="text-2xl font-bold font-mono text-white leading-none">
-                  {myBeats.length || 5}
+                  {myBeats.filter(b => !b.isBlockedByPlan).length}
                 </h3>
                 <span className="text-[10px] text-gray-400 block mt-2">
+                  {myBeats.filter(b => b.isBlockedByPlan).length > 0 && (
+                    <span className="text-amber-400 font-semibold mr-1.5">
+                      ({myBeats.filter(b => b.isBlockedByPlan).length} bloqueados)
+                    </span>
+                  )}
                   Precio promedio: <strong className="text-indigo-300 font-mono">${averagePrice || 600} CUP</strong>
                 </span>
               </div>

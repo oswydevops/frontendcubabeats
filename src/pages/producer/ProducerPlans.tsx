@@ -19,9 +19,6 @@ export const ProducerPlans: React.FC = () => {
   const [selectedPlanToBuy, setSelectedPlanToBuy] = useState<Plan | null>(null);
   const [enlargedQrUrl, setEnlargedQrUrl] = useState<string | null>(null);
   
-  // Currency toggle state in subscription modal (USD -> CUP -> MLC -> Clasica)
-  const [subCurrency, setSubCurrency] = useState<'USD' | 'CUP' | 'MLC' | 'Clasica'>('USD');
-
   // Payment channel selection (Bancos vs QvaPay)
   const [paymentType, setPaymentType] = useState<'bancos' | 'qvapay'>('bancos');
   const [senderCardNum, setSenderCardNum] = useState('');
@@ -65,7 +62,6 @@ export const ProducerPlans: React.FC = () => {
     }
     setSelectedPlanToBuy(planToSub);
     setFormErrors({});
-    setSubCurrency('USD');
     
     const hasBank = activeMethods.some(m => m.type === 'bancos' || (m.type as string) === 'transfermovil');
     const hasQp = activeMethods.some(m => m.type === 'qvapay');
@@ -97,7 +93,7 @@ export const ProducerPlans: React.FC = () => {
     }
 
     if (activeMethods.length === 0) {
-      addToast('No se están aceptando pagos por el momento. Intente nuevamente en 24 a 48 horas.', 'error');
+      addToast('No hay métodos de pago disponibles por el momento. La administración no tiene cuentas activas configuradas.', 'error');
       return;
     }
 
@@ -121,14 +117,19 @@ export const ProducerPlans: React.FC = () => {
       return;
     }
 
-    // Calculate rate snapshot based on subCurrency
+    // Calculate rate snapshot based on payment channel and active payment method
     const rateUsed = exchangeRates?.CUP || 330;
     const amountUSD = targetPlan.price;
-    const amountConverted =
-      subCurrency === 'USD' ? amountUSD :
-      subCurrency === 'CUP' ? amountUSD * (exchangeRates?.CUP || 330) :
-      subCurrency === 'MLC' ? amountUSD * ((exchangeRates?.USD || 330) / (exchangeRates?.MLC || 280)) :
-      amountUSD * ((exchangeRates?.USD || 330) / (exchangeRates?.CLASICA || 310));
+    
+    let effectiveCurrency = 'USD';
+    if (paymentType === 'bancos') {
+      const activeBankMethods = activeMethods.filter(m => m.type === 'bancos' || (m.type as string) === 'transfermovil');
+      effectiveCurrency = activeBankMethods[0]?.currencyType || 'CUP';
+    }
+
+    const cardTargetCurr = (effectiveCurrency.toUpperCase() === 'CLASICA' || effectiveCurrency.toUpperCase() === 'CLÁSICA' ? 'CLASICA' : effectiveCurrency.toUpperCase()) as any;
+    const conv = convertPrice(amountUSD, cardTargetCurr);
+    const amountConverted = parseFloat(conv.amount.replace(/[^0-9.]/g, '')) || amountUSD;
     const frozenAt = new Date().toISOString();
 
     // Submit plan subscription request for admin review
@@ -138,7 +139,7 @@ export const ProducerPlans: React.FC = () => {
       planId: targetPlan.id,
       planName: `Plan ${targetPlan.name}`,
       amount: targetPlan.price,
-      currency: subCurrency,
+      currency: effectiveCurrency,
       transactionId: transactionId,
       receiptUrl: receiptScreenshot,
       exchangeRateUsed: rateUsed,
@@ -201,7 +202,7 @@ export const ProducerPlans: React.FC = () => {
               Aviso de recepción de pagos de la administración
             </span>
             <p className="text-[11.5px] text-amber-200/90 leading-relaxed font-sans">
-              No se están aceptando pagos por el momento pero se retomará en un plazo de 24 a 48 horas.
+              No hay métodos de pago disponibles por el momento. La administración no tiene cuentas activas configuradas.
             </p>
           </div>
         </div>
@@ -744,57 +745,6 @@ export const ProducerPlans: React.FC = () => {
                   </span>
                 </div>
               </div>
-
-              {/* Toggle switch for Currency (USD, CUP, MLC, Clasica) */}
-              {selectedPlanToBuy.price > 0 && (
-                <div className="pt-3 border-t border-white/5 space-y-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-bold text-gray-300 uppercase tracking-wider flex items-center gap-1.5">
-                      <Sparkles size={13} className="text-[#8D84F7]" /> Seleccionar Moneda de Pago:
-                    </span>
-                    <span className="text-[11px] text-[#8D84F7] font-semibold bg-[#8D84F7]/10 px-2.5 py-0.5 rounded-md border border-[#8D84F7]/20">
-                      Tasa en tiempo real (El Toque)
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#141424] p-1.5 rounded-xl border border-white/5">
-                    {(['USD', 'CUP', 'MLC', 'Clasica'] as const).map((curr) => (
-                      <button
-                        key={curr}
-                        type="button"
-                        onClick={() => setSubCurrency(curr)}
-                        className={`py-2 px-3 rounded-lg font-bold text-xs transition-all cursor-pointer text-center flex items-center justify-center gap-1.5 ${
-                          subCurrency === curr
-                            ? 'bg-[#534AB7] text-white shadow-lg border border-white/10'
-                            : 'text-gray-400 hover:text-white hover:bg-white/5'
-                        }`}
-                      >
-                        <span>{curr}</span>
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Calculated Price display in selected currency */}
-                  <div className="p-3 bg-[#1A1A2E] rounded-xl border border-[#534AB7]/30 flex flex-wrap items-center justify-between gap-3 shadow-inner">
-                    <span className="text-xs text-gray-300 font-semibold">Total exacto a transferir ({subCurrency}):</span>
-                    <div className="flex items-center gap-3">
-                      <strong className="text-base font-mono font-black text-emerald-400">
-                        {subCurrency === 'USD' && `$${selectedPlanToBuy.price.toFixed(2)} USD`}
-                        {subCurrency === 'CUP' && `${(selectedPlanToBuy.price * (exchangeRates?.CUP || 330)).toLocaleString('es-CU')} CUP`}
-                        {subCurrency === 'MLC' && `${(selectedPlanToBuy.price * ((exchangeRates?.USD || 330) / (exchangeRates?.MLC || 280))).toFixed(2)} MLC`}
-                        {subCurrency === 'Clasica' && `${(selectedPlanToBuy.price * ((exchangeRates?.USD || 330) / (exchangeRates?.CLASICA || 310))).toFixed(2)} Clásica`}
-                      </strong>
-                      {renderCopyButton(
-                        subCurrency === 'USD' ? `${selectedPlanToBuy.price}` :
-                        subCurrency === 'CUP' ? `${selectedPlanToBuy.price * (exchangeRates?.CUP || 330)}` :
-                        subCurrency === 'MLC' ? `${(selectedPlanToBuy.price * ((exchangeRates?.USD || 330) / (exchangeRates?.MLC || 280))).toFixed(2)}` :
-                        `${(selectedPlanToBuy.price * ((exchangeRates?.USD || 330) / (exchangeRates?.CLASICA || 310))).toFixed(2)}`,
-                        'Monto'
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
 
             {/* If plan is free, describe downgrade implications */}
@@ -821,10 +771,10 @@ export const ProducerPlans: React.FC = () => {
                 <div className="bg-amber-500/10 border border-amber-500/30 p-6 rounded-2xl space-y-3 text-left">
                   <div className="flex items-center gap-2.5 text-amber-400">
                     <AlertCircle size={24} className="flex-shrink-0" />
-                    <h4 className="text-base font-bold text-white">Pagos Temporalmente Pausados</h4>
+                    <h4 className="text-base font-bold text-white">No hay métodos de pago disponibles por el momento</h4>
                   </div>
                   <p className="text-xs text-amber-200/90 leading-relaxed font-medium">
-                    No se están aceptando pagos por el momento pero se retomará en un plazo de 24 a 48 horas.
+                    Actualmente la administración no tiene cuentas ni métodos de pago activos configurados. Por favor intenta nuevamente más tarde o contacta con soporte.
                   </p>
                 </div>
 
@@ -884,92 +834,115 @@ export const ProducerPlans: React.FC = () => {
                       ) : (
                         activeMethods
                           .filter(m => m.type === 'bancos' || (m.type as string) === 'transfermovil')
-                          .map((method) => (
-                            <div key={method.id} className="bg-[#13131F] border border-brand-primary/25 p-4 rounded-xl space-y-3 shadow-sm hover:border-brand-primary/40 transition-colors">
-                              <div className="flex flex-wrap items-center justify-between gap-2">
-                                <span className="text-[11px] bg-[#534AB7]/30 text-[#8D84F7] font-black px-3 py-1 rounded-full border border-[#534AB7]/40 inline-flex items-center gap-1.5">
-                                  <Landmark size={12} /> {method.bankName || 'BANCO'} ({method.currencyType || 'CUP'})
-                                </span>
-                                <div className="flex gap-1.5">
-                                  {method.acceptsTransfermovil !== false && (
-                                    <span className="px-2.5 py-0.5 text-[10.5px] font-bold rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/25 flex items-center gap-1">
-                                      <Landmark size={10} /> Transfermóvil
-                                    </span>
-                                  )}
-                                  {method.acceptsEnzona !== false && (
-                                    <span className="px-2.5 py-0.5 text-[10.5px] font-bold rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 flex items-center gap-1">
-                                      <ShieldCheck size={10} /> EnZona
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
+                          .map((method) => {
+                            const planPrice = selectedPlanToBuy ? selectedPlanToBuy.price : 0;
+                            const cardCurrRaw = (method.currencyType || 'CUP').trim().toUpperCase();
+                            const cardTargetCurr = (cardCurrRaw === 'CLASICA' || cardCurrRaw === 'CLÁSICA' ? 'CLASICA' : cardCurrRaw) as any;
+                            const convertedCard = convertPrice(planPrice, cardTargetCurr);
 
-                              <div className="space-y-2 text-xs text-left">
-                                {method.cardHolder && (
-                                  <div className="flex items-center justify-between p-2 bg-[#0C0C14] rounded-lg border border-white/5">
-                                    <span className="text-white/50 text-[11px] font-medium">Titular de la cuenta:</span>
-                                    <div className="flex items-center gap-2">
-                                      <strong className="text-white font-mono">{method.cardHolder}</strong>
-                                      {renderCopyButton(method.cardHolder, 'Titular')}
-                                    </div>
-                                  </div>
-                                )}
-
-                                <div className="flex items-center justify-between p-2 bg-[#0C0C14] rounded-lg border border-white/5">
-                                  <span className="text-white/50 text-[11px] font-medium">Tarjeta / Nro. Cuenta:</span>
-                                  <div className="flex items-center gap-2">
-                                    <strong className="text-white font-mono text-sm">{method.cardNumber}</strong>
-                                    {renderCopyButton(method.cardNumber || '', 'Tarjeta')}
+                            return (
+                              <div key={method.id} className="bg-[#13131F] border border-brand-primary/25 p-4 rounded-xl space-y-3 shadow-sm hover:border-brand-primary/40 transition-colors">
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-[11px] bg-[#534AB7]/30 text-[#8D84F7] font-black px-3 py-1 rounded-full border border-[#534AB7]/40 inline-flex items-center gap-1.5">
+                                    <Landmark size={12} /> {method.bankName || 'BANCO'} ({method.currencyType || 'CUP'})
+                                  </span>
+                                  <div className="flex gap-1.5">
+                                    {method.acceptsTransfermovil !== false && (
+                                      <span className="px-2.5 py-0.5 text-[10.5px] font-bold rounded-md bg-blue-500/15 text-blue-400 border border-blue-500/25 flex items-center gap-1">
+                                        <Landmark size={10} /> Transfermóvil
+                                      </span>
+                                    )}
+                                    {method.acceptsEnzona !== false && (
+                                      <span className="px-2.5 py-0.5 text-[10.5px] font-bold rounded-md bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 flex items-center gap-1">
+                                        <ShieldCheck size={10} /> EnZona
+                                      </span>
+                                    )}
                                   </div>
                                 </div>
 
-                                {method.phoneConfirm && (
-                                  <div className="flex items-center justify-between p-2 bg-[#0C0C14] rounded-lg border border-white/5">
-                                    <span className="text-white/50 text-[11px] font-medium">Teléfono Confirmación SMS:</span>
+                                <div className="space-y-2 text-xs text-left">
+                                  {/* Monto Fijo a Transferir según la moneda de la tarjeta */}
+                                  <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent rounded-xl border border-amber-500/30">
+                                    <div className="text-left">
+                                      <span className="text-white/80 text-[11px] font-bold block">
+                                        Monto Fijo a Transferir ({method.currencyType || 'CUP'}):
+                                      </span>
+                                      <span className="text-[10px] text-amber-300/80 font-mono block">
+                                        Actualizado desde API El Toque (12h)
+                                      </span>
+                                    </div>
                                     <div className="flex items-center gap-2">
-                                      <span className="text-white font-mono">{method.phoneConfirm}</span>
-                                      {renderCopyButton(method.phoneConfirm || '', 'Teléfono')}
+                                      <strong className="text-amber-400 font-mono text-sm font-extrabold">{convertedCard.formatted}</strong>
+                                      {renderCopyButton(convertedCard.amount, `Monto ${method.currencyType || 'CUP'}`)}
                                     </div>
                                   </div>
-                                )}
-                              </div>
 
-                              {method.qrScreenshot && (
-                                <div className="pt-2.5 border-t border-white/5 flex items-center justify-between gap-3 bg-[#0C0C14] p-2.5 rounded-xl border border-white/5">
-                                  <div className="flex items-center gap-2.5">
-                                    <div 
-                                      onClick={() => setEnlargedQrUrl(method.qrScreenshot || null)}
-                                      className="relative group cursor-pointer overflow-hidden rounded-lg border border-[#8D84F7]/40 bg-white p-1 hover:border-[#8D84F7] transition-all shadow-md flex-shrink-0"
-                                      title="Haz clic para ampliar QR"
-                                    >
-                                      <img 
-                                        src={method.qrScreenshot} 
-                                        alt="QR de Pago" 
-                                        className="w-14 h-14 object-contain"
-                                        referrerPolicy="no-referrer"
-                                      />
-                                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-md">
-                                        <Maximize2 size={16} className="text-white" />
+                                  {method.cardHolder && (
+                                    <div className="flex items-center justify-between p-2 bg-[#0C0C14] rounded-lg border border-white/5">
+                                      <span className="text-white/50 text-[11px] font-medium">Titular de la cuenta:</span>
+                                      <div className="flex items-center gap-2">
+                                        <strong className="text-white font-mono">{method.cardHolder}</strong>
+                                        {renderCopyButton(method.cardHolder, 'Titular')}
                                       </div>
                                     </div>
-                                    <div className="text-left">
-                                      <span className="text-xs font-bold text-white block">Código QR de Cobro</span>
-                                      <span className="text-[10.5px] text-gray-400 block">Toca la imagen para ampliar</span>
+                                  )}
+
+                                  <div className="flex items-center justify-between p-2 bg-[#0C0C14] rounded-lg border border-white/5">
+                                    <span className="text-white/50 text-[11px] font-medium">Tarjeta / Nro. Cuenta:</span>
+                                    <div className="flex items-center gap-2">
+                                      <strong className="text-white font-mono text-sm">{method.cardNumber}</strong>
+                                      {renderCopyButton(method.cardNumber || '', 'Tarjeta')}
                                     </div>
                                   </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => setEnlargedQrUrl(method.qrScreenshot || null)}
-                                    className="px-2.5 py-1.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/40 text-[#8D84F7] hover:text-white border border-[#534AB7]/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
-                                  >
-                                    <Maximize2 size={12} />
-                                    <span>Ampliar</span>
-                                  </button>
+                                  {method.phoneConfirm && (
+                                    <div className="flex items-center justify-between p-2 bg-[#0C0C14] rounded-lg border border-white/5">
+                                      <span className="text-white/50 text-[11px] font-medium">Teléfono Confirmación SMS:</span>
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-white font-mono">{method.phoneConfirm}</span>
+                                        {renderCopyButton(method.phoneConfirm || '', 'Teléfono')}
+                                      </div>
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          ))
+
+                                {method.qrScreenshot && (
+                                  <div className="pt-2.5 border-t border-white/5 flex items-center justify-between gap-3 bg-[#0C0C14] p-2.5 rounded-xl border border-white/5">
+                                    <div className="flex items-center gap-2.5">
+                                      <div 
+                                        onClick={() => setEnlargedQrUrl(method.qrScreenshot || null)}
+                                        className="relative group cursor-pointer overflow-hidden rounded-lg border border-[#8D84F7]/40 bg-white p-1 hover:border-[#8D84F7] transition-all shadow-md flex-shrink-0"
+                                        title="Haz clic para ampliar QR"
+                                      >
+                                        <img 
+                                          src={method.qrScreenshot} 
+                                          alt="QR de Pago" 
+                                          className="w-14 h-14 object-contain"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded-md">
+                                          <Maximize2 size={16} className="text-white" />
+                                        </div>
+                                      </div>
+                                      <div className="text-left">
+                                        <span className="text-xs font-bold text-white block">Código QR de Cobro</span>
+                                        <span className="text-[10.5px] text-gray-400 block">Toca la imagen para ampliar</span>
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => setEnlargedQrUrl(method.qrScreenshot || null)}
+                                      className="px-2.5 py-1.5 bg-[#534AB7]/20 hover:bg-[#534AB7]/40 text-[#8D84F7] hover:text-white border border-[#534AB7]/40 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer flex-shrink-0"
+                                    >
+                                      <Maximize2 size={12} />
+                                      <span>Ampliar</span>
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })
                       )}
                     </div>
                   ) : (
@@ -1004,11 +977,18 @@ export const ProducerPlans: React.FC = () => {
                                   </div>
                                 </div>
 
-                                <div className="flex items-center justify-between p-2 bg-[#0C0C14] rounded-lg border border-white/5">
-                                  <span className="text-white/50 text-[11px] font-medium">Monto Fijo USD:</span>
+                                <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-emerald-500/15 via-emerald-500/10 to-transparent rounded-xl border border-emerald-500/30">
+                                  <div className="text-left">
+                                    <span className="text-white/80 text-[11px] font-bold block">
+                                      Monto Fijo en QvaPay (USD):
+                                    </span>
+                                    <span className="text-[10px] text-emerald-400/80 font-mono block">
+                                      Moneda Fija USD (no varía con El Toque)
+                                    </span>
+                                  </div>
                                   <div className="flex items-center gap-2">
-                                    <strong className="text-emerald-400 font-mono text-sm">${selectedPlanToBuy.price} USD / SQP</strong>
-                                    {renderCopyButton(`${selectedPlanToBuy.price}`, 'Monto USD')}
+                                    <strong className="text-emerald-400 font-mono text-sm font-extrabold">${selectedPlanToBuy ? selectedPlanToBuy.price.toFixed(2) : '0.00'} USD / SQP</strong>
+                                    {renderCopyButton(`${selectedPlanToBuy ? selectedPlanToBuy.price.toFixed(2) : '0'}`, 'Monto USD')}
                                   </div>
                                 </div>
                               </div>

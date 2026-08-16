@@ -87,7 +87,8 @@ export const CatalogPage: React.FC = () => {
     }
 
     return () => clearTimeout(timer);
-  }, [navigateTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Profile Edit Modal States
   const [bioEdit, setBioEdit] = useState('');
@@ -162,6 +163,19 @@ export const CatalogPage: React.FC = () => {
   // 1. FILTERING BEATS LOGIC
   const filteredBeats = useMemo(() => {
     return beats.filter((beat) => {
+      /*
+       * MANEJO DE BEATS BLOQUEADOS POR PLAN (isBlockedByPlan):
+       *
+       * OPCIÓN A (Implementada actualmente): Filtrar u ocultar completamente los beats donde beat.isBlockedByPlan === true.
+       * - Trade-off: Es la experiencia más limpia para el comprador, ya que no ve ítems no disponibles ni saturación en el catálogo.
+       *
+       * OPCIÓN B (Alternativa posible): Si se prefiere no filtrarlo (comentando 'if (beat.isBlockedByPlan) return false;'), 
+       * el beat permanecerá visible en la lista pero BeatCard.tsx mostrará la etiqueta "Bloqueado por plan", 
+       * reducirá su opacidad y deshabilitará los botones de reproducción y carrito.
+       * - Trade-off: Brinda visibilidad completa del catálogo del productor, pero muestra productos no interactivos al comprador.
+       */
+      if (beat.isBlockedByPlan) return false;
+
       const isLib = !!beat.isSoundLibrary;
       if (catalogTab === 'beats' && isLib) return false;
       if (catalogTab === 'libraries' && !isLib) return false;

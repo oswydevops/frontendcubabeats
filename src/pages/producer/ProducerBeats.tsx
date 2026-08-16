@@ -1855,7 +1855,7 @@ ${licAudioFormatWav ? '✓ [FORMATO] Audio de alta calidad entregado en formato 
                     </thead>
                     <tbody className="divide-y divide-brand-border/20 text-gray-300">
                       {myBeats.map((beat) => (
-                        <tr key={beat.id} className="hover:bg-brand-card/25 transition-colors">
+                        <tr key={beat.id} className={`transition-colors ${beat.isBlockedByPlan ? 'bg-amber-950/15 hover:bg-amber-950/25 opacity-80' : 'hover:bg-brand-card/25'}`}>
                           <td className="py-3 px-4">
                             <div className="relative w-10 h-10 rounded-lg overflow-hidden border border-brand-border/20 flex-shrink-0 group">
                               <img 
@@ -1881,6 +1881,11 @@ ${licAudioFormatWav ? '✓ [FORMATO] Audio de alta calidad entregado en formato 
                             {beat.title}
                             {beat.status === 'sold' && (
                               <span className="block text-[8px] text-red-500 font-bold uppercase tracking-wide mt-0.5">● Vendido Exclusivo</span>
+                            )}
+                            {beat.isBlockedByPlan && (
+                              <span className="block text-[9px] text-amber-400 font-bold uppercase tracking-wide mt-0.5 flex items-center gap-1">
+                                <Lock size={10} /> Bloqueado por plan
+                              </span>
                             )}
                           </td>
 

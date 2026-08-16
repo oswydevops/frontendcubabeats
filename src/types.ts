@@ -67,11 +67,13 @@ export interface User {
   planStatus?: 'plan_activo' | 'plan_vencido_seleccionar_beats' | 'plan_en_gracia' | 'plan_expirado_sin_contenido';
   planGraceDaysRemaining?: number;
   selectedFreeBeatIds?: string[];
+  producerApprovalStatus?: 'pending' | 'approved';
   isCollaborator?: boolean;
   username?: string;
   password?: string;
   twoFactorEnabled?: boolean;
   twoFactorSecret?: string;
+  isSupportOnline?: boolean;
 }
 
 export interface CartItem {
@@ -269,8 +271,21 @@ export interface ProducerPaymentMethod {
   acceptsEnzona?: boolean;
 }
 
+export interface SupportTicket {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: 'client' | 'producer';
+  status: 'bot' | 'esperando' | 'en_vivo' | 'resuelto';
+  category?: 'pagos' | 'kyc' | 'cuenta' | 'otro';
+  assignedAdminId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface SupportMessage {
   id: string;
+  ticketId: string;
   userId: string;
   userName: string;
   userRole: 'client' | 'producer';
@@ -279,5 +294,6 @@ export interface SupportMessage {
   timestamp: string;
   readBySupport: boolean;
   readByUser: boolean;
+  isBot?: boolean;
 }
 
