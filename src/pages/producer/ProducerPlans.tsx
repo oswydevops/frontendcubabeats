@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useApp } from '../../store/AppContext';
+import { useApp, resolveUserPlan } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -49,11 +49,11 @@ export const ProducerPlans: React.FC = () => {
 
   // Stats computation
   const myBeatsCount = beats.filter(b => b.producerId === user?.id).length;
-  const currentPlanName = user?.plan || 'Gratis';
-  const currentPlan = plans.find(p => p.name.toLowerCase() === currentPlanName.toLowerCase()) || plans[0];
+  const currentPlan = resolveUserPlan(user, plans);
+  const currentPlanName = currentPlan.name;
 
   // List of plans that the user is NOT currently subscribed to
-  const alternativePlans = plans.filter(p => p.name.toLowerCase() !== currentPlanName.toLowerCase());
+  const alternativePlans = plans.filter(p => p.id !== currentPlan.id);
 
   const handleOpenPlanModal = (planToSub: Plan) => {
     if (!user?.verified && planToSub.price > 0) {
@@ -79,7 +79,7 @@ export const ProducerPlans: React.FC = () => {
   const handleConfirmPlanChange = (targetPlan: Plan) => {
     // If selecting a free plan, change immediately without payment prompt
     if (targetPlan.price === 0) {
-      updateUserProfile({ plan: targetPlan.name as 'Gratis' | 'Pro' | 'Elite' });
+      updateUserProfile({ plan: targetPlan.name as 'Gratis' | 'Pro' | 'Elite', planId: targetPlan.id });
       addToast(`Tu cuenta se ha rebajado al plan ${targetPlan.name} correctamente.`, 'info');
       
       addAdminNotification(

@@ -5,6 +5,7 @@ import {
   Clock, AlertCircle, Sparkles, ChevronRight, ArrowLeft, RefreshCw, HelpCircle
 } from 'lucide-react';
 import { SupportTicket } from '../../types';
+import { formatRelativeTime } from '../../utils/date';
 
 interface BotFAQ {
   id: string;
@@ -438,7 +439,7 @@ export const SupportChatWidget: React.FC = () => {
                   >
                     {msg.text}
                   </div>
-                  <span className="text-[8px] text-gray-500 mt-0.5 px-1">{msg.timestamp}</span>
+                  <span className="text-[8px] text-gray-500 mt-0.5 px-1">{formatRelativeTime(msg.timestamp)}</span>
                 </div>
               );
             })}

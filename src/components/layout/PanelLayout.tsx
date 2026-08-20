@@ -8,6 +8,8 @@ import {
 import { useApp } from '../../store/AppContext';
 import { Modal } from '../ui/Modal';
 import { BrandLogo } from './BrandLogo';
+import { useStaffPermissions } from '../../hooks/useStaffPermission';
+import { StaffPermission } from '../../types';
 
 interface PanelLayoutProps {
   children: React.ReactNode;
@@ -19,6 +21,7 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
     adminNotifications = [], markAdminNotificationRead, markAllAdminNotificationsRead, clearAdminNotifications, addAdminNotification,
     displayCurrency, setDisplayCurrency
   } = useApp();
+  const staffPermissions = useStaffPermissions();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
@@ -39,23 +42,25 @@ export const PanelLayout: React.FC<PanelLayoutProps> = ({ children }) => {
   ];
 
   // Admin Side Menu Items
-  const ADMIN_MENU = [
-    { name: 'Dashboard Global', icon: LayoutDashboard, path: '/admin/dashboard' },
-    { name: 'Soporte Técnico', icon: Headset, path: '/admin/support' },
-    { name: 'Estadísticas Globales', icon: BarChart3, path: '/admin/stats' },
-    { name: 'Gestionar Usuarios', icon: Users, path: '/admin/users' },
-    { name: 'Solicitudes de Planes', icon: CreditCard, path: '/admin/plan-requests' },
-    { name: 'Transacciones', icon: Receipt, path: '/admin/transactions' },
-    { name: 'Configurar Planes', icon: Radio, path: '/admin/plans' },
-    { name: 'Métodos de Pago Admin', icon: Landmark, path: '/admin/payment-methods' },
-    { name: 'Mi Perfil Admin', icon: UserCheck, path: '/admin/profile' },
+  const ADMIN_MENU: { name: string; icon: any; path: string; permission: StaffPermission | null }[] = [
+    { name: 'Dashboard Global', icon: LayoutDashboard, path: '/admin/dashboard', permission: null },
+    { name: 'Soporte Técnico', icon: Headset, path: '/admin/support', permission: 'canManageSupport' },
+    { name: 'Estadísticas Globales', icon: BarChart3, path: '/admin/stats', permission: null },
+    { name: 'Gestionar Usuarios', icon: Users, path: '/admin/users', permission: 'canManageUsers' },
+    { name: 'Solicitudes de Planes', icon: CreditCard, path: '/admin/plan-requests', permission: 'canAssignRoles' },
+    { name: 'Transacciones', icon: Receipt, path: '/admin/transactions', permission: 'canViewTransactions' },
+    { name: 'Configurar Planes', icon: Radio, path: '/admin/plans', permission: 'canManagePlans' },
+    { name: 'Métodos de Pago Admin', icon: Landmark, path: '/admin/payment-methods', permission: 'canManagePaymentAccounts' },
+    { name: 'Mi Perfil Admin', icon: UserCheck, path: '/admin/profile', permission: null },
   ];
 
-  const filteredAdminMenu = user?.isCollaborator
-    ? ADMIN_MENU.filter(item => item.path !== '/admin/plan-requests' && item.path !== '/admin/transactions')
-    : ADMIN_MENU;
+  const filteredAdminMenu = ADMIN_MENU.filter(item => !item.permission || staffPermissions[item.permission]);
 
-  const menuItems = isProducer ? PRODUCER_MENU : filteredAdminMenu;
+  const isPendingProducer = isProducer && user?.producerApprovalStatus === 'pending';
+
+  const menuItems = isPendingProducer
+    ? []
+    : (isProducer ? PRODUCER_MENU : filteredAdminMenu);
 
   const handleNav = (path: string) => {
     navigateTo(path);

@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { Badge } from '../../components/ui/Badge';
-import { SupportTicket, SupportMessage } from '../../types';
+import { SupportTicket, SupportMessage, STAFF_PERMISSIONS } from '../../types';
+import { formatRelativeTime } from '../../utils/date';
 import { 
   Headset, MessageSquare, CheckCircle2, Clock, Bot, User, 
   Send, Trash2, Search, Filter, AlertCircle, ShieldCheck, 
-  Sparkles, CheckCircle, Radio, PhoneCall, RefreshCw
+  Sparkles, CheckCircle, Radio, PhoneCall, RefreshCw, AlertTriangle
 } from 'lucide-react';
 
 export const AdminSupport: React.FC = () => {
@@ -31,14 +32,21 @@ export const AdminSupport: React.FC = () => {
 
   const isCurrentAdminOnline = !!user?.isSupportOnline;
 
-  // List of all online admins
+  // List of all online admins with canManageSupport permission
   const onlineAdmins = useMemo(() => {
-    return verifiedProducersTask.filter(u => u.role === 'admin' && u.isSupportOnline);
+    return verifiedProducersTask.filter(u => {
+      if (u.role !== 'admin' || !u.isSupportOnline) return false;
+      if (u.customPermissions && Array.isArray(u.customPermissions)) {
+        return u.customPermissions.includes('canManageSupport');
+      }
+      const staffRole = u.staffRole || 'super_admin';
+      return STAFF_PERMISSIONS[staffRole]?.includes('canManageSupport');
+    });
   }, [verifiedProducersTask]);
 
-  // Filter tickets by tab & search query
+  // Filter & Sort tickets by tab, search query, priority and SLA waiting time
   const filteredTickets = useMemo(() => {
-    return supportTickets.filter((ticket) => {
+    const list = supportTickets.filter((ticket) => {
       // Search match
       const matchesSearch = 
         ticket.userName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -59,6 +67,24 @@ export const AdminSupport: React.FC = () => {
         return ticket.status === statusFilter;
       }
       return true;
+    });
+
+    return list.sort((a, b) => {
+      // 1. Urgent priority tickets always go first
+      if (a.priority === 'urgente' && b.priority !== 'urgente') return -1;
+      if (b.priority === 'urgente' && a.priority !== 'urgente') return 1;
+
+      // 2. In waiting queue: oldest first (longest waiting time at top)
+      if (activeTab === 'esperando') {
+        const timeA = new Date(a.createdAt).getTime() || 0;
+        const timeB = new Date(b.createdAt).getTime() || 0;
+        return timeA - timeB;
+      }
+
+      // 3. In other tabs: most recently updated first
+      const timeA = new Date(a.updatedAt || a.createdAt).getTime() || 0;
+      const timeB = new Date(b.updatedAt || b.createdAt).getTime() || 0;
+      return timeB - timeA;
     });
   }, [supportTickets, activeTab, searchQuery, statusFilter, user?.id]);
 
@@ -129,6 +155,17 @@ export const AdminSupport: React.FC = () => {
         setSelectedTicketId(null);
       }
     }
+  };
+
+  const getPriorityBadge = (priority?: SupportTicket['priority']) => {
+    if (priority === 'urgente') {
+      return (
+        <span className="px-2 py-0.5 rounded-md text-[9.5px] font-extrabold bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1 animate-pulse shadow-sm">
+          <AlertCircle size={10} /> SLA URGENTE
+        </span>
+      );
+    }
+    return null;
   };
 
   const getCategoryBadge = (category?: SupportTicket['category']) => {
@@ -335,7 +372,9 @@ export const AdminSupport: React.FC = () => {
           <div className="lg:col-span-5 border-r border-brand-border/20 flex flex-col bg-[#13131F]/50">
             <div className="p-3 border-b border-brand-border/20 text-xs font-bold text-gray-400 uppercase tracking-wider flex justify-between items-center">
               <span>Lista de Tickets ({filteredTickets.length})</span>
-              <span className="text-[10px] text-gray-500 lowercase">ordenados por actividad</span>
+              <span className="text-[10px] text-gray-500 lowercase">
+                {activeTab === 'esperando' ? 'ordenados por antigüedad (SLA)' : 'ordenados por actividad'}
+              </span>
             </div>
 
             <div className="flex-1 overflow-y-auto max-h-[600px] divide-y divide-brand-border/10 scrollbar-thin">
@@ -355,6 +394,7 @@ export const AdminSupport: React.FC = () => {
                   const ticketMsgs = supportMessages.filter(m => m.ticketId === t.id || (m.userId === t.userId && !m.ticketId));
                   const lastMsg = ticketMsgs[ticketMsgs.length - 1];
                   const hasUnread = ticketMsgs.some(m => m.senderType === 'user' && !m.readBySupport);
+                  const isUrgent = t.priority === 'urgente';
 
                   return (
                     <div
@@ -362,17 +402,22 @@ export const AdminSupport: React.FC = () => {
                       onClick={() => setSelectedTicketId(t.id)}
                       className={`p-4 transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
                         isSelected 
-                          ? 'bg-[#1C1C2E] border-l-4 border-l-[#7F77DD]' 
+                          ? isUrgent
+                            ? 'bg-[#2A1820] border-l-4 border-l-red-500'
+                            : 'bg-[#1C1C2E] border-l-4 border-l-[#7F77DD]' 
+                          : isUrgent
+                          ? 'bg-red-950/15 hover:bg-red-950/25 border-l-2 border-l-red-500/60'
                           : 'hover:bg-[#181828] bg-transparent'
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-xs text-white">{t.userName}</span>
                             <Badge variant={t.userRole === 'producer' ? 'purple' : 'emerald'} className="text-[8.5px] py-0 px-1.5">
                               {t.userRole === 'producer' ? 'PRODUCTOR' : 'ARTISTA'}
                             </Badge>
+                            {isUrgent && getPriorityBadge(t.priority)}
                             {hasUnread && (
                               <span className="w-2 h-2 rounded-full bg-brand-accent-red animate-pulse" title="Nuevo mensaje sin leer" />
                             )}
@@ -380,9 +425,11 @@ export const AdminSupport: React.FC = () => {
                           <span className="text-[10px] text-gray-500 font-mono block mt-0.5">ID: {t.id}</span>
                         </div>
 
-                        <div className="flex flex-col items-end gap-1">
+                        <div className="flex flex-col items-end gap-1 shrink-0">
                           {getStatusBadge(t.status)}
-                          <span className="text-[9px] text-gray-500">{t.updatedAt || t.createdAt}</span>
+                          <span className="text-[9px] text-gray-400 font-medium">
+                            {formatRelativeTime(t.updatedAt || t.createdAt)}
+                          </span>
                         </div>
                       </div>
 
@@ -393,7 +440,14 @@ export const AdminSupport: React.FC = () => {
 
                       {/* Category tag & Claim button if waiting */}
                       <div className="flex items-center justify-between pt-1">
-                        <div>{getCategoryBadge(t.category)}</div>
+                        <div className="flex items-center gap-1.5">
+                          {getCategoryBadge(t.category)}
+                          {t.status === 'esperando' && (
+                            <span className="text-[9.5px] text-gray-500 font-medium">
+                              En cola: {formatRelativeTime(t.createdAt)}
+                            </span>
+                          )}
+                        </div>
 
                         {t.status === 'esperando' && (
                           <button
@@ -401,7 +455,11 @@ export const AdminSupport: React.FC = () => {
                               e.stopPropagation();
                               handleClaim(t.id);
                             }}
-                            className="py-1 px-3 bg-[#534AB7] hover:bg-[#433A9B] text-white rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+                            className={`py-1 px-3 text-white rounded-lg text-[10.5px] font-bold transition-all cursor-pointer flex items-center gap-1 shadow-sm ${
+                              isUrgent 
+                                ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
+                                : 'bg-[#534AB7] hover:bg-[#433A9B]'
+                            }`}
                           >
                             <Headset size={12} />
                             Tomar
@@ -423,17 +481,22 @@ export const AdminSupport: React.FC = () => {
                 {/* Chat Top Header */}
                 <div className="p-4 border-b border-brand-border/20 bg-[#1C1C2E]/40 flex flex-wrap justify-between items-center gap-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-[#534AB7] to-[#7F77DD] flex items-center justify-center text-white font-bold text-sm">
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm ${
+                      selectedTicket.priority === 'urgente'
+                        ? 'bg-gradient-to-tr from-red-600 to-amber-600 shadow-md'
+                        : 'bg-gradient-to-tr from-[#534AB7] to-[#7F77DD]'
+                    }`}>
                       {selectedTicket.userName.charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-sm text-white">{selectedTicket.userName}</span>
                         <Badge variant={selectedTicket.userRole === 'producer' ? 'purple' : 'emerald'} className="text-[9px]">
                           {selectedTicket.userRole === 'producer' ? 'PRODUCTOR' : 'ARTISTA'}
                         </Badge>
+                        {selectedTicket.priority === 'urgente' && getPriorityBadge(selectedTicket.priority)}
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-[10px] text-gray-400">
                           {selectedTicket.assignedAdminId 
                             ? `Asignado a: ${verifiedProducersTask.find(u => u.id === selectedTicket.assignedAdminId)?.name || 'Admin'}` 
@@ -441,6 +504,10 @@ export const AdminSupport: React.FC = () => {
                         </span>
                         <span>•</span>
                         {getCategoryBadge(selectedTicket.category)}
+                        <span>•</span>
+                        <span className="text-[10px] text-gray-500">
+                          Creado: {formatRelativeTime(selectedTicket.createdAt)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -506,7 +573,9 @@ export const AdminSupport: React.FC = () => {
                           >
                             {msg.text}
                           </div>
-                          <span className="text-[8.5px] text-gray-500 mt-1 px-1">{msg.timestamp}</span>
+                          <span className="text-[8.5px] text-gray-500 mt-1 px-1">
+                            {formatRelativeTime(msg.timestamp)}
+                          </span>
                         </div>
                       );
                     })

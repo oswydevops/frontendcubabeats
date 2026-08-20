@@ -41,18 +41,32 @@ import { AdminSupport } from './pages/admin/AdminSupport';
 import { SupportChatWidget } from './components/support/SupportChatWidget';
 import { ErrorPages } from './pages/errors/ErrorPages';
 import { MaintenancePage } from './pages/errors/MaintenancePage';
+import { useStaffPermissions } from './hooks/useStaffPermission';
 
 // Alerts icons
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export default function App() {
   const { currentPath, toasts, user, isMaintenanceMode } = useApp();
+  const staffPermissions = useStaffPermissions();
 
   // 1. Dynamic route selector
   const renderContent = () => {
     // If the platform is in maintenance, override render for non-admins (except when testing errors specifically)
     if (isMaintenanceMode && user?.role !== 'admin' && currentPath !== '/login' && !currentPath.startsWith('/errors/')) {
       return <MaintenancePage />;
+    }
+
+    const PENDING_ALLOWED_PATHS = ['/producer/pending-approval', '/hazte-vendedor', '/vendedor'];
+
+    const isBlockedPendingProducer =
+      user?.role === 'producer' &&
+      user?.producerApprovalStatus === 'pending' &&
+      currentPath.startsWith('/producer/') &&
+      !PENDING_ALLOWED_PATHS.includes(currentPath);
+
+    if (isBlockedPendingProducer) {
+      return <ProducerPendingApproval />;
     }
 
     switch (currentPath) {
@@ -118,25 +132,41 @@ export default function App() {
       case '/admin/dashboard':
         return <AdminDashboard />;
       case '/admin/users':
-        return <AdminUsers />;
-      case '/admin/transactions':
-        if (user?.isCollaborator) {
+        if (!staffPermissions.canManageUsers) {
           return (
             <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
               <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
-              <p className="text-xs text-gray-400">Los colaboradores de administración no tienen privilegios para acceder a los registros financieros ni de pago de la plataforma.</p>
+              <p className="text-xs text-gray-400">No tienes permisos para gestionar o moderar usuarios en la plataforma.</p>
+            </div>
+          );
+        }
+        return <AdminUsers />;
+      case '/admin/transactions':
+        if (!staffPermissions.canViewTransactions) {
+          return (
+            <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
+              <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
+              <p className="text-xs text-gray-400">Tu rol de colaborador no tiene privilegios para acceder a los registros financieros ni de transacciones.</p>
             </div>
           );
         }
         return <AdminTransactions />;
       case '/admin/plans':
-        return <AdminPlans />;
-      case '/admin/plan-requests':
-        if (user?.isCollaborator) {
+        if (!staffPermissions.canManagePlans) {
           return (
             <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
               <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
-              <p className="text-xs text-gray-400">Los colaboradores de administración no tienen privilegios para acceder a las solicitudes de planes.</p>
+              <p className="text-xs text-gray-400">Tu rol no tiene privilegios para configurar o editar planes de suscripción.</p>
+            </div>
+          );
+        }
+        return <AdminPlans />;
+      case '/admin/plan-requests':
+        if (!staffPermissions.canAssignRoles) {
+          return (
+            <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
+              <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
+              <p className="text-xs text-gray-400">La aprobación de solicitudes de planes está reservada al Super Administrador.</p>
             </div>
           );
         }
@@ -144,8 +174,24 @@ export default function App() {
       case '/admin/stats':
         return <AdminStats />;
       case '/admin/payment-methods':
+        if (!staffPermissions.canManagePaymentAccounts) {
+          return (
+            <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
+              <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
+              <p className="text-xs text-gray-400">Los colaboradores no tienen privilegios para consultar o modificar las cuentas de cobro oficiales de la plataforma.</p>
+            </div>
+          );
+        }
         return <AdminPaymentMethods />;
       case '/admin/support':
+        if (!staffPermissions.canManageSupport) {
+          return (
+            <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
+              <h2 className="text-xl font-bold text-brand-accent-red">Acceso Denegado</h2>
+              <p className="text-xs text-gray-400">Tu rol administrativo no tiene asignada la gestión del centro de soporte técnico.</p>
+            </div>
+          );
+        }
         return <AdminSupport />;
       case '/admin/profile':
         return <AdminProfile />;

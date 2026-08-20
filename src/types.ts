@@ -36,6 +36,8 @@ export interface Beat {
   keepInFreePlan?: boolean;
 }
 
+export type AddBeatResult = { success: true } | { success: false; reason: string };
+
 export interface User {
   id: string;
   name: string;
@@ -52,6 +54,7 @@ export interface User {
   municipio?: string;
   provincia?: string;
   plan: 'Gratis' | 'Pro' | 'Elite';
+  planId?: string; // referencia canónica a Plan.id — puede faltar en usuarios legacy/semilla
   verified: boolean;
   beatsCount?: number;
   soundLibrariesCount?: number;
@@ -68,13 +71,84 @@ export interface User {
   planGraceDaysRemaining?: number;
   selectedFreeBeatIds?: string[];
   producerApprovalStatus?: 'pending' | 'approved';
-  isCollaborator?: boolean;
+  staffRole?: StaffRole;
+  customPermissions?: StaffPermission[];
   username?: string;
   password?: string;
   twoFactorEnabled?: boolean;
   twoFactorSecret?: string;
   isSupportOnline?: boolean;
 }
+
+export type StaffRole = 'super_admin' | 'gestor_soporte' | 'moderador_colaborador';
+
+export type StaffPermission =
+  | 'canAssignRoles'           // Crear o configurar otros administradores colaboradores (Super Admin)
+  | 'canManagePlans'           // Crear y configurar planes de suscripción
+  | 'canManagePaymentAccounts' // Administrar cuentas de cobro oficiales de la plataforma
+  | 'canApproveKyc'            // Aprobar verificaciones de identidad KYC
+  | 'canManageUsers'           // Moderar, bloquear y verificar perfiles de usuarios
+  | 'canViewTransactions'      // Consultar historial de transacciones y compras
+  | 'canManageSupport';        // Atender consola y tickets de soporte técnico
+
+export interface StaffPermissionInfo {
+  key: StaffPermission;
+  label: string;
+  description: string;
+  superAdminOnly?: boolean;
+}
+
+export const ALL_STAFF_PERMISSIONS: StaffPermissionInfo[] = [
+  {
+    key: 'canManageSupport',
+    label: 'Atención y Soporte Técnico',
+    description: 'Acceso a la bandeja de tickets de soporte en vivo y chat con clientes y productores.'
+  },
+  {
+    key: 'canManageUsers',
+    label: 'Moderación de Usuarios',
+    description: 'Verificar perfiles, aplicar sanciones, bloqueos disciplinarios y gestionar cuentas.'
+  },
+  {
+    key: 'canApproveKyc',
+    label: 'Aprobación KYC',
+    description: 'Revisar documentos de identidad y validar solicitudes de verificación de productores.'
+  },
+  {
+    key: 'canManagePlans',
+    label: 'Configuración de Planes',
+    description: 'Crear, editar precios, características y cupos de los planes de suscripción.'
+  },
+  {
+    key: 'canViewTransactions',
+    label: 'Historial de Transacciones',
+    description: 'Supervisar compras de licencias, recibos y movimientos económicos de la plataforma.'
+  },
+  {
+    key: 'canManagePaymentAccounts',
+    label: 'Cuentas de Cobro Oficiales',
+    description: 'Administrar pasarelas de pago y cuentas bancarias receptoras de la plataforma.'
+  },
+  {
+    key: 'canAssignRoles',
+    label: 'Gestión de Staff y Privilegios',
+    description: 'Crear, editar o remover otros colaboradores del equipo administrativo.',
+    superAdminOnly: true
+  }
+];
+
+export const STAFF_PERMISSIONS: Record<NonNullable<User['staffRole']>, StaffPermission[]> = {
+  super_admin: [
+    'canAssignRoles', 'canManagePlans', 'canManagePaymentAccounts',
+    'canApproveKyc', 'canManageUsers', 'canViewTransactions', 'canManageSupport'
+  ],
+  gestor_soporte: [
+    'canApproveKyc', 'canManageUsers', 'canViewTransactions', 'canManageSupport'
+  ],
+  moderador_colaborador: [
+    'canApproveKyc', 'canManageUsers', 'canViewTransactions', 'canManagePlans'
+  ],
+};
 
 export interface CartItem {
   id: string; // beatId_licenseType
@@ -180,7 +254,7 @@ export type DisplayCurrency = 'USD' | 'CUP' | 'MLC' | 'CLASICA';
 
 export interface AdminNotification {
   id: string;
-  type: 'beat_uploaded' | 'user_registered' | 'plan_purchased' | 'beat_sold';
+  type: 'beat_uploaded' | 'user_registered' | 'plan_purchased' | 'beat_sold' | 'support_sla_breach' | 'support_ticket_orphaned' | string;
   title: string;
   description: string;
   timestamp: string;
@@ -279,8 +353,10 @@ export interface SupportTicket {
   status: 'bot' | 'esperando' | 'en_vivo' | 'resuelto';
   category?: 'pagos' | 'kyc' | 'cuenta' | 'otro';
   assignedAdminId?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: string; // ISO 8601 string (e.g. new Date().toISOString())
+  updatedAt: string; // ISO 8601 string (e.g. new Date().toISOString())
+  lastAdminResponseAt?: string; // ISO 8601 string — updated when senderType === 'support' responds
+  priority?: 'normal' | 'urgente'; // Automatically managed by SLA monitor
 }
 
 export interface SupportMessage {
@@ -291,7 +367,7 @@ export interface SupportMessage {
   userRole: 'client' | 'producer';
   senderType: 'user' | 'support';
   text: string;
-  timestamp: string;
+  timestamp: string; // ISO 8601 string (e.g. new Date().toISOString())
   readBySupport: boolean;
   readByUser: boolean;
   isBot?: boolean;

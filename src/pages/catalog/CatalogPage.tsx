@@ -6,7 +6,7 @@ import {
   BadgeCheck, Award, ShieldCheck, Wallet, Landmark, CreditCard, Check,
   Crown, AlertTriangle, CheckCircle2, Library, FolderArchive, ChevronLeft, ChevronRight
 } from 'lucide-react';
-import { useApp } from '../../store/AppContext';
+import { useApp, resolveUserPlan } from '../../store/AppContext';
 import { BeatCard } from '../../components/beats/BeatCard';
 import { BeatCardSkeleton } from '../../components/beats/BeatCardSkeleton';
 import { Badge } from '../../components/ui/Badge';
@@ -152,7 +152,7 @@ export const CatalogPage: React.FC = () => {
   const featuredProducers = useMemo(() => {
     return verifiedProducersTask.filter((producer) => {
       if (producer.role !== 'producer') return false;
-      const producerPlan = plans.find(p => p.name.toLowerCase() === (producer.plan || 'Gratis').toLowerCase());
+      const producerPlan = resolveUserPlan(producer, plans);
       return producerPlan ? producerPlan.featured : (producer.plan === 'Elite');
     });
   }, [verifiedProducersTask, plans]);

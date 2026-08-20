@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useApp } from '../../store/AppContext';
+import { useApp, resolveUserPlan } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
@@ -14,8 +14,7 @@ export const ProducerBeats: React.FC = () => {
   const { beats, addBeat, deleteBeat, updateBeat, navigateTo, playBeat, activeBeat, isPlaying, addToast, user, convertPrice, plans, exchangeRates } = useApp();
 
   const activePlan = useMemo(() => {
-    const planName = user?.plan || 'Gratis';
-    return plans.find(p => p.name.toLowerCase() === planName.toLowerCase()) || plans[0];
+    return resolveUserPlan(user, plans);
   }, [user, plans]);
 
   const isPremium = activePlan ? (activePlan.stemsAllowed || (activePlan.allowedFormats || '').toUpperCase().includes('WAV')) : false;
@@ -310,8 +309,11 @@ Esta licencia otorga al comprador un derecho no exclusivo e intransferible para 
       updateBeat(libPayload);
       addToast('¡Librería de sonidos actualizada con éxito!', 'success');
     } else {
-      addBeat(libPayload);
-      addToast('¡Librería de sonidos publicada con éxito!', 'success');
+      const result = addBeat(libPayload);
+      if (!result.success) {
+        addToast(result.reason, 'error');
+        return;
+      }
     }
     setIsLibrarySetupMode(false);
   };
@@ -518,8 +520,11 @@ Esta licencia otorga al comprador un derecho no exclusivo e intransferible para 
       updateBeat(beatPayload);
       addToast('¡Instrumental actualizada con éxito!', 'success');
     } else {
-      addBeat(beatPayload);
-      addToast('¡Nueva instrumental publicada con éxito!', 'success');
+      const result = addBeat(beatPayload);
+      if (!result.success) {
+        addToast(result.reason, 'error');
+        return;
+      }
     }
 
     stopLocalAudio();

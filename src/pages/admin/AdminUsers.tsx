@@ -2,12 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { User } from '../../types';
+import { User, StaffRole, StaffPermission, STAFF_PERMISSIONS, ALL_STAFF_PERMISSIONS } from '../../types';
+import { useStaffPermission } from '../../hooks/useStaffPermission';
 import { 
   Users, UserMinus, ShieldAlert, Check, Search, MoreVertical,
   AlertTriangle, Trash2, ShieldOff, Mail, X, AlertCircle,
   FileText, Camera, Globe, Phone, MapPin, CreditCard, Award, Activity,
-  Lock, Unlock
+  Lock, Unlock, CheckCircle2, ShieldCheck, Headset, Radio, KeyRound,
+  CheckSquare, Square, Sliders, Shield, Info, Sparkles
 } from 'lucide-react';
 
 const DEFAULT_TEMPLATES = {
@@ -90,18 +92,31 @@ export const AdminUsers: React.FC = () => {
     user
   } = useApp();
 
+  const canAssignRoles = useStaffPermission('canAssignRoles');
+  const isSuperAdmin = (user?.role === 'admin') && ((user.staffRole || 'super_admin') === 'super_admin');
+
   const [activeTab, setActiveTab] = useState<'users' | 'collaborators'>('users');
   const [collabModalOpen, setCollabModalOpen] = useState(false);
   const [editingCollab, setEditingCollab] = useState<User | null>(null);
   const [collabToDelete, setCollabToDelete] = useState<User | null>(null);
-  const [collabForm, setCollabForm] = useState({
+  const [collabForm, setCollabForm] = useState<{
+    name: string;
+    lastName: string;
+    email: string;
+    position: string;
+    staffRole: StaffRole;
+    customPermissions: StaffPermission[];
+    username: string;
+    password: string;
+  }>({
     name: '',
     lastName: '',
     email: '',
     position: 'Moderador Colaborador',
+    staffRole: 'moderador_colaborador',
+    customPermissions: [...STAFF_PERMISSIONS.moderador_colaborador],
     username: '',
     password: '',
-    twoFactorEnabled: true
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -223,7 +238,7 @@ export const AdminUsers: React.FC = () => {
         >
           Productores y Clientes
         </button>
-        {!user?.isCollaborator && (
+        {canAssignRoles && (
           <button
             onClick={() => setActiveTab('collaborators')}
             className={`py-2 px-4 font-bold text-xs cursor-pointer transition-all border-b-2 -mb-[2px] ${activeTab === 'collaborators' ? 'border-[#7F77DD] text-white' : 'border-transparent text-gray-400 hover:text-white'}`}
@@ -545,17 +560,31 @@ export const AdminUsers: React.FC = () => {
         </div>
       </div>
         </>
+      ) : !canAssignRoles ? (
+        <div className="p-8 text-center max-w-md mx-auto my-12 bg-brand-surface rounded-2xl border border-brand-border/40 space-y-3">
+          <h3 className="text-sm font-bold text-brand-accent-red">Acceso Restringido</h3>
+          <p className="text-xs text-gray-400">Solo el Super Administrador tiene facultades para gestionar colaboradores del equipo.</p>
+        </div>
       ) : (
         <div className="space-y-6">
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-white">Equipo de Administradores Colaboradores</h3>
-              <p className="text-xs text-gray-400 mt-0.5">Estos perfiles tienen acceso para supervisar catálogos, moderar usuarios y administrar planes, pero sin acceso a métodos de pago ni transacciones.</p>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white">Equipo de Administradores y Colaboradores</h3>
+              <p className="text-xs text-gray-400 mt-0.5">Asigna privilegios y permisos individuales personalizados (Soporte, KYC, Moderación, Planes y Finanzas).</p>
             </div>
             <button
               onClick={() => {
                 setEditingCollab(null);
-                setCollabForm({ name: '', lastName: '', email: '', position: 'Moderador Colaborador', username: '', password: '', twoFactorEnabled: true });
+                setCollabForm({ 
+                  name: '', 
+                  lastName: '', 
+                  email: '', 
+                  position: 'Moderador Colaborador', 
+                  staffRole: 'moderador_colaborador',
+                  customPermissions: ['canManageSupport', 'canApproveKyc', 'canManageUsers', 'canViewTransactions'],
+                  username: '', 
+                  password: '', 
+                });
                 setCollabModalOpen(true);
               }}
               className="px-4 py-2 bg-gradient-to-r from-[#534AB7] to-[#7F77DD] hover:opacity-95 text-white font-bold text-xs rounded-xl cursor-pointer shadow-md inline-flex items-center gap-1.5"
@@ -572,115 +601,136 @@ export const AdminUsers: React.FC = () => {
                   <tr className="bg-[#1C1C2E]/40 border-b border-brand-border/20 text-gray-400 font-bold uppercase select-none">
                     <th className="py-3 px-4">Administrador</th>
                     <th className="py-3 px-4">Correo Electrónico</th>
-                    <th className="py-3 px-4">Cargo / Función</th>
-                    <th className="py-3 px-4 text-center">Nivel de Acceso</th>
-                    <th className="py-3 px-4 text-center">Verificación 2FA</th>
+                    <th className="py-3 px-4">Cargo / Posición</th>
+                    <th className="py-3 px-4">Permisos Individuales Activos</th>
                     <th className="py-3 px-4 text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-border/10 text-gray-300">
-                  {verifiedProducersTask.filter(u => u.role === 'admin' && u.isCollaborator).length === 0 ? (
+                  {verifiedProducersTask.filter(u => u.role === 'admin' && u.staffRole && u.staffRole !== 'super_admin').length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-gray-500">
+                      <td colSpan={5} className="py-10 text-center text-gray-500">
                         No hay otros administradores colaboradores registrados en el sistema.
                       </td>
                     </tr>
                   ) : (
-                    verifiedProducersTask.filter(u => u.role === 'admin' && u.isCollaborator).map((collab) => (
-                      <tr key={collab.id} className="hover:bg-brand-card/10 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            {collab.avatarUrl ? (
-                              <img src={collab.avatarUrl} className="w-9 h-9 rounded-xl object-cover border border-[#534AB7]/30" alt="" />
+                    verifiedProducersTask.filter(u => u.role === 'admin' && u.staffRole && u.staffRole !== 'super_admin').map((collab) => {
+                      const staffRole = collab.staffRole || 'moderador_colaborador';
+                      const permissions: StaffPermission[] = (collab.customPermissions && collab.customPermissions.length > 0)
+                        ? collab.customPermissions
+                        : (STAFF_PERMISSIONS[staffRole] || []);
+
+                      return (
+                        <tr key={collab.id} className="hover:bg-brand-card/10 transition-colors">
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              {collab.avatarUrl ? (
+                                <img src={collab.avatarUrl} className="w-9 h-9 rounded-xl object-cover border border-[#534AB7]/30" alt="" />
+                              ) : (
+                                <div className="w-9 h-9 rounded-xl bg-[#534AB7]/20 flex items-center justify-center text-[#7F77DD] font-bold">
+                                  {collab.name[0]}
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-bold text-white block">{collab.name} {collab.lastName}</span>
+                                {collab.username && (
+                                  <span className="text-[10px] text-indigo-400 font-medium">@{collab.username}</span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4 font-mono text-gray-400">
+                            {collab.email}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="inline-flex items-center text-[11px] font-medium text-gray-300 bg-[#1C1C2E] border border-brand-border/40 px-2.5 py-1 rounded-lg">
+                              {collab.position || 'Colaborador Administrativo'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            {permissions.length === 0 ? (
+                              <span className="text-[11px] text-gray-500 italic">Sin permisos activos</span>
                             ) : (
-                              <div className="w-9 h-9 rounded-xl bg-[#534AB7]/20 flex items-center justify-center text-[#7F77DD] font-bold">
-                                {collab.name[0]}
+                              <div className="flex flex-wrap gap-1.5 max-w-md">
+                                {permissions.includes('canManageSupport') && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded-md border border-emerald-500/20 font-medium">
+                                    <Headset size={11} /> Soporte
+                                  </span>
+                                )}
+                                {permissions.includes('canManagePlans') && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-sky-500/10 text-sky-400 px-2 py-0.5 rounded-md border border-sky-500/20 font-medium">
+                                    <Radio size={11} /> Planes
+                                  </span>
+                                )}
+                                {permissions.includes('canApproveKyc') && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-purple-500/10 text-purple-400 px-2 py-0.5 rounded-md border border-purple-500/20 font-medium">
+                                    <ShieldCheck size={11} /> KYC
+                                  </span>
+                                )}
+                                {permissions.includes('canManageUsers') && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-indigo-500/10 text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-500/20 font-medium">
+                                    <Users size={11} /> Moderar Usuarios
+                                  </span>
+                                )}
+                                {permissions.includes('canViewTransactions') && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded-md border border-amber-500/20 font-medium">
+                                    <CreditCard size={11} /> Transacciones
+                                  </span>
+                                )}
+                                {permissions.includes('canManagePaymentAccounts') && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-rose-500/10 text-rose-400 px-2 py-0.5 rounded-md border border-rose-500/20 font-medium">
+                                    <Lock size={11} /> Cuentas Cobro
+                                  </span>
+                                )}
+                                {permissions.includes('canAssignRoles') && (
+                                  <span className="inline-flex items-center gap-1 text-[10px] bg-amber-400/10 text-amber-300 px-2 py-0.5 rounded-md border border-amber-400/20 font-medium">
+                                    <KeyRound size={11} /> Gestionar Staff
+                                  </span>
+                                )}
                               </div>
                             )}
-                            <div>
-                              <span className="font-bold text-white block">{collab.name} {collab.lastName}</span>
+                          </td>
+                          <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                            <div className="inline-flex items-center gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingCollab(collab);
+                                  const role = collab.staffRole || 'moderador_colaborador';
+                                  const initialPerms = (collab.customPermissions && collab.customPermissions.length > 0)
+                                    ? collab.customPermissions
+                                    : (STAFF_PERMISSIONS[role] || []);
+
+                                  setCollabForm({
+                                    name: collab.name,
+                                    lastName: collab.lastName || '',
+                                    email: collab.email,
+                                    position: collab.position || (role === 'gestor_soporte' ? 'Gestor de Soporte' : 'Moderador Colaborador'),
+                                    staffRole: role,
+                                    customPermissions: [...initialPerms],
+                                    username: collab.username || '',
+                                    password: collab.password || '',
+                                  });
+                                  setCollabModalOpen(true);
+                                }}
+                                className="inline-flex items-center justify-center gap-1 px-3 h-8 bg-[#534AB7]/20 text-[#7F77DD] rounded-xl font-bold hover:bg-[#534AB7]/30 transition-all cursor-pointer border border-[#534AB7]/20 hover:border-[#534AB7]/40 text-[11px]"
+                              >
+                                Editar
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setCollabToDelete(collab);
+                                }}
+                                className="inline-flex items-center justify-center gap-1 px-3 h-8 bg-brand-accent-red/20 text-brand-accent-red rounded-xl font-bold hover:bg-brand-accent-red/30 transition-all cursor-pointer border border-brand-accent-red/20 hover:border-brand-accent-red/40 text-[11px]"
+                                title="Eliminar Colaborador"
+                              >
+                                <Trash2 size={12} className="text-brand-accent-red" />
+                                Borrar
+                              </button>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 font-mono text-gray-400">
-                          <div>{collab.email}</div>
-                          {collab.username && (
-                            <div className="text-[10px] text-indigo-400 font-sans font-medium mt-0.5">
-                              Usuario: {collab.username}
-                            </div>
-                          )}
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <Badge variant="purple" className="text-[10px] bg-brand-bg/50 text-[#7F77DD] font-semibold border border-[#534AB7]/20">
-                            {collab.position || 'Moderador Colaborador'}
-                          </Badge>
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <Badge variant="red" className="text-[10px] bg-brand-accent-red/10 text-brand-accent-red font-bold">
-                            Sin Acceso a Métodos de Pago
-                          </Badge>
-                        </td>
-                        <td className="py-3.5 px-4 text-center">
-                          <div className="inline-flex items-center gap-2">
-                            <span className={`text-[10px] font-extrabold uppercase ${collab.twoFactorEnabled !== false ? 'text-emerald-400' : 'text-gray-400'}`}>
-                              {collab.twoFactorEnabled !== false ? 'Activa' : 'Inactiva'}
-                            </span>
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={collab.twoFactorEnabled !== false}
-                              onClick={() => {
-                                const nextState = collab.twoFactorEnabled === false;
-                                toggleUser2FA(collab.id, nextState);
-                                addToast(`Verificación 2FA ${nextState ? 'activada' : 'desactivada'} para ${collab.name}`, 'info');
-                              }}
-                              className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                                collab.twoFactorEnabled !== false ? 'bg-[#534AB7]' : 'bg-gray-700'
-                              }`}
-                              title={collab.twoFactorEnabled !== false ? 'Desactivar 2FA' : 'Activar 2FA'}
-                            >
-                              <span
-                                className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                                  collab.twoFactorEnabled !== false ? 'translate-x-4' : 'translate-x-0'
-                                }`}
-                              />
-                            </button>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
-                          <div className="inline-flex items-center gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingCollab(collab);
-                                setCollabForm({
-                                  name: collab.name,
-                                  lastName: collab.lastName || '',
-                                  email: collab.email,
-                                  position: collab.position || 'Moderador Colaborador',
-                                  username: collab.username || '',
-                                  password: collab.password || '',
-                                  twoFactorEnabled: collab.twoFactorEnabled !== false
-                                });
-                                setCollabModalOpen(true);
-                              }}
-                              className="inline-flex items-center justify-center gap-1 px-3 h-8 bg-[#534AB7]/20 text-[#7F77DD] rounded-xl font-bold hover:bg-[#534AB7]/30 transition-all cursor-pointer border border-[#534AB7]/20 hover:border-[#534AB7]/40 text-[11px]"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => {
-                                setCollabToDelete(collab);
-                              }}
-                              className="inline-flex items-center justify-center gap-1 px-3 h-8 bg-brand-accent-red/20 text-brand-accent-red rounded-xl font-bold hover:bg-brand-accent-red/30 transition-all cursor-pointer border border-brand-accent-red/20 hover:border-brand-accent-red/40 text-[11px]"
-                              title="Eliminar Colaborador"
-                            >
-                              <Trash2 size={12} className="text-brand-accent-red" />
-                              Borrar
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -737,17 +787,25 @@ export const AdminUsers: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL PARA AGREGAR / EDITAR COLABORADOR */}
-      {collabModalOpen && (
+      {/* MODAL PARA AGREGAR / EDITAR COLABORADOR CON CHECKBOXES INDIVIDUALES */}
+      {collabModalOpen && canAssignRoles && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-brand-surface border border-brand-border/40 rounded-2xl w-full max-w-md overflow-hidden shadow-xl animate-in zoom-in-95 duration-200 text-left">
+          <div className="bg-brand-surface border border-brand-border/40 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 text-left">
             <div className="p-5 border-b border-brand-border/20 flex justify-between items-center bg-[#1C1C2E]/40">
-              <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
-                {editingCollab ? 'Editar Administrador Colaborador' : 'Agregar Administrador Colaborador'}
-              </h3>
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#534AB7]/20 border border-[#534AB7]/40 flex items-center justify-center text-[#7F77DD]">
+                  <Users size={16} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold uppercase tracking-wider text-white">
+                    {editingCollab ? 'Editar Administrador Colaborador' : 'Nuevo Administrador Colaborador'}
+                  </h3>
+                  <span className="text-[11px] text-gray-400 block">Asigna permisos y privilegios individuales con casillas de verificación</span>
+                </div>
+              </div>
               <button 
                 onClick={() => setCollabModalOpen(false)}
-                className="text-gray-400 hover:text-white transition-colors cursor-pointer"
+                className="text-gray-400 hover:text-white transition-colors cursor-pointer p-1 rounded-lg hover:bg-white/5"
               >
                 <X size={18} />
               </button>
@@ -755,20 +813,38 @@ export const AdminUsers: React.FC = () => {
 
             <form onSubmit={(e) => {
               e.preventDefault();
+              if (!canAssignRoles) {
+                addToast('No tienes permisos para asignar o editar colaboradores del equipo', 'error');
+                return;
+              }
               if (!collabForm.name || !collabForm.email) {
                 addToast('Nombre y Correo Electrónico son obligatorios', 'error');
                 return;
               }
+
+              const payload = {
+                name: collabForm.name,
+                lastName: collabForm.lastName,
+                email: collabForm.email,
+                position: collabForm.position || 'Moderador Colaborador',
+                staffRole: collabForm.staffRole,
+                customPermissions: collabForm.customPermissions,
+                username: collabForm.username,
+                password: collabForm.password
+              };
+
               if (editingCollab) {
-                updateAdminCollaborator(editingCollab.id, collabForm);
+                updateAdminCollaborator(editingCollab.id, payload);
               } else {
-                addAdminCollaborator(collabForm);
+                addAdminCollaborator(payload);
               }
               setCollabModalOpen(false);
-            }} className="p-5 space-y-4">
+            }} className="p-5 space-y-4 max-h-[80vh] overflow-y-auto">
+              
+              {/* Datos Generales */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Nombre</label>
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Nombre *</label>
                   <input
                     type="text"
                     required
@@ -790,16 +866,28 @@ export const AdminUsers: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Correo Electrónico</label>
-                <input
-                  type="email"
-                  required
-                  value={collabForm.email}
-                  onChange={(e) => setCollabForm({ ...collabForm, email: e.target.value })}
-                  className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
-                  placeholder="ejemplo@dcubanbeats.com"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Correo Electrónico *</label>
+                  <input
+                    type="email"
+                    required
+                    value={collabForm.email}
+                    onChange={(e) => setCollabForm({ ...collabForm, email: e.target.value })}
+                    className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                    placeholder="ejemplo@dcubanbeats.com"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Cargo / Posición</label>
+                  <input
+                    type="text"
+                    value={collabForm.position}
+                    onChange={(e) => setCollabForm({ ...collabForm, position: e.target.value })}
+                    className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
+                    placeholder="Ej. Moderador de Soporte"
+                  />
+                </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -827,50 +915,152 @@ export const AdminUsers: React.FC = () => {
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Cargo Administrativo</label>
-                <select
-                  value={collabForm.position}
-                  onChange={(e) => setCollabForm({ ...collabForm, position: e.target.value })}
-                  className="w-full bg-[#1C1C2E] border border-brand-border/40 rounded-xl py-2 px-3 text-xs text-white outline-none focus:border-[#7F77DD] transition-all"
-                >
-                  <option value="Moderador Colaborador">Moderador Colaborador</option>
-                  <option value="Gestor de Soporte">Gestor de Soporte</option>
-                </select>
+              {/* SECCIÓN DE PERMISOS INDIVIDUALES CON CHECKBOXES */}
+              <div className="pt-2 space-y-3">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+                  <div>
+                    <label className="text-xs uppercase font-extrabold text-white tracking-wider flex items-center gap-1.5">
+                      <ShieldCheck size={14} className="text-[#7F77DD]" /> Permisos Individuales
+                    </label>
+                    <span className="text-[10px] text-gray-400 block">
+                      Marca las casillas correspondientes a las áreas a las que tendrá acceso este administrador
+                    </span>
+                  </div>
+
+                  {/* Plantillas rápidas */}
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] text-gray-500 font-bold uppercase mr-1">Plantillas:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollabForm(prev => ({
+                          ...prev,
+                          customPermissions: ['canManageSupport', 'canApproveKyc', 'canManageUsers', 'canViewTransactions'],
+                          position: prev.position || 'Gestor de Soporte'
+                        }));
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#1C1C2E] text-indigo-300 hover:bg-[#534AB7]/20 border border-indigo-500/30 cursor-pointer"
+                    >
+                      Soporte
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollabForm(prev => ({
+                          ...prev,
+                          customPermissions: ['canManagePlans', 'canApproveKyc', 'canManageUsers', 'canViewTransactions'],
+                          position: prev.position || 'Moderador de Planes'
+                        }));
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#1C1C2E] text-sky-300 hover:bg-sky-500/20 border border-sky-500/30 cursor-pointer"
+                    >
+                      Planes
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const allKeys = ALL_STAFF_PERMISSIONS.filter(p => isSuperAdmin || !p.superAdminOnly).map(p => p.key);
+                        setCollabForm(prev => ({ ...prev, customPermissions: allKeys }));
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#1C1C2E] text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30 cursor-pointer"
+                    >
+                      Todos
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCollabForm(prev => ({ ...prev, customPermissions: [] }));
+                      }}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#1C1C2E] text-gray-400 hover:text-white border border-gray-700 cursor-pointer"
+                    >
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+
+                {/* Lista de Casillas de Verificación Individuales */}
+                <div className="space-y-2 bg-[#1C1C2E]/60 p-3 rounded-xl border border-brand-border/30">
+                  {ALL_STAFF_PERMISSIONS.map((perm) => {
+                    const isChecked = collabForm.customPermissions.includes(perm.key);
+                    const isDisabled = perm.superAdminOnly && !isSuperAdmin;
+
+                    const getPermIcon = () => {
+                      switch (perm.key) {
+                        case 'canManageSupport': return <Headset size={15} className={isChecked ? 'text-emerald-400' : 'text-gray-400'} />;
+                        case 'canManagePlans': return <Radio size={15} className={isChecked ? 'text-sky-400' : 'text-gray-400'} />;
+                        case 'canApproveKyc': return <ShieldCheck size={15} className={isChecked ? 'text-purple-400' : 'text-gray-400'} />;
+                        case 'canManageUsers': return <Users size={15} className={isChecked ? 'text-indigo-400' : 'text-gray-400'} />;
+                        case 'canViewTransactions': return <CreditCard size={15} className={isChecked ? 'text-amber-400' : 'text-gray-400'} />;
+                        case 'canManagePaymentAccounts': return <Lock size={15} className={isChecked ? 'text-rose-400' : 'text-gray-400'} />;
+                        case 'canAssignRoles': return <KeyRound size={15} className={isChecked ? 'text-amber-300' : 'text-gray-400'} />;
+                        default: return <CheckCircle2 size={15} className={isChecked ? 'text-emerald-400' : 'text-gray-400'} />;
+                      }
+                    };
+
+                    return (
+                      <label
+                        key={perm.key}
+                        className={`flex items-start gap-3 p-2.5 rounded-xl border transition-all select-none ${
+                          isDisabled 
+                            ? 'opacity-40 cursor-not-allowed bg-black/20 border-white/5' 
+                            : isChecked 
+                              ? 'bg-[#534AB7]/15 border-[#534AB7]/40 cursor-pointer hover:bg-[#534AB7]/20' 
+                              : 'bg-[#1C1C2E] border-brand-border/30 cursor-pointer hover:bg-white/5'
+                        }`}
+                      >
+                        <div className="pt-0.5 shrink-0">
+                          <input
+                            type="checkbox"
+                            disabled={isDisabled}
+                            checked={isChecked}
+                            onChange={() => {
+                              if (isDisabled) return;
+                              setCollabForm(prev => {
+                                const exists = prev.customPermissions.includes(perm.key);
+                                const nextPerms = exists 
+                                  ? prev.customPermissions.filter(k => k !== perm.key)
+                                  : [...prev.customPermissions, perm.key];
+                                return { ...prev, customPermissions: nextPerms };
+                              });
+                            }}
+                            className="sr-only"
+                          />
+                          <div className={`w-4 h-4 rounded-md flex items-center justify-center border transition-all ${
+                            isChecked 
+                              ? 'bg-gradient-to-tr from-[#534AB7] to-[#7F77DD] border-[#7F77DD] text-white' 
+                              : 'border-gray-600 bg-[#1C1C2E]'
+                          }`}>
+                            {isChecked && <Check size={11} strokeWidth={3} />}
+                          </div>
+                        </div>
+
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            {getPermIcon()}
+                            <span className={`text-xs font-bold ${isChecked ? 'text-white' : 'text-gray-300'}`}>
+                              {perm.label}
+                            </span>
+                            {perm.superAdminOnly && (
+                              <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.2 rounded border border-amber-500/30 font-bold">
+                                Super Admin
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-400 mt-0.5 leading-normal">
+                            {perm.description}
+                          </p>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* 2FA Toggle Switch for Collaborator */}
-              <div className="flex items-center justify-between p-3.5 bg-[#1C1C2E] rounded-xl border border-brand-border/40 select-none">
-                <div>
-                  <span className="text-xs font-bold text-white block">Verificación en dos pasos (2FA)</span>
-                  <span className="text-[10px] text-gray-400 block mt-0.5">Exigir autenticación con 2FAS al colaborador</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className={`text-[10px] font-extrabold uppercase ${collabForm.twoFactorEnabled ? 'text-emerald-400' : 'text-gray-400'}`}>
-                    {collabForm.twoFactorEnabled ? 'Habilitada' : 'Deshabilitada'}
-                  </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={collabForm.twoFactorEnabled}
-                    onClick={() => setCollabForm(prev => ({ ...prev, twoFactorEnabled: !prev.twoFactorEnabled }))}
-                    className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                      collabForm.twoFactorEnabled ? 'bg-[#534AB7]' : 'bg-gray-700'
-                    }`}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-lg ring-0 transition duration-200 ease-in-out ${
-                        collabForm.twoFactorEnabled ? 'translate-x-5' : 'translate-x-0'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-[#FF5C5C]/5 border border-[#FF5C5C]/15 rounded-xl p-3 text-center space-y-1">
-                <span className="text-[10px] font-bold text-brand-accent-red uppercase tracking-wider block">RESTRICCIÓN DE SEGURIDAD</span>
-                <p className="text-[10px] text-gray-400 leading-relaxed">
-                  Por seguridad, los perfiles de colaboradores no tienen privilegios para consultar o modificar cuentas bancarias del admin, pasarelas de pago o ver listados de facturación.
+              {/* Nota Informativa sobre 2FA */}
+              <div className="bg-[#1C1C2E]/60 border border-brand-border/30 rounded-xl p-3 flex items-start gap-2.5">
+                <Shield className="text-[#7F77DD] shrink-0 mt-0.5" size={16} />
+                <p className="text-[11px] text-gray-400 leading-relaxed">
+                  <strong className="text-white">Autenticación en dos pasos (2FA):</strong> No requiere configuración forzada desde aquí. Cada nuevo colaborador vinculará su aplicación 2FAS de forma autónoma desde la sección <strong className="text-white">"Mi Perfil &gt; Seguridad"</strong> una vez inicie sesión.
                 </p>
               </div>
 

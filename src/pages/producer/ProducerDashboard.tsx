@@ -1,6 +1,6 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { motion } from 'motion/react';
-import { useApp } from '../../store/AppContext';
+import { useApp, resolveUserPlan } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DashboardSkeleton } from '../../components/ui/DashboardSkeleton';
@@ -22,8 +22,7 @@ export const ProducerDashboard: React.FC = () => {
   } = useApp();
 
   const activePlan = useMemo(() => {
-    const planName = user?.plan || 'Gratis';
-    return plans.find(p => p.name.toLowerCase() === planName.toLowerCase()) || plans[0];
+    return resolveUserPlan(user, plans);
   }, [user, plans]);
 
   const isMessagingBlocked = useMemo(() => {

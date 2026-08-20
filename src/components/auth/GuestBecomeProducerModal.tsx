@@ -145,6 +145,7 @@ export const GuestBecomeProducerModal: React.FC<GuestBecomeProducerModalProps> =
       artistName: artistName.trim(),
       instagram: instagram.trim() || undefined,
       plan: currentPlan.name as 'Gratis' | 'Pro' | 'Elite',
+      planId: currentPlan.id,
       verified: false,
       producerApprovalStatus: isFree ? ('approved' as const) : ('pending' as const)
     };

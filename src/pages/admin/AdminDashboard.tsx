@@ -16,6 +16,8 @@ export const AdminDashboard: React.FC = () => {
     isMaintenanceMode, setMaintenanceMode, navigateTo
   } = useApp();
 
+  const isSuperAdmin = (user?.role === 'admin') && ((user.staffRole || 'super_admin') === 'super_admin');
+
   const [selectedVerificationProducer, setSelectedVerificationProducer] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -242,54 +244,56 @@ export const AdminDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODO MANTENIMIENTO GLOBAL */}
-      <div id="status-simulation-console" className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-5">
-        <div className="flex items-center justify-between border-b border-brand-border/20 pb-3 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
-            <h3 className="text-sm font-bold uppercase tracking-wider text-white">Control del Estado de la Plataforma</h3>
+      {/* MODO MANTENIMIENTO GLOBAL - EXCLUSIVO SUPER ADMINISTRADOR */}
+      {isSuperAdmin && (
+        <div id="status-simulation-console" className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-5">
+          <div className="flex items-center justify-between border-b border-brand-border/20 pb-3 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+              <h3 className="text-sm font-bold uppercase tracking-wider text-white">Control del Estado de la Plataforma</h3>
+            </div>
+            <span className="text-[10px] text-gray-500 font-mono">Panel de Control General (Super Admin)</span>
           </div>
-          <span className="text-[10px] text-gray-500 font-mono">Panel de Control General</span>
-        </div>
 
-        <div className="bg-[#0D0D14]/50 border border-white/5 rounded-xl p-5 space-y-4 text-left">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
-              <AlertCircle size={14} />
-            </span>
-            <span className="text-xs font-bold text-white uppercase tracking-wider">Modo Mantenimiento General</span>
-          </div>
-          
-          <p className="text-[11px] text-gray-400 leading-relaxed">
-            Al activar el modo mantenimiento, todos los usuarios de la plataforma que no tengan privilegios de administrador verán la pantalla de mantenimiento con el fader master y el contador regresivo.
-          </p>
-
-          <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
-            <span className="text-xs font-semibold text-gray-300">
-              Estado: {isMaintenanceMode ? (
-                <span className="text-amber-400 font-black animate-pulse">● ACTIVO</span>
-              ) : (
-                <span className="text-gray-500">○ INACTIVO</span>
-              )}
-            </span>
+          <div className="bg-[#0D0D14]/50 border border-white/5 rounded-xl p-5 space-y-4 text-left">
+            <div className="flex items-center gap-2">
+              <span className="p-1.5 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <AlertCircle size={14} />
+              </span>
+              <span className="text-xs font-bold text-white uppercase tracking-wider">Modo Mantenimiento General</span>
+            </div>
             
-            <button
-              id="toggle-maintenance-mode-btn"
-              onClick={() => {
-                setMaintenanceMode(!isMaintenanceMode);
-                addToast(isMaintenanceMode ? 'Modo mantenimiento desactivado globalmente' : 'Modo mantenimiento activado globalmente. ¡Los faders de producción están apagados!', isMaintenanceMode ? 'info' : 'success');
-              }}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                isMaintenanceMode 
-                  ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/10' 
-                  : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md shadow-amber-500/10'
-              }`}
-            >
-              {isMaintenanceMode ? 'Desactivar' : 'Activar Modo'}
-            </button>
+            <p className="text-[11px] text-gray-400 leading-relaxed">
+              Al activar el modo mantenimiento, todos los usuarios de la plataforma que no tengan privilegios de administrador verán la pantalla de mantenimiento con el fader master y el contador regresivo.
+            </p>
+
+            <div className="flex items-center justify-between bg-black/30 p-4 rounded-lg border border-white/5">
+              <span className="text-xs font-semibold text-gray-300">
+                Estado: {isMaintenanceMode ? (
+                  <span className="text-amber-400 font-black animate-pulse">● ACTIVO</span>
+                ) : (
+                  <span className="text-gray-500">○ INACTIVO</span>
+                )}
+              </span>
+              
+              <button
+                id="toggle-maintenance-mode-btn"
+                onClick={() => {
+                  setMaintenanceMode(!isMaintenanceMode);
+                  addToast(isMaintenanceMode ? 'Modo mantenimiento desactivado globalmente' : 'Modo mantenimiento activado globalmente. ¡Los faders de producción están apagados!', isMaintenanceMode ? 'info' : 'success');
+                }}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  isMaintenanceMode 
+                    ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-md shadow-rose-500/10' 
+                    : 'bg-amber-500 hover:bg-amber-600 text-slate-950 shadow-md shadow-amber-500/10'
+                }`}
+              >
+                {isMaintenanceMode ? 'Desactivar' : 'Activar Modo'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* COLA DE APROBACIÓN PRODUCTORES KYC */}
       <div className="bg-brand-surface p-6 rounded-2xl border border-brand-border/40 shadow-sm space-y-4">

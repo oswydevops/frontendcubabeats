@@ -469,7 +469,7 @@ export const Navbar: React.FC = () => {
                     </>
                   )}
 
-                  {user.role === 'producer' && (
+                  {user.role === 'producer' && user.producerApprovalStatus !== 'pending' && (
                     <button 
                       onClick={() => {
                         navigateTo('/producer/dashboard');

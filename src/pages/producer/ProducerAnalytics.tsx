@@ -1,5 +1,5 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { useApp } from '../../store/AppContext';
+import { useApp, resolveUserPlan } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DashboardSkeleton } from '../../components/ui/DashboardSkeleton';
@@ -17,8 +17,7 @@ export const ProducerAnalytics: React.FC = () => {
   const { user, beats, navigateTo, addToast, plans, orders } = useApp();
   
   const activePlan = useMemo(() => {
-    const planName = user?.plan || 'Gratis';
-    return plans.find(p => p.name.toLowerCase() === planName.toLowerCase()) || plans[0];
+    return resolveUserPlan(user, plans);
   }, [user, plans]);
 
   const hasAccess = activePlan?.analyticsAccess ?? false;

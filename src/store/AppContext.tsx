@@ -1,5 +1,9 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { Beat, User, CartItem, Order, PaymentGatewayConfig, Plan, AdminNotification, ProducerNotification, ArtistNotification, SimulatedEmail, DirectMessage, DisplayCurrency, ExchangeRates, PlanRequest, SupportTicket, SupportMessage, AdminPaymentMethod } from '../types';
+import { Beat, User, CartItem, Order, PaymentGatewayConfig, Plan, AdminNotification, ProducerNotification, ArtistNotification, SimulatedEmail, DirectMessage, DisplayCurrency, ExchangeRates, PlanRequest, SupportTicket, SupportMessage, AdminPaymentMethod, StaffRole, StaffPermission, STAFF_PERMISSIONS, AddBeatResult } from '../types';
+import { resolveUserPlan } from '../utils/plans';
+
+export { resolveUserPlan } from '../utils/plans';
+export type { AddBeatResult };
 
 interface AppContextProps {
   user: User | null;
@@ -37,7 +41,7 @@ interface AppContextProps {
   // Actions
   setUser: (user: User | null) => void;
   toggleLikeBeat: (beatId: string) => void;
-  addBeat: (beat: Beat) => void;
+  addBeat: (beat: Beat) => AddBeatResult;
   updateBeat: (beat: Beat) => void;
   deleteBeat: (id: string) => void;
   addToCart: (beat: Beat, licenseType: 'basic' | 'exclusive') => void;
@@ -137,8 +141,8 @@ interface AppContextProps {
   updatePlanRequestStatus: (id: string, status: 'approved' | 'rejected') => void;
 
   // Collaborator management
-  addAdminCollaborator: (collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => void;
-  updateAdminCollaborator: (id: string, collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => void;
+  addAdminCollaborator: (collab: { name: string; lastName: string; email: string; position?: string; staffRole?: StaffRole; customPermissions?: StaffPermission[]; username?: string; password?: string }) => void;
+  updateAdminCollaborator: (id: string, collab: { name: string; lastName: string; email: string; position?: string; staffRole?: StaffRole; customPermissions?: StaffPermission[]; username?: string; password?: string }) => void;
   deleteAdminCollaborator: (id: string) => void;
   toggleUser2FA: (userId: string, enabled?: boolean) => void;
 
@@ -297,9 +301,10 @@ const INITIAL_PRODUCERS: User[] = [
     email: 'roberto.collab@dcubanbeats.com',
     role: 'admin',
     position: 'Moderador Colaborador',
+    staffRole: 'moderador_colaborador',
     verified: true,
     plan: 'Elite',
-    isCollaborator: true,
+    planId: 'p_elite',
     avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop',
     password: 'contraseña123'
   },
@@ -310,9 +315,10 @@ const INITIAL_PRODUCERS: User[] = [
     email: 'soporte@dcubanbeats.cu',
     role: 'admin',
     position: 'Gestor de Soporte',
+    staffRole: 'gestor_soporte',
     verified: true,
     plan: 'Elite',
-    isCollaborator: true,
+    planId: 'p_elite',
     isSupportOnline: true,
     avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
     password: 'contraseña123'
@@ -330,6 +336,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'La Habana',
     municipio: 'Centro Habana',
     plan: 'Pro',
+    planId: 'p_pro',
     verified: true,
     beatsCount: 14,
     soundLibrariesCount: 3,
@@ -352,6 +359,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'La Habana',
     municipio: 'Plaza de la Revolución',
     plan: 'Elite',
+    planId: 'p_elite',
     verified: true,
     beatsCount: 42,
     soundLibrariesCount: 8,
@@ -375,6 +383,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'Santiago de Cuba',
     municipio: 'Segundo Frente',
     plan: 'Gratis',
+    planId: 'p_free',
     verified: false,
     beatsCount: 5,
     soundLibrariesCount: 1,
@@ -397,6 +406,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'Matanzas',
     municipio: 'Cárdenas',
     plan: 'Elite',
+    planId: 'p_elite',
     verified: true,
     beatsCount: 28,
     soundLibrariesCount: 5,
@@ -420,6 +430,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'La Habana',
     municipio: 'Plaza de la Revolución',
     plan: 'Gratis',
+    planId: 'p_free',
     verified: true,
     online: true,
     lastActive: 'Activo ahora',
@@ -439,6 +450,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'La Habana',
     municipio: 'Playa',
     plan: 'Gratis',
+    planId: 'p_free',
     verified: true,
     online: false,
     lastActive: 'Hace 45 min'
@@ -457,6 +469,7 @@ const INITIAL_PRODUCERS: User[] = [
     provincia: 'Artemisa',
     municipio: 'San Cristóbal',
     plan: 'Elite',
+    planId: 'p_elite',
     verified: true,
     online: true,
     lastActive: 'Activo ahora'
@@ -613,7 +626,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: 'pr_1',
         producerId: 'p1',
         producerName: 'El Chama',
-        planId: 'pro',
+        planId: 'p_pro',
         planName: 'Plan Pro',
         amount: 1500,
         currency: 'CUP',
@@ -626,7 +639,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         id: 'pr_2',
         producerId: 'p2',
         producerName: "D'Capo",
-        planId: 'elite',
+        planId: 'p_elite',
         planName: 'Plan Elite',
         amount: 3500,
         currency: 'CUP',
@@ -1365,6 +1378,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // ignore
       }
     }
+    const now = Date.now();
     return [
       {
         id: 'ticket_seed_1',
@@ -1373,8 +1387,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: 'client',
         status: 'esperando',
         category: 'pagos',
-        createdAt: 'Hace 10 minutos',
-        updatedAt: 'Hace 10 minutos'
+        priority: 'urgente',
+        createdAt: new Date(now - 12 * 60 * 1000).toISOString(),
+        updatedAt: new Date(now - 10 * 60 * 1000).toISOString()
       },
       {
         id: 'ticket_seed_2',
@@ -1384,8 +1399,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         status: 'en_vivo',
         category: 'kyc',
         assignedAdminId: 'admin_collab_2',
-        createdAt: 'Hace 2 horas',
-        updatedAt: 'Hace 15 minutos'
+        createdAt: new Date(now - 2 * 3600 * 1000).toISOString(),
+        updatedAt: new Date(now - 15 * 60 * 1000).toISOString(),
+        lastAdminResponseAt: new Date(now - 15 * 60 * 1000).toISOString(),
+        priority: 'normal'
       }
     ];
   });
@@ -1400,6 +1417,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // ignore
       }
     }
+    const now = Date.now();
     return [
       {
         id: 'sup_seed_1',
@@ -1409,7 +1427,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: 'client',
         senderType: 'user',
         text: 'Hola, tengo una duda sobre la pasarela EnZona. ¿Cómo puedo subir mi comprobante?',
-        timestamp: 'Hace 10 minutos',
+        timestamp: new Date(now - 10 * 60 * 1000).toISOString(),
         readBySupport: false,
         readByUser: true,
         isBot: false
@@ -1422,7 +1440,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: 'producer',
         senderType: 'user',
         text: 'Saludos equipo, ¿cuánto tiempo toma la aprobación de mi verificación de identidad (KYC)? Subí mi documento esta mañana.',
-        timestamp: 'Hace 2 horas',
+        timestamp: new Date(now - 2 * 3600 * 1000).toISOString(),
         readBySupport: true,
         readByUser: true,
         isBot: false
@@ -1435,7 +1453,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: 'producer',
         senderType: 'support',
         text: '¡Hola Flow Habano! Estamos revisando tu selfie con documento. Todo luce en orden, se aprobará en breve.',
-        timestamp: 'Hace 15 minutos',
+        timestamp: new Date(now - 15 * 60 * 1000).toISOString(),
         readBySupport: true,
         readByUser: false,
         isBot: false
@@ -1450,6 +1468,59 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   useEffect(() => {
     localStorage.setItem('cb_support_messages', JSON.stringify(supportMessages));
   }, [supportMessages]);
+
+  // Periodic Support SLA & Orphaned Ticket Monitor
+  const SLA_WAITING_MINUTES = 10;
+  const SLA_LIVE_STALE_MINUTES = 15;
+
+  useEffect(() => {
+    const checkSupportSLA = () => {
+      const now = Date.now();
+      setSupportTickets(prev => {
+        let changed = false;
+        const next = prev.map(t => {
+          if (t.status === 'esperando') {
+            const createdTime = new Date(t.createdAt).getTime();
+            if (!isNaN(createdTime)) {
+              const waitedMs = now - createdTime;
+              const shouldBeUrgent = waitedMs >= SLA_WAITING_MINUTES * 60 * 1000;
+              if (shouldBeUrgent && t.priority !== 'urgente') {
+                changed = true;
+                addAdminNotification(
+                  'support_sla_breach',
+                  'Ticket de soporte sin atender',
+                  `El ticket de "${t.userName}" lleva más de ${SLA_WAITING_MINUTES} minutos esperando respuesta.`
+                );
+                return { ...t, priority: 'urgente' as const };
+              }
+            }
+          }
+          if (t.status === 'en_vivo' && t.assignedAdminId) {
+            const adminStillOnline = verifiedProducersTask.some(u => u.id === t.assignedAdminId && u.isSupportOnline)
+              || (user?.id === t.assignedAdminId && user?.isSupportOnline);
+            const lastActiveTime = new Date(t.lastAdminResponseAt || t.updatedAt).getTime();
+            const staleMs = !isNaN(lastActiveTime) ? now - lastActiveTime : 0;
+            const isOrphaned = !adminStillOnline || staleMs >= SLA_LIVE_STALE_MINUTES * 60 * 1000;
+            if (isOrphaned && t.status !== 'resuelto') {
+              changed = true;
+              addAdminNotification(
+                'support_ticket_orphaned',
+                'Ticket abandonado en conversación en vivo',
+                `El ticket de "${t.userName}" quedó sin actividad del agente asignado. Reasígnalo.`
+              );
+              return { ...t, status: 'esperando' as const, assignedAdminId: undefined, priority: 'urgente' as const };
+            }
+          }
+          return t;
+        });
+        return changed ? next : prev;
+      });
+    };
+
+    checkSupportSLA();
+    const interval = setInterval(checkSupportSLA, 30 * 1000);
+    return () => clearInterval(interval);
+  }, [verifiedProducersTask, user]);
 
   // Toggle admin live presence for support
   const toggleSupportOnline = () => {
@@ -1477,6 +1548,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     isBot: boolean = false
   ) => {
     let resolvedTicketId = ticketId;
+    const nowIso = new Date().toISOString();
 
     // Check / create ticket if not open
     setSupportTickets(prev => {
@@ -1487,7 +1559,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
       if (existing) {
         resolvedTicketId = existing.id;
-        return prev.map(t => t.id === existing.id ? { ...t, updatedAt: 'Ahora mismo' } : t);
+        return prev.map(t => {
+          if (t.id === existing.id) {
+            return {
+              ...t,
+              updatedAt: nowIso,
+              ...(senderType === 'support' ? { lastAdminResponseAt: nowIso } : {})
+            };
+          }
+          return t;
+        });
       } else {
         const newTicket: SupportTicket = {
           id: resolvedTicketId || `ticket_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -1496,8 +1577,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           userRole,
           status: 'bot',
           category: 'otro',
-          createdAt: 'Ahora mismo',
-          updatedAt: 'Ahora mismo'
+          createdAt: nowIso,
+          updatedAt: nowIso,
+          priority: 'normal',
+          ...(senderType === 'support' ? { lastAdminResponseAt: nowIso } : {})
         };
         resolvedTicketId = newTicket.id;
         return [newTicket, ...prev];
@@ -1512,7 +1595,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       userRole,
       senderType,
       text,
-      timestamp: 'Ahora mismo',
+      timestamp: nowIso,
       readBySupport: senderType === 'support',
       readByUser: senderType === 'user',
       isBot
@@ -1523,10 +1606,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   // Escalate case to human agent (checks online admin status)
   const escalateTicket = (ticketId: string, category: SupportTicket['category'] = 'otro') => {
-    // Revisa si hay admins con isSupportOnline: true en verifiedProducersTask o el usuario actual
-    const anyAdminOnline = verifiedProducersTask.some(u => u.role === 'admin' && u.isSupportOnline) || (user?.role === 'admin' && user?.isSupportOnline);
+    // Revisa si hay admins con soporte habilitado y online
+    const anyAdminOnline = verifiedProducersTask.some(u => 
+      u.role === 'admin' && 
+      (u.staffRole ? (u.staffRole === 'super_admin' || u.staffRole === 'gestor_soporte') : true) && 
+      u.isSupportOnline
+    ) || (
+      user?.role === 'admin' && 
+      (user?.staffRole ? (user?.staffRole === 'super_admin' || user?.staffRole === 'gestor_soporte') : true) && 
+      user?.isSupportOnline
+    );
 
     let targetTicket: SupportTicket | undefined;
+    const nowIso = new Date().toISOString();
 
     setSupportTickets(prev => {
       return prev.map(t => {
@@ -1535,7 +1627,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
             ...t,
             status: 'esperando',
             category: category || t.category || 'otro',
-            updatedAt: 'Ahora mismo'
+            updatedAt: nowIso
           };
           return targetTicket;
         }
@@ -1557,7 +1649,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: uRole,
         senderType: 'support',
         text: '🤖 Conectando con un agente... Tu consulta ha sido transferida a la cola en vivo. Un miembro del equipo tomará tu caso de inmediato.',
-        timestamp: 'Ahora mismo',
+        timestamp: nowIso,
         readBySupport: false,
         readByUser: true,
         isBot: true
@@ -1574,7 +1666,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: uRole,
         senderType: 'support',
         text: '🤖 Tu caso ha sido registrado en cola. En este momento ningún gestor de soporte se encuentra en línea. Te responderemos tan pronto como un agente inicie sesión.',
-        timestamp: 'Ahora mismo',
+        timestamp: nowIso,
         readBySupport: false,
         readByUser: true,
         isBot: true
@@ -1590,6 +1682,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const adminName = adminObj?.name || 'Gestor de Soporte';
 
     let targetTicket: SupportTicket | undefined;
+    const nowIso = new Date().toISOString();
 
     setSupportTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
@@ -1597,7 +1690,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           ...t,
           status: 'en_vivo',
           assignedAdminId: adminId,
-          updatedAt: 'Ahora mismo'
+          updatedAt: nowIso,
+          lastAdminResponseAt: nowIso
         };
         return targetTicket;
       }
@@ -1613,7 +1707,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: targetTicket.userRole,
         senderType: 'support',
         text: `🎧 ${adminName} se ha unido a la conversación. ¿En qué podemos colaborarte hoy?`,
-        timestamp: 'Ahora mismo',
+        timestamp: nowIso,
         readBySupport: true,
         readByUser: false,
         isBot: false
@@ -1627,13 +1721,14 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // Resolve a support ticket
   const resolveTicket = (ticketId: string) => {
     let targetTicket: SupportTicket | undefined;
+    const nowIso = new Date().toISOString();
 
     setSupportTickets(prev => prev.map(t => {
       if (t.id === ticketId) {
         targetTicket = {
           ...t,
           status: 'resuelto',
-          updatedAt: 'Ahora mismo'
+          updatedAt: nowIso
         };
         return targetTicket;
       }
@@ -1649,7 +1744,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         userRole: targetTicket.userRole,
         senderType: 'support',
         text: '✅ El gestor de soporte ha marcado este caso como resuelto.',
-        timestamp: 'Ahora mismo',
+        timestamp: nowIso,
         readBySupport: true,
         readByUser: false,
         isBot: true
@@ -1959,83 +2054,113 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     }
 
-    setPlanRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
-
-    const selectedPlan = requestObj.planName.replace('Plan ', '') as 'Gratis' | 'Pro' | 'Elite';
-    const uName = requestObj.producerName;
-    const targetProd = verifiedProducersTask.find(p => p.id === requestObj.producerId);
-    const uEmail = targetProd?.email || 'productor@dcubanbeats.com';
-
     if (status === 'approved') {
-      setVerifiedProducersTask(prods => prods.map(p => p.id === requestObj.producerId ? { ...p, plan: selectedPlan, producerApprovalStatus: 'approved' } : p));
+      const resolvedPlan = plans.find(p => p.id === requestObj.planId);
+      if (!resolvedPlan) {
+        addToast(`Error: no se pudo resolver el plan solicitado (ID "${requestObj.planId}"). Contacta a soporte técnico.`, 'error');
+        return;
+      }
+      const selectedPlanName = resolvedPlan.name as 'Gratis' | 'Pro' | 'Elite';
+      const uName = requestObj.producerName;
+      const targetProd = verifiedProducersTask.find(p => p.id === requestObj.producerId);
+      const uEmail = targetProd?.email || 'productor@dcubanbeats.com';
+
+      setPlanRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
+
+      setVerifiedProducersTask(prods => prods.map(p => p.id === requestObj.producerId ? { ...p, plan: selectedPlanName, planId: resolvedPlan.id, producerApprovalStatus: 'approved' } : p));
 
       if (user && user.id === requestObj.producerId) {
-        setUserState(prevUser => prevUser ? { ...prevUser, plan: selectedPlan, producerApprovalStatus: 'approved' } : null);
+        setUserState(prevUser => prevUser ? { ...prevUser, plan: selectedPlanName, planId: resolvedPlan.id, producerApprovalStatus: 'approved' } : null);
       }
 
       addProducerNotification(
         'plan_assigned',
         '¡Membresía Activada con Éxito! 💎',
-        `Se ha asignado el Plan ${selectedPlan} a tu cuenta de productor de manera manual por validación administrativa.`
+        `Se ha asignado el Plan ${selectedPlanName} a tu cuenta de productor de manera manual por validación administrativa.`
       );
 
       addSimulatedEmail(
         uEmail,
         'facturacion@dcubanbeats.com',
-        `¡Felicidades! Membresía Activada: Plan ${selectedPlan} en D'Cuban Beats`,
-        `Hola ${uName}:\n\nEl equipo de facturación y soporte de D'Cuban Beats ha validado satisfactoriamente tu transferencia bancaria (Ref: ${requestObj.transactionId}) y ha asignado oficialmente el plan "${selectedPlan}" a tu cuenta.\n\nYa puedes disfrutar de todas las ventajas y privilegios.\n\n--\nFacturación, D'Cuban Beats S.A.`
+        `¡Felicidades! Membresía Activada: Plan ${selectedPlanName} en D'Cuban Beats`,
+        `Hola ${uName}:\n\nEl equipo de facturación y soporte de D'Cuban Beats ha validado satisfactoriamente tu transferencia bancaria (Ref: ${requestObj.transactionId}) y ha asignado oficialmente el plan "${selectedPlanName}" a tu cuenta.\n\nYa puedes disfrutar de todas las ventajas y privilegios.\n\n--\nFacturación, D'Cuban Beats S.A.`
       );
 
       addSimulatedEmail(
         'admin@dcubanbeats.com',
         'sistema@dcubanbeats.com',
-        `🚨 NOTIFICACIÓN: Venta de Membresía Plan ${selectedPlan} por ${uName}`,
-        `Hola Administrador:\n\nHas validado y aprobado exitosamente el pago del productor "${uName}" para el plan "${selectedPlan}".\n\nEl sistema ha procesado la asignación automáticamente.`
+        `🚨 NOTIFICACIÓN: Venta de Membresía Plan ${selectedPlanName} por ${uName}`,
+        `Hola Administrador:\n\nHas validado y aprobado exitosamente el pago del productor "${uName}" para el plan "${selectedPlanName}".\n\nEl sistema ha procesado la asignación automáticamente.`
       );
 
       addToast('Membresía aprobada y activada con éxito.', 'success');
     } else if (status === 'rejected') {
+      setPlanRequests(prev => prev.map(req => req.id === id ? { ...req, status } : req));
+      const targetProd = verifiedProducersTask.find(p => p.id === requestObj.producerId);
+      const uEmail = targetProd?.email || 'productor@dcubanbeats.com';
+      const planLabel = requestObj.planName || 'solicitado';
+
       addProducerNotification(
         'kyc_status',
         'Pago de Membresía Rechazado ❌',
-        `La transferencia para el Plan ${selectedPlan} no pudo ser validada. ID de Transacción: ${requestObj.transactionId}.`
+        `La transferencia para el ${planLabel} no pudo ser validada. ID de Transacción: ${requestObj.transactionId}.`
       );
 
       addSimulatedEmail(
         uEmail,
         'facturacion@dcubanbeats.com',
-        `Solicitud de Membresía Rechazada: Plan ${selectedPlan}`,
-        `Hola ${uName}:\n\nLamentamos informarte que nuestro equipo de facturación no ha podido validar la transferencia asociada al ID de transacción: ${requestObj.transactionId}.\n\nPor favor, verifica que el saldo fue enviado correctamente a nuestra cuenta y vuelve a enviar la solicitud con una captura de pantalla clara del comprobante de transferencia.\n\n--\nSoporte Administrativo, D'Cuban Beats S.A.`
+        `Solicitud de Membresía Rechazada: ${planLabel}`,
+        `Hola ${requestObj.producerName}:\n\nLamentamos informarte que nuestro equipo de facturación no ha podido validar la transferencia asociada al ID de transacción: ${requestObj.transactionId}.\n\nPor favor, verifica que el saldo fue enviado correctamente a nuestra cuenta y vuelve a enviar la solicitud con una captura de pantalla clara del comprobante de transferencia.\n\n--\nSoporte Administrativo, D'Cuban Beats S.A.`
       );
 
       addToast('Solicitud rechazada correctamente.', 'info');
     }
   };
 
-  const addBeat = (beat: Beat) => {
+  const addBeat = (beat: Beat): AddBeatResult => {
+    if (!user) {
+      return { success: false, reason: 'No hay sesión de productor activa.' };
+    }
+
+    const activePlan = resolveUserPlan(user, plans);
+    const isLibraryUpload = beat.isSoundLibrary === true;
+
+    if (isLibraryUpload) {
+      const maxLibraries = activePlan?.limitLibrariesCount ?? 0;
+      const currentLibraries = beats.filter(
+        b => (b.producerId === user.id || (user.artistName && b.producerName === user.artistName) || (user.name && b.producerName === user.name)) && b.isSoundLibrary
+      ).length;
+      if (currentLibraries >= maxLibraries) {
+        return { success: false, reason: `Límite de librerías alcanzado: tu plan (${user.plan}) permite hasta ${maxLibraries}.` };
+      }
+    } else {
+      const maxBeats = activePlan?.limit ?? 0;
+      const currentBeats = beats.filter(
+        b => (b.producerId === user.id || (user.artistName && b.producerName === user.artistName) || (user.name && b.producerName === user.name)) && !b.isSoundLibrary
+      ).length;
+      if (currentBeats >= maxBeats) {
+        return { success: false, reason: `Límite de beats alcanzado: tu plan (${user.plan}) permite hasta ${maxBeats}.` };
+      }
+    }
+
     setBeats((prev) => [beat, ...prev]);
     // Increase producer beats count
     if (user) {
       setUserState(prev => prev ? { ...prev, beatsCount: (prev.beatsCount || 0) + 1 } : null);
     }
-    addToast(`Beat "${beat.title}" publicado con éxito`, 'success');
+    addToast(`${isLibraryUpload ? 'Librería' : 'Beat'} "${beat.title}" publicad${isLibraryUpload ? 'a' : 'o'} con éxito`, 'success');
     addAdminNotification(
       'beat_uploaded',
-      'Nuevo Beat Publicado',
-      `El productor "${beat.producerName || 'Productor'}" subió un nuevo beat: "${beat.title}" (${beat.bpm} BPM, ${beat.key}).`
+      isLibraryUpload ? 'Nueva Librería Publicada' : 'Nuevo Beat Publicado',
+      isLibraryUpload
+        ? `El productor "${beat.producerName || 'Productor'}" subió una nueva librería: "${beat.title}".`
+        : `El productor "${beat.producerName || 'Productor'}" subió un nuevo beat: "${beat.title}" (${beat.bpm} BPM, ${beat.key}).`
     );
 
     // Trigger follower notifications for Artists
-    const isLib = beat.title.toLowerCase().includes('librería') || 
-                  beat.title.toLowerCase().includes('sample pack') || 
-                  beat.title.toLowerCase().includes('drum kit') ||
-                  beat.title.toLowerCase().includes('libreria') || 
-                  beat.genre === 'Librería' ||
-                  beat.genre === 'Librería de Sonidos';
-
     const pName = beat.producerName || 'El productor';
-    const categoryTitle = isLib ? 'Nueva Librería de Sonidos' : '¡Nuevo Beat Disponible!';
-    const itemDesc = isLib 
+    const categoryTitle = isLibraryUpload ? 'Nueva Librería de Sonidos' : '¡Nuevo Beat Disponible!';
+    const itemDesc = isLibraryUpload 
       ? `El productor "${pName}" al que sigues acaba de lanzar su nueva librería: "${beat.title}". ¡Consíguela en D'Cuban Beats!`
       : `El productor "${pName}" al que sigues acaba de publicar el beat: "${beat.title}" (${beat.bpm} BPM). ¡Escúchalo ahora!`;
 
@@ -2046,6 +2171,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       beat.producerId,
       pName
     );
+
+    return { success: true };
   };
 
   const updateBeat = (updatedBeat: Beat) => {
@@ -2534,42 +2661,52 @@ D'Cuban Beats, S.A. Cuba, La Habana.
     addToast('Usuario eliminado del sistema', 'success');
   };
 
-  const addAdminCollaborator = (collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => {
-    const is2fa = collab.twoFactorEnabled !== undefined ? collab.twoFactorEnabled : true;
+  const addAdminCollaborator = (collab: { name: string; lastName: string; email: string; position?: string; staffRole?: StaffRole; customPermissions?: StaffPermission[]; username?: string; password?: string }) => {
+    const staffRole = collab.staffRole || 'moderador_colaborador';
+    const position = collab.position || (staffRole === 'gestor_soporte' ? 'Gestor de Soporte' : staffRole === 'super_admin' ? 'Super Administrador' : 'Moderador Colaborador');
+    const customPermissions = collab.customPermissions && collab.customPermissions.length > 0 
+      ? collab.customPermissions 
+      : STAFF_PERMISSIONS[staffRole] || [];
+
     const newCollab: User = {
       id: `admin_collab_${Date.now()}`,
       name: collab.name,
       lastName: collab.lastName,
       email: collab.email,
       role: 'admin',
-      position: collab.position || 'Moderador Colaborador',
+      position,
+      staffRole,
+      customPermissions,
       verified: true,
       plan: 'Elite',
-      isCollaborator: true,
       avatarUrl: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=200&auto=format&fit=crop',
       username: collab.username,
       password: collab.password,
-      twoFactorEnabled: is2fa,
-      twoFactorSecret: is2fa ? `DCUBAN-BEATS-2FAS-COLLAB-${Date.now()}-SECRET` : undefined
+      twoFactorEnabled: false
     };
     setVerifiedProducersTask(prev => [newCollab, ...prev]);
     addToast('Colaborador administrativo agregado con éxito', 'success');
   };
 
-  const updateAdminCollaborator = (id: string, collab: { name: string; lastName: string; email: string; position: string; username?: string; password?: string; twoFactorEnabled?: boolean }) => {
-    setVerifiedProducersTask(prev => prev.map(p => p.id === id ? {
-      ...p,
-      name: collab.name,
-      lastName: collab.lastName,
-      email: collab.email,
-      position: collab.position,
-      username: collab.username,
-      password: collab.password,
-      ...(collab.twoFactorEnabled !== undefined ? { 
-        twoFactorEnabled: collab.twoFactorEnabled,
-        twoFactorSecret: collab.twoFactorEnabled ? (p.twoFactorSecret || `DCUBAN-BEATS-2FAS-${id.toUpperCase()}-SECRET`) : p.twoFactorSecret
-      } : {})
-    } : p));
+  const updateAdminCollaborator = (id: string, collab: { name: string; lastName: string; email: string; position?: string; staffRole?: StaffRole; customPermissions?: StaffPermission[]; username?: string; password?: string }) => {
+    setVerifiedProducersTask(prev => prev.map(p => {
+      if (p.id !== id) return p;
+      const staffRole = collab.staffRole || p.staffRole || 'moderador_colaborador';
+      const position = collab.position || (staffRole === 'gestor_soporte' ? 'Gestor de Soporte' : staffRole === 'super_admin' ? 'Super Administrador' : 'Moderador Colaborador');
+      const customPermissions = collab.customPermissions || p.customPermissions || STAFF_PERMISSIONS[staffRole] || [];
+
+      return {
+        ...p,
+        name: collab.name,
+        lastName: collab.lastName,
+        email: collab.email,
+        position,
+        staffRole,
+        customPermissions,
+        username: collab.username,
+        password: collab.password
+      };
+    }));
     addToast('Colaborador administrativo actualizado con éxito', 'success');
   };
 

@@ -44,6 +44,7 @@ export const BecomeProducerPage: React.FC = () => {
         updateUserProfile({
           role: 'producer',
           plan: 'Gratis',
+          planId: chosenPlan.id,
           producerApprovalStatus: 'approved'
         });
         addToast('¡Felicidades! Tu cuenta ha sido convertida a Productor con el Plan Gratis.', 'success');
@@ -58,6 +59,7 @@ export const BecomeProducerPage: React.FC = () => {
         updateUserProfile({
           role: 'producer',
           plan: 'Gratis', // initial status before payment approval
+          planId: 'p_free',
           producerApprovalStatus: 'pending'
         });
         navigateTo('/producer/plans');
