@@ -6,6 +6,10 @@ import { Button } from '../../components/ui/Button';
 import { ShieldCheck, User, Star, ArrowRight, ArrowLeft, Music, Mail, Key, X, Check } from 'lucide-react';
 import { BrandLogo } from '../../components/layout/BrandLogo';
 
+// Set to true only for local sandbox debugging to allow arbitrary unregistered email logins.
+// Defaults to false: accounts must exist in verifiedProducersTask to authenticate.
+const ALLOW_DEV_LOGIN_SHORTCUT = false;
+
 export const LoginPage: React.FC = () => {
   const { setUser, navigateTo, addToast, verifiedProducersTask, addSimulatedEmail } = useApp();
   const [email, setEmail] = useState('');
@@ -122,28 +126,23 @@ export const LoginPage: React.FC = () => {
       return;
     }
 
-    // Determine role based on email or default to client (fallback)
-    const isProd = inputEmailOrUser.includes('prod') || inputEmailOrUser.includes('chama') || inputEmailOrUser.includes('carlos');
-    const isAdmin = inputEmailOrUser.includes('admin');
+    if (ALLOW_DEV_LOGIN_SHORTCUT) {
+      // Optional dev shortcut for unregistered ad-hoc sandbox testing
+      const isProd = inputEmailOrUser.includes('prod') || inputEmailOrUser.includes('chama') || inputEmailOrUser.includes('carlos');
+      const isAdmin = inputEmailOrUser.includes('admin');
 
-    const mockUser = {
-      id: isProd ? 'p2' : isAdmin ? 'admin_user' : 'c1',
-      name: isProd ? 'Carlos' : isAdmin ? 'Admin' : 'Estudiante',
-      email: email,
-      role: isProd ? 'producer' as const : isAdmin ? 'admin' as const : 'client' as const,
-      artistName: isProd ? 'Flow Habano' : isAdmin ? 'Admin General' : undefined,
-      avatarUrl: isProd ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop' : undefined,
-      plan: isProd ? 'Elite' as const : 'Gratis' as const,
-      verified: isProd,
-      twoFactorEnabled: false
-    };
+      const mockUser = {
+        id: isProd ? 'p2' : isAdmin ? 'admin_user' : 'c1',
+        name: isProd ? 'Carlos' : isAdmin ? 'Admin' : 'Estudiante',
+        email: email,
+        role: isProd ? 'producer' as const : isAdmin ? 'admin' as const : 'client' as const,
+        artistName: isProd ? 'Flow Habano' : isAdmin ? 'Admin General' : undefined,
+        avatarUrl: isProd ? 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop' : undefined,
+        plan: isProd ? 'Elite' as const : 'Gratis' as const,
+        verified: isProd,
+        twoFactorEnabled: false
+      };
 
-    // If 2FA enabled on mockUser (false by default)
-    if (mockUser.twoFactorEnabled) {
-      sessionStorage.setItem('cb_pending_2fa_user', JSON.stringify(mockUser));
-      addToast('Código de doble factor (2FA) requerido', 'info');
-      navigateTo('/two-factor');
-    } else {
       setUser(mockUser);
       if (mockUser.role === 'admin') {
         navigateTo('/admin/dashboard');
@@ -152,7 +151,13 @@ export const LoginPage: React.FC = () => {
       } else {
         navigateTo('/artist/dashboard');
       }
+      return;
     }
+
+    // Default secure production behavior: If no registered user matches, login strictly fails
+    addToast('No existe una cuenta con ese correo o usuario. Verifica tus datos o regístrate.', 'error');
+    setErrorObj({ email: 'Cuenta no encontrada' });
+    return;
   };
 
   return (

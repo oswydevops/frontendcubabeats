@@ -817,6 +817,12 @@ export const AdminUsers: React.FC = () => {
                 addToast('No tienes permisos para asignar o editar colaboradores del equipo', 'error');
                 return;
               }
+              const forbiddenPerms = ALL_STAFF_PERMISSIONS.filter(p => p.superAdminOnly).map(p => p.key);
+              const hasForbidden = collabForm.customPermissions.some(p => forbiddenPerms.includes(p));
+              if (!isSuperAdmin && hasForbidden) {
+                addToast('Solo un Super Administrador puede otorgar el permiso de gestión de staff.', 'error');
+                return;
+              }
               if (!collabForm.name || !collabForm.email) {
                 addToast('Nombre y Correo Electrónico son obligatorios', 'error');
                 return;
