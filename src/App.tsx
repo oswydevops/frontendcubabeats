@@ -8,6 +8,8 @@ import { PanelLayout } from './components/layout/PanelLayout';
 // Public/Catalog/Auth screens
 import { CatalogPage } from './pages/catalog/CatalogPage';
 import { AboutUsPage } from './pages/about/AboutUsPage';
+import { TermsPage } from './pages/terms/TermsPage';
+import { PrivacyPage } from './pages/privacy/PrivacyPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { TwoFactorPage } from './pages/auth/TwoFactorPage';
@@ -75,6 +77,15 @@ export default function App() {
         return <CatalogPage />;
       case '/about':
         return <AboutUsPage />;
+      case '/terminos':
+      case '/terms':
+      case '/terminos-y-condiciones':
+        return <TermsPage />;
+      case '/privacidad':
+      case '/privacy':
+      case '/politica-de-privacidad':
+      case '/politicas-de-privacidad':
+        return <PrivacyPage />;
       case '/login':
         return <LoginPage />;
       case '/register':

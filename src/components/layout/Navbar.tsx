@@ -4,6 +4,7 @@ import { useApp } from '../../store/AppContext';
 import { Button } from '../ui/Button';
 import { BrandLogo } from './BrandLogo';
 import { GuestBecomeProducerModal } from '../auth/GuestBecomeProducerModal';
+import { ExchangeRateBadge } from '../ui/ExchangeRateBadge';
 
 export const Navbar: React.FC = () => {
   const { 
@@ -77,61 +78,63 @@ export const Navbar: React.FC = () => {
           )}
         </div>
         
-        {/* Currency Switcher Dropdown */}
+        {/* Currency Switcher Dropdown & Live Rate Badge */}
         {(currentPath === '/' || currentPath === '/cart' || currentPath === '/checkout') && (
-          <div className="relative">
-            <button
-              onClick={() => {
-                setShowCurrencyDropdown(!showCurrencyDropdown);
-                setShowRoleDropdown(false);
-                setShowNotifications(false);
-              }}
-              className="flex items-center gap-2 px-3 py-1.5 bg-[#1C1C2E] border border-[rgba(127,119,221,0.25)] rounded-xl text-white hover:border-[#7F77DD] transition-all text-[14px] cursor-pointer font-medium font-sans shadow-md"
-              title="Moneda de visualización de precios"
-            >
-              <Globe size={14} className="text-brand-primary-light animate-pulse" />
-              <span className="font-medium">
-                {displayCurrency === 'USD' && 'USD ($)'}
-                {displayCurrency === 'CUP' && 'CUP ($)'}
-                {displayCurrency === 'MLC' && 'MLC ($)'}
-                {displayCurrency === 'CLASICA' && 'Clásica ($)'}
-              </span>
-              <ChevronDown size={14} className="opacity-60" />
-            </button>
+          <div className="flex items-center gap-2">
+            <ExchangeRateBadge variant="compact" />
 
-            {showCurrencyDropdown && (
-              <div className="absolute right-0 mt-2 w-36 bg-[#13131F] border border-[rgba(127,119,221,0.25)] rounded-xl shadow-2xl p-1.5 z-50 text-left animate-in fade-in slide-in-from-top-3">
-                <span className="text-[10px] font-bold tracking-wider text-white/40 uppercase px-2 py-1 block font-mono">
-                  Moneda
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowCurrencyDropdown(!showCurrencyDropdown);
+                  setShowRoleDropdown(false);
+                  setShowNotifications(false);
+                }}
+                className="flex items-center gap-2 px-3 py-1.5 bg-[#1C1C2E] border border-[rgba(127,119,221,0.25)] rounded-xl text-white hover:border-[#7F77DD] transition-all text-[14px] cursor-pointer font-medium font-sans shadow-md"
+                title="Moneda de visualización de precios"
+              >
+                <Globe size={14} className="text-brand-primary-light animate-pulse" />
+                <span className="font-medium">
+                  {displayCurrency === 'USD' && 'USD ($)'}
+                  {displayCurrency === 'CUP' && 'CUP ($)'}
+                  {displayCurrency === 'MLC' && 'MLC ($)'}
                 </span>
-                
-                {[
-                  { value: 'USD', label: 'USD ($)' },
-                  { value: 'CUP', label: 'CUP ($)' },
-                  { value: 'MLC', label: 'MLC ($)' },
-                  { value: 'CLASICA', label: 'CLASICA ($)' },
-                ].map((item) => {
-                  const isActive = displayCurrency === item.value;
-                  return (
-                    <button
-                      key={item.value}
-                      onClick={() => {
-                        setDisplayCurrency(item.value as any);
-                        setShowCurrencyDropdown(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
-                        isActive 
-                          ? 'bg-brand-primary text-white font-bold' 
-                          : 'text-white/70 hover:bg-white/5 hover:text-white'
-                      }`}
-                    >
-                      <span>{item.label}</span>
-                      {isActive && <CheckCheck size={14} className="text-white" />}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                <ChevronDown size={14} className="opacity-60" />
+              </button>
+
+              {showCurrencyDropdown && (
+                <div className="absolute right-0 mt-2 w-36 bg-[#13131F] border border-[rgba(127,119,221,0.25)] rounded-xl shadow-2xl p-1.5 z-50 text-left animate-in fade-in slide-in-from-top-3">
+                  <span className="text-[10px] font-bold tracking-wider text-white/40 uppercase px-2 py-1 block font-mono">
+                    Moneda
+                  </span>
+                  
+                  {[
+                    { value: 'USD', label: 'USD ($)' },
+                    { value: 'CUP', label: 'CUP ($)' },
+                    { value: 'MLC', label: 'MLC ($)' },
+                  ].map((item) => {
+                    const isActive = displayCurrency === item.value;
+                    return (
+                      <button
+                        key={item.value}
+                        onClick={() => {
+                          setDisplayCurrency(item.value as any);
+                          setShowCurrencyDropdown(false);
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ${
+                          isActive 
+                            ? 'bg-brand-primary text-white font-bold' 
+                            : 'text-white/70 hover:bg-white/5 hover:text-white'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        {isActive && <CheckCheck size={14} className="text-white" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

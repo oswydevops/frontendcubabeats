@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
+import { ExchangeRateBadge } from '../../components/ui/ExchangeRateBadge';
 import { 
   Radio, Check, Sparkles, CreditCard, Landmark, 
   HelpCircle, AlertCircle, ArrowUpRight, ArrowLeftRight, X, Table, ShieldCheck, Copy, QrCode, Wallet, Camera, Maximize2
@@ -118,18 +119,35 @@ export const ProducerPlans: React.FC = () => {
     }
 
     // Calculate rate snapshot based on payment channel and active payment method
-    const rateUsed = exchangeRates?.CUP || 330;
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const mlcRate = exchangeRates?.MLC || 280.0;
     const amountUSD = targetPlan.price;
     
     let effectiveCurrency = 'USD';
+    let rateUsed = 1.0;
+    let amountConverted = amountUSD;
+
     if (paymentType === 'bancos') {
       const activeBankMethods = activeMethods.filter(m => m.type === 'bancos' || (m.type as string) === 'transfermovil');
-      effectiveCurrency = activeBankMethods[0]?.currencyType || 'CUP';
+      const rawCurr = (activeBankMethods[0]?.currencyType || 'CUP').trim().toUpperCase();
+      effectiveCurrency = rawCurr === 'MLC' ? 'MLC' : 'CUP';
+
+      if (effectiveCurrency === 'MLC') {
+        rateUsed = Number((usdRate / mlcRate).toFixed(4));
+        const conv = convertPrice(amountUSD, 'MLC');
+        amountConverted = parseFloat(conv.amount.replace(/[^0-9.]/g, '')) || Number((amountUSD * rateUsed).toFixed(2));
+      } else {
+        effectiveCurrency = 'CUP';
+        rateUsed = usdRate;
+        const conv = convertPrice(amountUSD, 'CUP');
+        amountConverted = parseFloat(conv.amount.replace(/[^0-9.]/g, '')) || Math.round(amountUSD * rateUsed);
+      }
+    } else {
+      effectiveCurrency = 'USD';
+      rateUsed = 1.0;
+      amountConverted = amountUSD;
     }
 
-    const cardTargetCurr = (effectiveCurrency.toUpperCase() === 'CLASICA' || effectiveCurrency.toUpperCase() === 'CLÁSICA' ? 'CLASICA' : effectiveCurrency.toUpperCase()) as any;
-    const conv = convertPrice(amountUSD, cardTargetCurr);
-    const amountConverted = parseFloat(conv.amount.replace(/[^0-9.]/g, '')) || amountUSD;
     const frozenAt = new Date().toISOString();
 
     // Submit plan subscription request for admin review
@@ -173,6 +191,9 @@ export const ProducerPlans: React.FC = () => {
           </p>
         </div>
       </div>
+
+      {/* Tasa de cambio oficial El Toque */}
+      <ExchangeRateBadge variant="banner" />
 
       {/* KYC Alert Block if not verified */}
       {!user?.verified && (
@@ -836,15 +857,19 @@ export const ProducerPlans: React.FC = () => {
                           .filter(m => m.type === 'bancos' || (m.type as string) === 'transfermovil')
                           .map((method) => {
                             const planPrice = selectedPlanToBuy ? selectedPlanToBuy.price : 0;
-                            const cardCurrRaw = (method.currencyType || 'CUP').trim().toUpperCase();
-                            const cardTargetCurr = (cardCurrRaw === 'CLASICA' || cardCurrRaw === 'CLÁSICA' ? 'CLASICA' : cardCurrRaw) as any;
-                            const convertedCard = convertPrice(planPrice, cardTargetCurr);
+                            const cardCurr = (method.currencyType === 'MLC' ? 'MLC' : 'CUP') as 'CUP' | 'MLC';
+                            const convertedCard = convertPrice(planPrice, cardCurr);
+                            const usdVal = exchangeRates?.USD || 385;
+                            const mlcVal = exchangeRates?.MLC || 280;
+                            const rateSubText = cardCurr === 'MLC'
+                              ? `Tasa El Toque: 1 USD ≈ ${(usdVal / mlcVal).toFixed(2)} MLC`
+                              : `Tasa El Toque: 1 USD = ${usdVal} CUP`;
 
                             return (
                               <div key={method.id} className="bg-[#13131F] border border-brand-primary/25 p-4 rounded-xl space-y-3 shadow-sm hover:border-brand-primary/40 transition-colors">
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <span className="text-[11px] bg-[#534AB7]/30 text-[#8D84F7] font-black px-3 py-1 rounded-full border border-[#534AB7]/40 inline-flex items-center gap-1.5">
-                                    <Landmark size={12} /> {method.bankName || 'BANCO'} ({method.currencyType || 'CUP'})
+                                    <Landmark size={12} /> {method.bankName || 'BANCO'} ({cardCurr})
                                   </span>
                                   <div className="flex gap-1.5">
                                     {method.acceptsTransfermovil !== false && (
@@ -865,10 +890,10 @@ export const ProducerPlans: React.FC = () => {
                                   <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent rounded-xl border border-amber-500/30">
                                     <div className="text-left">
                                       <span className="text-white/80 text-[11px] font-bold block">
-                                        Monto Fijo a Transferir ({method.currencyType || 'CUP'}):
+                                        Monto Fijo a Transferir ({cardCurr}):
                                       </span>
                                       <span className="text-[10px] text-amber-300/80 font-mono block">
-                                        Actualizado desde API El Toque (12h)
+                                        {rateSubText}
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-2">

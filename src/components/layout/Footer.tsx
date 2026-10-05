@@ -22,9 +22,30 @@ export const Footer: React.FC = () => {
 
   if (user?.role === 'admin') {
     return (
-      <footer id="cuba-beats-modern-footer" className="bg-[#0A0A10] border-t border-[rgba(127,119,221,0.12)] py-6 text-slate-500 text-[12px] text-center">
-        <div className="max-w-7xl xl:max-w-[1450px] mx-auto px-4 md:px-10 lg:px-14 flex items-center justify-center">
+      <footer id="cuba-beats-modern-footer" className="bg-[#0A0A10] border-t border-[rgba(127,119,221,0.12)] py-6 text-slate-500 text-[12px]">
+        <div className="max-w-7xl xl:max-w-[1450px] mx-auto px-4 md:px-10 lg:px-14 flex items-center justify-between flex-wrap gap-3">
           <span className="font-mono text-[11px] tracking-wide font-normal">&copy; {new Date().getFullYear()} D'Cuban Beats Inc. • Panel Administrativo Autorizado.</span>
+          <div className="flex items-center gap-4 text-xs">
+            <button
+              onClick={() => {
+                navigateTo('/terminos');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0"
+            >
+              Términos y Condiciones
+            </button>
+            <span>•</span>
+            <button
+              onClick={() => {
+                navigateTo('/privacidad');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="text-xs text-slate-400 hover:text-white transition-colors cursor-pointer bg-transparent border-none p-0"
+            >
+              Políticas de Privacidad
+            </button>
+          </div>
         </div>
       </footer>
     );
@@ -50,42 +71,47 @@ export const Footer: React.FC = () => {
           {/* Social Media Row */}
           <div className="flex items-center gap-[16px] pt-1">
             <a 
-              href="#instagram" 
-              onClick={() => addToast('https://www.instagram.com/dcubanbeatsoficial/', 'info')}
+              href="https://www.instagram.com/dcubanbeatsoficial/" 
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-8 h-8 rounded-lg bg-white/5 hover:bg-[#7F77DD]/20 hover:text-[#7F77DD] flex items-center justify-center transition-all cursor-pointer text-slate-400 hover:scale-105"
-              title="Instagram"
+              title="Instagram: @dcubanbeatsoficial"
             >
               <Instagram size={18} />
             </a>
             <a 
-              href="#youtube" 
-              onClick={() => addToast('https://youtube.com/@dcubanbeatssoporte?si=EUKPk57Yg7B6EPzu', 'info')}
+              href="https://youtube.com/@dcubanbeatssoporte?si=EUKPk57Yg7B6EPzu" 
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-8 h-8 rounded-lg bg-white/5 hover:bg-[#7F77DD]/20 hover:text-[#7F77DD] flex items-center justify-center transition-all cursor-pointer text-slate-400 hover:scale-105"
-              title="YouTube"
+              title="YouTube: @dcubanbeatssoporte"
             >
               <Youtube size={18} />
             </a>
             <a 
-              href="#facebook" 
-              onClick={() => addToast('https://www.facebook.com/profile.php?id=61591638920697', 'info')}
+              href="https://www.facebook.com/profile.php?id=61591638920697" 
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-8 h-8 rounded-lg bg-white/5 hover:bg-[#7F77DD]/20 hover:text-[#7F77DD] flex items-center justify-center transition-all cursor-pointer text-slate-400 hover:scale-105"
-              title="Facebook"
+              title="Facebook: D'Cuban Beats"
             >
               <Facebook size={18} />
             </a>
             <a 
-              href="#telegram" 
-              onClick={() => addToast('https://t.me/+0Jw3azyZPTc1Njkx', 'info')}
+              href="https://t.me/+0Jw3azyZPTc1Njkx" 
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-8 h-8 rounded-lg bg-white/5 hover:bg-[#7F77DD]/20 hover:text-[#7F77DD] flex items-center justify-center transition-all cursor-pointer text-slate-400 hover:scale-105"
-              title="Telegram"
+              title="Telegram: Comunidad D'Cuban Beats"
             >
               <Send size={18} />
             </a>
             <a 
-              href="#twitter" 
-              onClick={() => addToast('https://x.com/dcubanbeats', 'info')}
+              href="https://x.com/dcubanbeats" 
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-8 h-8 rounded-lg bg-white/5 hover:bg-[#7F77DD]/20 hover:text-[#7F77DD] flex items-center justify-center transition-all cursor-pointer text-slate-400 hover:scale-105"
-              title="X (Twitter)"
+              title="X (Twitter): @dcubanbeats"
             >
               <Twitter size={18} />
             </a>
@@ -113,7 +139,11 @@ export const Footer: React.FC = () => {
             <li>
               <a 
                 href="#terminos" 
-                onClick={() => addToast('Términos y condiciones de la plataforma', 'info')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigateTo('/terminos');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 className="text-slate-400 hover:text-white transition-all cursor-pointer block text-left"
               >
                 Términos y Condiciones
@@ -131,7 +161,11 @@ export const Footer: React.FC = () => {
             <li>
               <a 
                 href="#privacidad" 
-                onClick={() => addToast('Políticas de Privacidad de D\'Cuban Beats', 'info')}
+                onClick={(e) => {
+                  e.preventDefault();
+                  navigateTo('/privacidad');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
                 className="text-slate-400 hover:text-white transition-all cursor-pointer block text-left"
               >
                 Políticas de Privacidad
@@ -175,20 +209,14 @@ export const Footer: React.FC = () => {
           <div className="space-y-2.5 text-[13px] font-normal text-slate-400">
             <div className="flex items-center gap-2">
               <Mail size={12} className="text-[#7F77DD] flex-shrink-0" />
-              <a href="mailto:soporte@dcubanbeats.cu" className="truncate hover:text-white transition-colors">
-                soporte@dcubanbeats.cu
+              <a href="mailto:soportecubabeats@gmail.com" className="truncate hover:text-white transition-colors">
+                soportecubabeats@gmail.com
               </a>
             </div>
             <div className="flex items-center gap-2">
               <Phone size={12} className="text-[#7F77DD] flex-shrink-0" />
-              <a href="tel:+5358349202" className="hover:text-white transition-colors">
-                +53 58349202
-              </a>
-            </div>
-            <div className="flex items-center gap-2">
-              <Phone size={12} className="text-[#7F77DD] flex-shrink-0" />
-              <a href="tel:+5352938174" className="hover:text-white transition-colors">
-                +53 52938174
+              <a href="tel:+5363242069" className="hover:text-white transition-colors">
+                +53 63242069
               </a>
             </div>
           </div>
@@ -197,8 +225,39 @@ export const Footer: React.FC = () => {
       </div>
 
       {/* Bottom copyright spacing */}
-      <div className="max-w-7xl xl:max-w-[1450px] mx-auto px-4 md:px-10 lg:px-14 mt-8 pt-6 border-t border-white/5 text-center text-[12px] font-normal text-slate-500">
+      <div className="max-w-7xl xl:max-w-[1450px] mx-auto px-4 md:px-10 lg:px-14 mt-8 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[12px] font-normal text-slate-500">
         <span>&copy; {new Date().getFullYear()} D'Cuban Beats Inc. • Todos los derechos reservados.</span>
+        <div className="flex items-center gap-4 text-xs">
+          <button
+            onClick={() => {
+              navigateTo('/terminos');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="hover:text-slate-300 transition-colors cursor-pointer bg-transparent border-none p-0 text-slate-400"
+          >
+            Términos y Condiciones
+          </button>
+          <span>•</span>
+          <button
+            onClick={() => {
+              navigateTo('/privacidad');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="hover:text-slate-300 transition-colors cursor-pointer bg-transparent border-none p-0 text-slate-400"
+          >
+            Políticas de Privacidad
+          </button>
+          <span>•</span>
+          <button
+            onClick={() => {
+              navigateTo('/about');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="hover:text-slate-300 transition-colors cursor-pointer bg-transparent border-none p-0 text-slate-400"
+          >
+            Sobre Nosotros
+          </button>
+        </div>
       </div>
     </footer>
   );

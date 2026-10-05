@@ -6,6 +6,7 @@ import {
   Eye, X, ShieldCheck, FileText, Ban, HelpCircle, Check, Clock, CreditCard
 } from 'lucide-react';
 import { Button } from '../../components/ui/Button';
+import { ExchangeRateBadge } from '../../components/ui/ExchangeRateBadge';
 
 interface Transaction {
   id: string;
@@ -319,7 +320,6 @@ export const AdminTransactions: React.FC = () => {
   // Aggregate Metrics based on the filtered records (only counting approved ones for revenue metrics, or all for quantity)
   const metrics = useMemo(() => {
     let salesCUP = 0;
-    let salesClasica = 0;
     let salesMLC = 0;
     let salesQvaPay = 0;
     let beatCount = 0;
@@ -327,9 +327,7 @@ export const AdminTransactions: React.FC = () => {
 
     filteredTransactions.forEach(tx => {
       if (tx.status === 'approved') {
-        if (tx.method === 'Tarjeta Clásica') {
-          salesClasica += tx.amount;
-        } else if (tx.method === 'QvaPay') {
+        if (tx.method === 'QvaPay') {
           salesQvaPay += tx.amount;
         } else if (tx.currency === 'MLC') {
           salesMLC += tx.amount;
@@ -347,7 +345,6 @@ export const AdminTransactions: React.FC = () => {
 
     return {
       salesCUP,
-      salesClasica,
       salesMLC,
       salesQvaPay,
       beatCount,
@@ -541,9 +538,10 @@ export const AdminTransactions: React.FC = () => {
             Consola central de supervisión y control para el flujo transaccional. Revise, filtre, verifique los estados de cobro y visualice los acuerdos de licencia asignados por los productores.
           </p>
         </div>
-
-
       </div>
+
+      {/* Tasa de cambio El Toque Oficial */}
+      <ExchangeRateBadge variant="banner" />
 
       {/* TABS SELECTOR */}
       <div className="flex border-b border-white/10 gap-6">
@@ -578,7 +576,7 @@ export const AdminTransactions: React.FC = () => {
       {activeTab === 'sales' ? (
         <>
           {/* METRICS DASHBOARD GRID */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in duration-300">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in duration-300">
             
             {/* Metric 1: CUP Income */}
             <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
@@ -597,24 +595,7 @@ export const AdminTransactions: React.FC = () => {
               <p className="text-[10px] text-gray-500 mt-3 font-medium">BPA/BANDEC/BANMET (Aprobadas)</p>
             </div>
 
-            {/* Metric 2: Tarjeta Clásica Income */}
-            <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-500/5 rounded-full filter blur-xl transition-all group-hover:bg-indigo-500/10" />
-              <div className="flex justify-between items-start">
-                <div className="space-y-1 text-left">
-                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider font-mono block">VOLUMEN EN CLÁSICA</span>
-                  <h3 className="text-lg md:text-xl font-black text-indigo-400 font-mono tracking-tight">
-                    ${metrics.salesClasica.toLocaleString()} USD
-                  </h3>
-                </div>
-                <span className="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                  <CreditCard size={16} />
-                </span>
-              </div>
-              <p className="text-[10px] text-gray-500 mt-3 font-medium">Tarjeta Prepago (Aprobadas)</p>
-            </div>
-
-            {/* Metric 3: MLC Income */}
+            {/* Metric 2: MLC Income */}
             <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-full filter blur-xl transition-all group-hover:bg-teal-500/10" />
               <div className="flex justify-between items-start">
@@ -631,7 +612,7 @@ export const AdminTransactions: React.FC = () => {
               <p className="text-[10px] text-gray-500 mt-3 font-medium">Bancos Cubanos (Aprobadas)</p>
             </div>
 
-            {/* Metric 4: QvaPay Income */}
+            {/* Metric 3: QvaPay Income */}
             <div className="bg-[#1C1C2E]/40 p-4 rounded-2xl border border-brand-border/15 relative overflow-hidden group">
               <div className="absolute top-0 right-0 w-24 h-24 bg-blue-500/5 rounded-full filter blur-xl transition-all group-hover:bg-blue-500/10" />
               <div className="flex justify-between items-start">

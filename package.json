@@ -34,9 +34,9 @@
     "vite": "^6.2.3"
   },
   "allowScripts": {
-    "@google/genai@2.8.0": true,
     "esbuild@0.25.12": true,
     "esbuild@0.28.1": true,
-    "protobufjs@7.6.6": true
+    "@google/genai@2.8.0": true,
+    "protobufjs@7.6.4": true
   }
 }

@@ -295,6 +295,22 @@ const INITIAL_BEATS: Beat[] = [
 
 const INITIAL_PRODUCERS: User[] = [
   {
+    id: 'admin_user',
+    name: 'Administrador',
+    lastName: 'General',
+    email: 'admin@dcubanbeats.cu',
+    username: 'admin',
+    role: 'admin',
+    position: 'Super Administrador',
+    staffRole: 'super_admin',
+    verified: true,
+    plan: 'Elite',
+    planId: 'p_elite',
+    isSupportOnline: true,
+    avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=200&auto=format&fit=crop',
+    password: 'contraseña123'
+  },
+  {
     id: 'admin_collab_1',
     name: 'Roberto',
     lastName: 'Gómez',
@@ -579,7 +595,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [selectedProducerId, setSelectedProducerId] = useState<string | null>(null);
 
   // States
-  const [user, setUserState] = useState<User | null>(null);
+  const [user, setUserState] = useState<User | null>(() => {
+    try {
+      const cached = localStorage.getItem('cb_user');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        // Evita iniciar automáticamente en el rol de administrador al recargar la app
+        if (parsed?.role === 'admin') {
+          localStorage.removeItem('cb_user');
+          return null;
+        }
+        return parsed;
+      }
+    } catch (e) {}
+    // Por defecto al recargar la app se inicia como visitante sin sesión activa
+    return null;
+  });
 
   const [beats, setBeats] = useState<Beat[]>(() => {
     const cached = localStorage.getItem('cb_beats');
@@ -660,13 +691,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return (cached as DisplayCurrency) || 'USD';
   });
 
-  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>({
-    USD: 360.0,
-    MLC: 280.0,
-    EUR: 370.0,
-    CLASICA: 310.0,
-    timestamp: Date.now(),
-    source: "Local Preset"
+  const [exchangeRates, setExchangeRates] = useState<ExchangeRates>(() => {
+    const usdVal = 385.0;
+    const mlcVal = 280.0;
+    return {
+      USD: usdVal,
+      CUP: usdVal,
+      cupPerUsd: usdVal,
+      MLC: mlcVal,
+      mlcPerUsd: Number((usdVal / mlcVal).toFixed(4)),
+      EUR: 400.0,
+      timestamp: Date.now() - (2 * 60 * 60 * 1000),
+      source: "El Toque"
+    };
   });
 
   const [producerPaymentMethods, setProducerPaymentMethodsState] = useState<any[]>(() => {
@@ -753,7 +790,19 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const res = await fetch("/api/exchange-rates");
       if (res.ok) {
         const data = await res.json();
-        setExchangeRates(data);
+        const usdVal = Number(data.USD) || 385.0;
+        const mlcVal = Number(data.MLC) || 280.0;
+        setExchangeRates({
+          ...data,
+          USD: usdVal,
+          CUP: usdVal,
+          cupPerUsd: usdVal,
+          MLC: mlcVal,
+          mlcPerUsd: Number((usdVal / mlcVal).toFixed(4)),
+          EUR: Number(data.EUR) || 400.0,
+          timestamp: data.timestamp || Date.now(),
+          source: data.source || "El Toque"
+        });
       }
     } catch (err) {
       console.warn("Could not load exchange rates from backend API, using cached/fallback rates:", err);
@@ -853,8 +902,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   }, [displayCurrency]);
 
   const convertPrice = (priceInUSD: number, toCurrency?: DisplayCurrency) => {
-    const isAllowedCurrencyPath = currentPath === '/' || currentPath === '/cart' || currentPath === '/checkout';
-    const targetCurrency = toCurrency || (isAllowedCurrencyPath ? displayCurrency : 'USD');
+    // If an explicit target currency is requested, always convert to it (useful for payment method cards).
+    // Otherwise on general browsing paths use displayCurrency, default to USD.
+    const isCatalogPath = currentPath === '/' || currentPath === '/cart' || currentPath === '/checkout';
+    const targetCurrency = toCurrency || (isCatalogPath ? displayCurrency : 'USD');
+
     if (targetCurrency === 'USD') {
       return {
         amount: priceInUSD.toFixed(2),
@@ -863,9 +915,10 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
 
     // Exchange rates are relative to USD
-    // price_in_CUP = price_in_USD * rates.USD
-    // price_in_target_currency = price_in_CUP / rates[targetCurrency]
-    const priceInCUP = priceInUSD * (exchangeRates?.USD || 360.0);
+    // 1 USD = exchangeRates.USD in CUP (e.g. 385.0)
+    // 1 MLC = exchangeRates.MLC in CUP (e.g. 280.0)
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const priceInCUP = priceInUSD * usdRate;
     
     if (targetCurrency === 'CUP') {
       return {
@@ -874,20 +927,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       };
     }
 
-    let targetRate = 1.0;
-    let label = targetCurrency as string;
     if (targetCurrency === 'MLC') {
-      targetRate = exchangeRates?.MLC || 280.0;
-      label = "MLC";
-    } else if (targetCurrency === 'CLASICA') {
-      targetRate = exchangeRates?.CLASICA || 310.0;
-      label = "Clásica";
+      const mlcRate = exchangeRates?.MLC || 280.0;
+      const convertedAmount = priceInCUP / mlcRate;
+      return {
+        amount: convertedAmount.toFixed(2),
+        formatted: `$${convertedAmount.toFixed(2)} MLC`
+      };
     }
 
-    const convertedAmount = priceInCUP / targetRate;
     return {
-      amount: convertedAmount.toFixed(2),
-      formatted: `$${convertedAmount.toFixed(2)} ${label}`
+      amount: priceInUSD.toFixed(2),
+      formatted: `$${priceInUSD.toFixed(2)} USD`
     };
   };
 
@@ -1896,6 +1947,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const setUser = (newUser: User | null) => {
     setUserState(newUser);
     if (newUser) {
+      try {
+        localStorage.setItem('cb_user', JSON.stringify(newUser));
+      } catch (e) {}
       if (newUser.role === 'producer') {
         setVerifiedProducersTask(prev => {
           const exists = prev.some(p => p.id === newUser.id);
@@ -1917,6 +1971,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setCurrentPath('/artist/dashboard');
       }
     } else {
+      try {
+        localStorage.removeItem('cb_user');
+      } catch (e) {}
       addToast('Sesión cerrada correctamente', 'info');
       setCurrentPath('/');
     }
@@ -1930,6 +1987,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       
       const updated = { ...user, ...profile };
       setUserState(updated);
+      try {
+        localStorage.setItem('cb_user', JSON.stringify(updated));
+      } catch (e) {}
       
       // Synchronize in the verified producers list too if needed
       setVerifiedProducersTask(prev => {
@@ -2017,9 +2077,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    const rateUsed = req.exchangeRateUsed ?? (req.currency === 'CUP' ? (exchangeRates.CUP || 330) : 1);
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const mlcRate = exchangeRates?.MLC || 280.0;
+    let fallbackRate = 1.0;
+    if (req.currency === 'CUP') {
+      fallbackRate = usdRate;
+    } else if (req.currency === 'MLC') {
+      fallbackRate = Number((usdRate / mlcRate).toFixed(4));
+    }
+
+    const rateUsed = req.exchangeRateUsed ?? fallbackRate;
     const usdVal = req.amountUSD ?? req.amount;
-    const localVal = req.amountConverted ?? (req.currency === 'CUP' ? req.amount * rateUsed : req.amount);
+    const localVal = req.amountConverted ?? (req.currency === 'CUP' ? Math.round(req.amount * rateUsed) : Number((req.amount * rateUsed).toFixed(2)));
     const frozenAt = req.rateFrozenAt ?? new Date().toISOString();
 
     const newRequest: PlanRequest = {
@@ -2322,9 +2391,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       return false;
     }
 
-    const rateUsed = order.exchangeRateUsed || (order.currency === 'CUP' ? (exchangeRates.CUP || 330) : (order.currency === 'MLC' || order.currency === 'CLASICA' ? (exchangeRates.MLC || 1.15) : 1));
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const mlcRate = exchangeRates?.MLC || 280.0;
+    let fallbackRate = 1.0;
+    if (order.currency === 'CUP') {
+      fallbackRate = usdRate;
+    } else if (order.currency === 'MLC') {
+      fallbackRate = Number((usdRate / mlcRate).toFixed(4));
+    }
+
+    const rateUsed = order.exchangeRateUsed || fallbackRate;
     const usdVal = order.amountUSD || order.amount;
-    const localVal = order.amountConverted || order.amount;
+    const localVal = order.amountConverted || (order.currency === 'CUP' ? Math.round(order.amount * rateUsed) : Number((order.amount * rateUsed).toFixed(2)));
     const frozenAt = order.rateFrozenAt || new Date().toISOString();
 
     const fullOrder: Order = {

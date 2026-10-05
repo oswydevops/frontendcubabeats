@@ -151,26 +151,34 @@ export const GuestBecomeProducerModal: React.FC<GuestBecomeProducerModalProps> =
     };
 
     if (isPaidPlan) {
+      const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+      const mlcRate = exchangeRates?.MLC || 280.0;
       let finalCurrency = 'CUP';
       let finalAmountConverted = currentPlan.price;
+      let rateUsed = usdRate;
 
       if (paymentType === 'qvapay') {
         finalCurrency = 'USD';
         finalAmountConverted = currentPlan.price;
+        rateUsed = 1.0;
       } else {
         const bankMethods = activeMethods.filter(m => m.type === 'bancos' || (m.type as string) === 'transfermovil');
         const firstMethod = bankMethods[0];
-        if (firstMethod) {
-          const rawCurr = (firstMethod.currencyType || 'CUP').trim().toUpperCase();
-          finalCurrency = rawCurr === 'CLASICA' || rawCurr === 'CLÁSICA' ? 'Clásica' : rawCurr;
-          const targetCurr = (rawCurr === 'CLASICA' || rawCurr === 'CLÁSICA' ? 'CLASICA' : rawCurr) as any;
-          const conv = convertPrice(currentPlan.price, targetCurr);
-          finalAmountConverted = parseFloat(conv.amount);
+        const rawCurr = (firstMethod?.currencyType || 'CUP').trim().toUpperCase();
+        if (rawCurr === 'MLC') {
+          finalCurrency = 'MLC';
+          rateUsed = Number((usdRate / mlcRate).toFixed(4));
+          const conv = convertPrice(currentPlan.price, 'MLC');
+          finalAmountConverted = parseFloat(conv.amount.replace(/[^0-9.]/g, '')) || Number((currentPlan.price * rateUsed).toFixed(2));
         } else {
+          finalCurrency = 'CUP';
+          rateUsed = usdRate;
           const conv = convertPrice(currentPlan.price, 'CUP');
-          finalAmountConverted = parseFloat(conv.amount);
+          finalAmountConverted = parseFloat(conv.amount.replace(/[^0-9.]/g, '')) || Math.round(currentPlan.price * rateUsed);
         }
       }
+
+      const frozenAt = new Date().toISOString();
 
       createPlanRequest({
         producerId: newUserId,
@@ -181,7 +189,8 @@ export const GuestBecomeProducerModal: React.FC<GuestBecomeProducerModalProps> =
         currency: finalCurrency,
         amountUSD: currentPlan.price,
         amountConverted: finalAmountConverted,
-        exchangeRateUsed: exchangeRates?.USD || 360,
+        exchangeRateUsed: rateUsed,
+        rateFrozenAt: frozenAt,
         paymentMethodType: paymentType,
         transactionId: transactionId.trim(),
         receiptImage: receiptImage || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?q=80&w=600&auto=format&fit=crop'
@@ -484,9 +493,13 @@ export const GuestBecomeProducerModal: React.FC<GuestBecomeProducerModalProps> =
                         activeMethods
                           .filter(m => m.type === 'bancos' || (m.type as string) === 'transfermovil')
                           .map((method) => {
-                            const cardCurrRaw = (method.currencyType || 'CUP').trim().toUpperCase();
-                            const cardTargetCurr = (cardCurrRaw === 'CLASICA' || cardCurrRaw === 'CLÁSICA' ? 'CLASICA' : cardCurrRaw) as any;
-                            const convertedCard = convertPrice(currentPlan.price, cardTargetCurr);
+                            const cardCurr = (method.currencyType === 'MLC' ? 'MLC' : 'CUP') as 'CUP' | 'MLC';
+                            const convertedCard = convertPrice(currentPlan.price, cardCurr);
+                            const usdVal = exchangeRates?.USD || 385;
+                            const mlcVal = exchangeRates?.MLC || 280;
+                            const rateSubText = cardCurr === 'MLC'
+                              ? `Tasa El Toque: 1 USD ≈ ${(usdVal / mlcVal).toFixed(2)} MLC`
+                              : `Tasa El Toque: 1 USD = ${usdVal} CUP`;
 
                             return (
                               <div key={method.id} className="bg-[#0D0D14] border border-[#7F77DD]/30 p-4 rounded-2xl space-y-3 text-xs">
@@ -494,7 +507,7 @@ export const GuestBecomeProducerModal: React.FC<GuestBecomeProducerModalProps> =
                                   <div className="flex items-center gap-2">
                                     <Landmark size={15} className="text-amber-400" />
                                     <span className="font-bold text-white text-sm">
-                                      {method.bankName || 'Banco Cubano'} {method.currencyType ? `(${method.currencyType})` : ''}
+                                      {method.bankName || 'Banco Cubano'} ({cardCurr})
                                     </span>
                                   </div>
                                   <div className="flex items-center gap-1.5">
@@ -516,10 +529,10 @@ export const GuestBecomeProducerModal: React.FC<GuestBecomeProducerModalProps> =
                                   <div className="flex items-center justify-between p-2.5 bg-gradient-to-r from-amber-500/15 via-amber-500/10 to-transparent rounded-xl border border-amber-500/30">
                                     <div className="text-left">
                                       <span className="text-white/80 text-[11px] font-bold block">
-                                        Monto Fijo a Transferir ({method.currencyType || 'CUP'}):
+                                        Monto Fijo a Transferir ({cardCurr}):
                                       </span>
                                       <span className="text-[10px] text-amber-300/80 font-mono block">
-                                        Actualizado desde API El Toque (12h)
+                                        {rateSubText}
                                       </span>
                                     </div>
                                     <div className="flex items-center gap-2">

@@ -30,7 +30,7 @@ export const ProducerPaymentMethods: React.FC = () => {
   const [acceptsTransfermovil, setAcceptsTransfermovil] = useState(true);
   const [acceptsEnzona, setAcceptsEnzona] = useState(true);
   const [bankCardNumber, setBankCardNumber] = useState('');
-  const [bankCurrencyType, setBankCurrencyType] = useState<'Clasica' | 'CUP' | 'MLC'>('CUP');
+  const [bankCurrencyType, setBankCurrencyType] = useState<'CUP' | 'MLC'>('CUP');
   const [bankPhoneConfirm, setBankPhoneConfirm] = useState('');
   const [bankTitularName, setBankTitularName] = useState('');
   const [bankQrUrl, setBankQrUrl] = useState('');
@@ -406,7 +406,6 @@ export const ProducerPaymentMethods: React.FC = () => {
                   >
                     <option value="CUP" className="bg-brand-surface">CUP</option>
                     <option value="MLC" className="bg-brand-surface">MLC</option>
-                    <option value="Clasica" className="bg-brand-surface">Clasica</option>
                   </select>
                 </div>
 

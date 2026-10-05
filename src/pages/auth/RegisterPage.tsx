@@ -4,7 +4,7 @@ import { useApp } from '../../store/AppContext';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { User, Check, AlertCircle, ArrowLeft, Sparkles } from 'lucide-react';
+import { User, Check, AlertCircle, ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
 import { BrandLogo } from '../../components/layout/BrandLogo';
 
 export const RegisterPage: React.FC = () => {
@@ -283,6 +283,26 @@ export const RegisterPage: React.FC = () => {
             >
               {progressPercent === 100 ? 'Registrar mi Cuenta ✓' : `Completa los Datos Obligatorios (${filledCount}/${totalRequired})`}
             </Button>
+
+            <p className="text-[11px] text-center text-white/40 leading-relaxed px-2">
+              Al hacer clic en <strong className="text-white/70">"Registrar mi Cuenta"</strong>, declaras ser mayor de edad y aceptas plenamente los{' '}
+              <button
+                type="button"
+                onClick={() => navigateTo('/terminos')}
+                className="text-[#7F77DD] hover:underline font-medium bg-transparent border-none p-0 cursor-pointer text-[11px]"
+              >
+                Términos y Condiciones
+              </button>{' '}
+              y las{' '}
+              <button
+                type="button"
+                onClick={() => navigateTo('/privacidad')}
+                className="text-[#7F77DD] hover:underline font-medium bg-transparent border-none p-0 cursor-pointer text-[11px]"
+              >
+                Políticas de Privacidad
+              </button>{' '}
+              de D'Cuban Beats.
+            </p>
           </form>
 
           <div className="text-center flex flex-col items-center gap-3 pt-2">

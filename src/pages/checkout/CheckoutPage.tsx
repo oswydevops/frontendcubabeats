@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
+import { ExchangeRateBadge } from '../../components/ui/ExchangeRateBadge';
 import { 
   CreditCard, Landmark, Check, ArrowLeft, 
   Send, ShieldAlert, Upload, Wallet, Copy, X, Camera, ChevronRight, ChevronLeft
@@ -284,7 +285,8 @@ export const CheckoutPage: React.FC = () => {
     }
 
     let allSuccessful = true;
-    const rateSnapshot = exchangeRates?.USD || 360;
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const mlcRate = exchangeRates?.MLC || 280.0;
     const frozenAt = new Date().toISOString();
 
     // Recorrer cada grupo de productor y generar sus órdenes correspondientes con sus propios datos de pago
@@ -297,7 +299,13 @@ export const CheckoutPage: React.FC = () => {
       for (const item of group.items) {
         if (proof.channel === 'bancos') {
           const targetCurrency = groupBankCard?.currencyType || 'CUP';
-          const convertedAmount = item.price * rateSnapshot;
+          let rateForMethod = usdRate;
+          let convertedAmount = Math.round(item.price * usdRate);
+
+          if (targetCurrency === 'MLC') {
+            rateForMethod = Number((usdRate / mlcRate).toFixed(4));
+            convertedAmount = Number((item.price * rateForMethod).toFixed(2));
+          }
 
           const created = createOrder({
             id: `CB-${Math.floor(1000 + Math.random() * 9000)}`,
@@ -307,7 +315,7 @@ export const CheckoutPage: React.FC = () => {
             buyerEmail: user?.email || 'cliente@dcubanbeats.com',
             producerId: item.beat.producerId,
             producerName: item.beat.producerName,
-            amount: item.price,
+            amount: convertedAmount,
             currency: targetCurrency,
             method: groupBankCard?.acceptsTransfermovil ? 'Transfermovil' : 'EnZona',
             status: 'pending',
@@ -315,7 +323,7 @@ export const CheckoutPage: React.FC = () => {
             transactionId: proof.transactionId.trim(),
             verificationSMS: proof.smsConfirmation || undefined,
             receiptUrl: proof.receiptImage || '',
-            exchangeRateUsed: rateSnapshot,
+            exchangeRateUsed: rateForMethod,
             amountUSD: item.price,
             amountConverted: convertedAmount,
             rateFrozenAt: frozenAt
@@ -492,6 +500,9 @@ export const CheckoutPage: React.FC = () => {
           <span>Volver al Carrito</span>
         </button>
       </div>
+
+      {/* Exchange Rate Transparency Banner */}
+      <ExchangeRateBadge variant="banner" />
 
       {/* CAMBIO CLAVE 4: Visualizador de pasos cuando hay múltiples productores */}
       {isMultiProducer && (

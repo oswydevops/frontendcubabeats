@@ -25,7 +25,7 @@ export const AdminPaymentMethods: React.FC = () => {
   const [tmBankName, setTmBankName] = useState('BANDEC');
   const [tmCardHolder, setTmCardHolder] = useState("D'Cuban Beats S.A.");
   const [tmCardNumber, setTmCardNumber] = useState('');
-  const [tmCurrency, setTmCurrency] = useState<'CUP' | 'MLC' | 'Clasica'>('CUP');
+  const [tmCurrency, setTmCurrency] = useState<'CUP' | 'MLC'>('CUP');
   const [tmPhone, setTmPhone] = useState('');
   const [tmQrUrl, setTmQrUrl] = useState('');
   const [tmAcceptsTransfermovil, setTmAcceptsTransfermovil] = useState(true);
@@ -394,7 +394,6 @@ export const AdminPaymentMethods: React.FC = () => {
                   >
                     <option value="CUP" className="bg-[#1C1C2E]">CUP</option>
                     <option value="MLC" className="bg-[#1C1C2E]">MLC</option>
-                    <option value="Clasica" className="bg-[#1C1C2E]">Clasica</option>
                   </select>
                 </div>
 

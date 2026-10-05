@@ -5,25 +5,31 @@ import { useApp } from '../../store/AppContext';
 export const AboutUsPage: React.FC = () => {
   const { addToast } = useApp();
 
+  // =========================================================================
+  // 👥 SECCIÓN DE INTEGRANTES DEL EQUIPO
+  // Modifica, agrega o elimina integrantes editando los objetos de esta lista.
+  // • name: Nombre completo del integrante
+  // • role: Cargo o función en el proyecto (ej. "Desarrollador & CEO")
+  // • bio: Breve descripción o trayectoria profesional
+  // • avatar: URL de la foto (puedes usar un enlace directo https://... o una ruta local /assets/...)
+  // =========================================================================
   const team = [
     {
+      // --- Integrante 1 ---
       name: 'Osvaldo Leandro Navas Martínez',
-      role: 'Desarrollador & CEO',
-      bio: 'Inició D\'Cuban Beats con el sueño de digitalizar y monetizar el talento musical cubano, abriendo las puertas al mercado internacional para productores locales.',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+      role: 'Founder & CEO',
+      bio: 'Creó D\'Cuban Beats con el sueño de digitalizar y monetizar el talento musical cubano, abriendo las puertas al mercado internacional para productores locales.',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80', // <-- Cambia aquí la foto
     },
+    /* 
+    // Para agregar un cuarto integrante, quita los comentarios de este bloque:
     {
-      name: 'Alejandro Dìaz Pèrez',
-      role: 'Desarrollador',
-      bio: 'Productor galardonado con más de 10 años en la escena urbana cubana. Supervisa la calidad de cada beat que sube a la plataforma para garantizar altos estándares.',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=250&q=80',
-    },
-    {
-      name: 'Lian Ariel Cabrera ',
-      role: 'Desarrollador & Soporte',
-      bio: 'Especialista en propiedad intelectual. Se asegura de que los contratos de licencias básicas y exclusivas cumplan con las regulaciones de autoría vigentes.',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=250&q=80',
+      name: 'Nuevo Integrante',
+      role: 'Puesto o Especialidad',
+      bio: 'Descripción de su función en la empresa...',
+      avatar: 'https://images.unsplash.com/...',
     }
+    */
   ];
 
   return (

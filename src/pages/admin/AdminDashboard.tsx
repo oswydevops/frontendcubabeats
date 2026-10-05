@@ -4,6 +4,7 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { DashboardSkeleton } from '../../components/ui/DashboardSkeleton';
+import { ExchangeRateBadge } from '../../components/ui/ExchangeRateBadge';
 import { 
   Users, Music, Receipt, Activity, ShieldCheck, Landmark, Check, 
   Trash2, XCircle, AlertCircle, Eye, RefreshCw,
@@ -59,13 +60,6 @@ export const AdminDashboard: React.FC = () => {
     return fromOrders + 8450;
   }, [orders]);
 
-  const salesClasica = useMemo(() => {
-    const fromOrders = orders
-      .filter(o => o.status === 'approved' && (o.currency === 'CLASICA' || o.currency === 'CLÁSICA' || o.method === 'Tarjeta Clásica'))
-      .reduce((acc, o) => acc + o.amount, 0);
-    return fromOrders + 15200;
-  }, [orders]);
-
   const pendingOrdersCount = useMemo(() => {
     return orders.filter(o => o.status === 'pending').length;
   }, [orders]);
@@ -108,6 +102,9 @@ export const AdminDashboard: React.FC = () => {
           Refrescar Datos
         </button>
       </div>
+
+      {/* Tasa de cambio El Toque Oficial */}
+      <ExchangeRateBadge variant="banner" />
 
       {/* KPI blocks global */}
       {user?.isCollaborator ? (
@@ -179,7 +176,7 @@ export const AdminDashboard: React.FC = () => {
 
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           
           {/* Metric 1 - CUP */}
           <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-1.5 relative overflow-hidden group">
@@ -224,21 +221,6 @@ export const AdminDashboard: React.FC = () => {
               </span>
             </div>
             <span className="text-[10.5px] text-purple-400 font-semibold block">● Pasarela QvaPay (Crypto/USDT)</span>
-          </div>
-
-          {/* Metric 4 - Clásica (USD) */}
-          <div className="bg-brand-surface p-5 rounded-2xl border border-brand-border/40 shadow-sm space-y-1.5 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-24 h-24 bg-amber-500/5 rounded-full filter blur-xl transition-all group-hover:bg-amber-500/10" />
-            <div className="flex justify-between items-start">
-              <div className="space-y-1 text-left">
-                <span className="text-[10px] uppercase font-bold text-gray-400 tracking-wider block">Facturación Clásica (USD)</span>
-                <h3 className="text-lg md:text-xl font-extrabold font-mono text-amber-400">${salesClasica.toLocaleString()} USD</h3>
-              </div>
-              <span className="p-2 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                <CreditCard size={16} />
-              </span>
-            </div>
-            <span className="text-[10.5px] text-amber-400 font-semibold block">● Tarjetas Internacionales Clásica</span>
           </div>
 
         </div>

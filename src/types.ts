@@ -170,8 +170,8 @@ export interface Order {
   producerPhone?: string;
   producerTelegram?: string;
   amount: number;
-  currency: 'CUP' | 'MLC' | 'CLASICA' | 'USD' | 'USDT';
-  method: 'Transfermovil' | 'EnZona' | 'Tarjeta Clásica' | 'QvaPay';
+  currency: 'CUP' | 'MLC' | 'USD' | 'USDT' | 'CLASICA'; // CLASICA conservada solo para compatibilidad histórica
+  method: 'Transfermovil' | 'EnZona' | 'QvaPay' | 'Tarjeta Clásica';
   status: 'pending' | 'verified' | 'approved' | 'rejected' | 'disputed';
   date: string;
   createdAt?: string;
@@ -205,7 +205,7 @@ export interface AdminPaymentMethod {
   id: string;
   type: 'transfermovil' | 'qvapay' | 'bancos';
   cardNumber?: string;
-  currencyType?: 'CUP' | 'MLC' | 'Clasica' | 'USD';
+  currencyType?: 'CUP' | 'MLC' | 'USD';
   bankName?: string;
   cardHolder?: string;
   phoneConfirm?: string;
@@ -241,16 +241,35 @@ export interface Plan {
   allowedFormats?: string; // allowed formats description, e.g. 'MP3', 'WAV'
 }
 
+/**
+ * Estructura de tasas de cambio del mercado informal cubano (proporcionadas por El Toque).
+ *
+ * NOTA CRÍTICA DE ARQUITECTURA:
+ * - Todos los precios base de la plataforma están anclados en USD.
+ * - 'USD' (y sus alias 'CUP' / 'cupPerUsd') expresa cuántos pesos cubanos (CUP) equivalen a 1 USD en el mercado informal.
+ *   Ejemplo: Si USD = 385.0, significa que 1 USD ≈ 385 CUP.
+ *   Fórmula en CUP: Precio_en_USD * exchangeRates.USD.
+ *
+ * - 'MLC' expresa cuántos CUP vale 1 MLC en el mercado informal (ej: 280.0 CUP = 1 MLC).
+ *   Fórmula en MLC: (Precio_en_USD * exchangeRates.USD) / exchangeRates.MLC.
+ *   La tasa efectiva 1 USD en MLC es (exchangeRates.USD / exchangeRates.MLC), ej: 385 / 280 ≈ 1.375 MLC por USD.
+ *
+ * - 'EUR' expresa cuántos CUP vale 1 EUR en el mercado informal (ej: 400.0 CUP).
+ */
 export interface ExchangeRates {
-  USD: number;
-  MLC: number;
-  EUR: number;
-  CLASICA: number;
-  timestamp: number;
-  source: string;
+  USD: number;         // CUP por 1 USD (ej: 385.0)
+  CUP?: number;        // Alias explícito para evitar bugs si se busca exchangeRates.CUP
+  cupPerUsd?: number;  // Alias semántico (CUP por cada 1 USD)
+  MLC: number;         // CUP por 1 MLC (ej: 280.0)
+  mlcPerUsd?: number;  // Tasa calculada de MLC por cada 1 USD (USD / MLC, ej. 1.375)
+  EUR: number;         // CUP por 1 EUR
+  /** @deprecated La tarjeta Clásica ha sido eliminada del sistema. Mantenida temporalmente como opcional. */
+  CLASICA?: number;
+  timestamp: number;   // Timestamp UNIX en ms de la última sincronización
+  source: string;      // Identificador de la fuente (ej. "El Toque")
 }
 
-export type DisplayCurrency = 'USD' | 'CUP' | 'MLC' | 'CLASICA';
+export type DisplayCurrency = 'USD' | 'CUP' | 'MLC';
 
 export interface AdminNotification {
   id: string;
@@ -331,7 +350,7 @@ export interface ProducerPaymentMethod {
   id: string;
   type: 'transfermovil' | 'qvapay' | 'enzona';
   cardNumber?: string;
-  currencyType?: 'Clasica' | 'CUP' | 'MLC';
+  currencyType?: 'CUP' | 'MLC';
   titularName?: string;
   phoneConfirm?: string;
   qrScreenshot?: string;

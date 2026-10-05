@@ -4,6 +4,7 @@ import { useApp, resolveUserPlan } from '../../store/AppContext';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { DashboardSkeleton } from '../../components/ui/DashboardSkeleton';
+import { ExchangeRateBadge } from '../../components/ui/ExchangeRateBadge';
 import { 
   DollarSign, Music, Play, AlertOctagon, ArrowUpRight, 
   Sparkles, CheckCircle2, TrendingUp, Inbox, Users, 
@@ -31,7 +32,7 @@ export const ProducerDashboard: React.FC = () => {
     return dmValue.toLowerCase().includes('bloqueada') || dmValue.toLowerCase().includes('blocked') || dmValue.toLowerCase().includes('❌');
   }, [activePlan]);
   const [isLoading, setIsLoading] = useState(true);
-  const [earningsCurrency, setEarningsCurrency] = useState<'CUP' | 'MLC' | 'SQP' | 'CLASICA'>('CUP');
+  const [earningsCurrency, setEarningsCurrency] = useState<'CUP' | 'MLC' | 'SQP'>('CUP');
   const [selectedArtist, setSelectedArtist] = useState<any>(null);
   const [selectedTx, setSelectedTx] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<'escritorio' | 'seguidores' | 'chat' | 'correos'>('escritorio');
@@ -239,42 +240,39 @@ export const ProducerDashboard: React.FC = () => {
 
   // Sum total of all sold beats earnings (historic seeds + live approved orders) converted to CUP
   const totalEarningsHistoricalAndLive = useMemo(() => {
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const mlcRate = exchangeRates?.MLC || 280.0;
+
     return allTransactions.reduce((acc, sale) => {
       const amount = sale.amount;
       const currency = String(sale.currency || 'CUP').toUpperCase();
       
       let amountInCUP = amount;
       if (currency === 'CUP') {
-        amountInCUP = amount <= 150 ? amount * (exchangeRates?.USD || 360.0) : amount;
+        amountInCUP = amount <= 150 ? amount * usdRate : amount;
       } else if (currency === 'MLC') {
-        amountInCUP = amount <= 150 ? amount * (exchangeRates?.USD || 360.0) : amount * (exchangeRates?.MLC || 280.0);
-      } else if (currency === 'CLASICA' || currency === 'CLÁSICA') {
-        amountInCUP = amount <= 150 ? amount * (exchangeRates?.USD || 360.0) : amount * (exchangeRates?.CLASICA || 310.0);
+        amountInCUP = amount <= 150 ? amount * usdRate : amount * mlcRate;
       } else {
-        // USDT / USD / SQP
-        amountInCUP = amount * (exchangeRates?.USD || 360.0);
+        // USDT / USD / SQP / CLASICA
+        amountInCUP = amount * usdRate;
       }
       return acc + amountInCUP;
     }, 0);
   }, [allTransactions, exchangeRates]);
 
   const formattedEarnings = useMemo(() => {
-    const rateUSD = exchangeRates?.USD || 360.0;
-    const rateMLC = exchangeRates?.MLC || 280.0;
-    const rateClasica = exchangeRates?.CLASICA || 310.0;
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const mlcRate = exchangeRates?.MLC || 280.0;
 
     let value = totalEarningsHistoricalAndLive;
     let label = 'CUP';
 
     if (earningsCurrency === 'MLC') {
-      value = totalEarningsHistoricalAndLive / rateMLC;
+      value = totalEarningsHistoricalAndLive / mlcRate;
       label = 'MLC';
     } else if (earningsCurrency === 'SQP') {
-      value = totalEarningsHistoricalAndLive / rateUSD;
-      label = 'SQP(USD)';
-    } else if (earningsCurrency === 'CLASICA') {
-      value = totalEarningsHistoricalAndLive / rateClasica;
-      label = 'Clásica';
+      value = totalEarningsHistoricalAndLive / usdRate;
+      label = 'USD';
     }
 
     if (earningsCurrency === 'CUP') {
@@ -286,10 +284,12 @@ export const ProducerDashboard: React.FC = () => {
 
   // Broken-down earnings for each specific currency used as payment method
   const brokenDownEarnings = useMemo(() => {
+    const usdRate = exchangeRates?.USD || exchangeRates?.CUP || 385.0;
+    const mlcRate = exchangeRates?.MLC || 280.0;
+
     let cupSum = 0;
     let mlcSum = 0;
     let sqpSum = 0;
-    let clasicaSum = 0;
 
     // 1. Add historical transactions (always approved and in CUP)
     allTransactions.forEach((tx) => {
@@ -304,25 +304,15 @@ export const ProducerDashboard: React.FC = () => {
       if (o.status === 'verified' || o.status === 'approved') {
         const currency = String(o.currency || 'CUP').toUpperCase();
         const rawAmount = o.amount;
-        let nativeValue = rawAmount;
 
         if (currency === 'CUP') {
-          if (rawAmount <= 150) {
-            nativeValue = rawAmount * (exchangeRates?.USD || 360.0);
-          }
-          cupSum += nativeValue;
+          cupSum += (rawAmount <= 150 ? rawAmount * usdRate : rawAmount);
         } else if (currency === 'MLC') {
-          if (rawAmount <= 150) {
-            nativeValue = (rawAmount * (exchangeRates?.USD || 360.0)) / (exchangeRates?.MLC || 280.0);
-          }
-          mlcSum += nativeValue;
-        } else if (currency === 'CLASICA' || currency === 'CLÁSICA') {
-          if (rawAmount <= 150) {
-            nativeValue = (rawAmount * (exchangeRates?.USD || 360.0)) / (exchangeRates?.CLASICA || 310.0);
-          }
-          clasicaSum += nativeValue;
-        } else if (currency === 'USDT' || currency === 'USD' || currency === 'SQP') {
-          sqpSum += rawAmount;
+          const mlcVal = rawAmount <= 150 ? (rawAmount * usdRate) / mlcRate : rawAmount;
+          mlcSum += mlcVal;
+        } else {
+          // USDT / USD / SQP
+          sqpSum += (rawAmount <= 150 ? rawAmount : rawAmount / usdRate);
         }
       }
     });
@@ -330,8 +320,7 @@ export const ProducerDashboard: React.FC = () => {
     return {
       CUP: cupSum,
       MLC: mlcSum,
-      SQP: sqpSum,
-      CLASICA: clasicaSum
+      SQP: sqpSum
     };
   }, [allTransactions, myOrders, exchangeRates]);
 
@@ -576,6 +565,9 @@ export const ProducerDashboard: React.FC = () => {
 
 
 
+          {/* Tasa de cambio El Toque Oficial */}
+          <ExchangeRateBadge variant="banner" />
+
           {/* 3. KEY METRICS STATS BLOCKS (Elegant glow and fully dark themed) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* KPI 1: CUP Gross Sales */}
@@ -586,9 +578,9 @@ export const ProducerDashboard: React.FC = () => {
                   
                   {/* Currency Switcher Buttons */}
                   <div className="flex flex-wrap gap-1 mt-1 p-0.5 bg-[#0F0F1A] rounded-lg border border-white/5">
-                    {(['CUP', 'MLC', 'SQP', 'CLASICA'] as const).map((curr) => {
+                    {(['CUP', 'MLC', 'SQP'] as const).map((curr) => {
                       const isActive = earningsCurrency === curr;
-                      const displayLabel = curr === 'SQP' ? 'SQP(USD)' : curr === 'CLASICA' ? 'Clásica' : curr;
+                      const displayLabel = curr === 'SQP' ? 'USD / SQP' : curr;
                       return (
                         <button
                           key={curr}
@@ -710,7 +702,7 @@ export const ProducerDashboard: React.FC = () => {
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* CUP Card */}
               <div className="bg-[#0B0B13] p-4 rounded-xl border border-indigo-500/10 hover:border-indigo-500/20 transition-all flex flex-col justify-between space-y-3">
                 <div className="flex justify-between items-center text-gray-400">
@@ -746,31 +738,15 @@ export const ProducerDashboard: React.FC = () => {
               {/* SQP Card */}
               <div className="bg-[#0B0B13] p-4 rounded-xl border border-emerald-500/10 hover:border-emerald-500/20 transition-all flex flex-col justify-between space-y-3">
                 <div className="flex justify-between items-center text-gray-400">
-                  <span className="text-[10px] font-bold uppercase tracking-wider">SQP (USDT / QvaPay)</span>
-                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10 font-mono font-bold">SQP</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider">USD / SQP (QvaPay)</span>
+                  <span className="text-xs font-bold text-emerald-400 bg-emerald-500/5 px-2 py-0.5 rounded border border-emerald-500/10 font-mono font-bold">USD</span>
                 </div>
                 <div>
                   <div className="text-lg font-bold font-mono text-white">
-                    ${brokenDownEarnings.SQP.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} SQP
+                    ${brokenDownEarnings.SQP.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
                   </div>
                   <span className="text-[9px] text-gray-500 block mt-1">
-                    Equivalente en dólares USDT
-                  </span>
-                </div>
-              </div>
-
-              {/* CLASICA Card */}
-              <div className="bg-[#0B0B13] p-4 rounded-xl border border-amber-500/10 hover:border-amber-500/20 transition-all flex flex-col justify-between space-y-3">
-                <div className="flex justify-between items-center text-gray-400">
-                  <span className="text-[10px] font-bold uppercase tracking-wider">Tarjeta Clásica</span>
-                  <span className="text-xs font-bold text-amber-500 bg-amber-500/5 px-2 py-0.5 rounded border border-amber-500/10 font-mono">CLÁSICA</span>
-                </div>
-                <div>
-                  <div className="text-lg font-bold font-mono text-white">
-                    ${brokenDownEarnings.CLASICA.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Clásica
-                  </div>
-                  <span className="text-[9px] text-gray-500 block mt-1">
-                    Fondo de tarjeta magnética
+                    Fondos internacionales / QvaPay
                   </span>
                 </div>
               </div>
